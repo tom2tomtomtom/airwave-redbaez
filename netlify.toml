@@ -1,0 +1,40 @@
+[build]
+  base = "./"
+  command = "npm run build"
+  publish = "client/build"
+
+# Development settings
+[dev]
+  framework = "create-react-app"
+  command = "npm run dev"
+  port = 8888
+  publish = "client/build"
+  targetPort = 3000
+
+# Environment variables
+[build.environment]
+  REACT_APP_API_URL = "https://api-airwave.redbaez.com"
+
+# Production context
+[context.production]
+  command = "npm run build"
+
+# Branch specific settings
+[context.develop]
+  command = "npm run build"
+  # Different API URL for develop branch
+  environment = { REACT_APP_API_URL = "https://api-dev-airwave.redbaez.com" }
+
+# Handle client-side routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# More specific redirects
+[[redirects]]
+  from = "/api/*"
+  to = "https://api-airwave.redbaez.com/:splat"
+  status = 200
+  force = true
+  headers = {Access-Control-Allow-Origin = "*"}
