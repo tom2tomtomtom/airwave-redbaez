@@ -19,15 +19,22 @@ import {
   MenuItem,
   CircularProgress,
   Alert,
-  Snackbar
+  Snackbar,
+  IconButton
 } from '@mui/material';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import ShareIcon from '@mui/icons-material/Share';
+import InfoIcon from '@mui/icons-material/Info';
+import SendIcon from '@mui/icons-material/Send';
 
 import { RootState, AppDispatch } from '../../store';
 import { fetchCampaignExports, downloadExport } from '../../store/slices/exportsSlice';
 import { fetchCampaigns } from '../../store/slices/campaignsSlice';
+
+// Import custom components
+import ExportDetailsDialog from '../../components/exports/ExportDetailsDialog';
+import ExportToPlatformDialog from '../../components/exports/ExportToPlatformDialog';
 
 const ExportsPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -40,6 +47,11 @@ const ExportsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  
+  // For dialogs
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [platformDialogOpen, setPlatformDialogOpen] = useState(false);
+  const [selectedExport, setSelectedExport] = useState<any>(null);
 
   // Load campaigns on component mount
   useEffect(() => {
@@ -107,6 +119,16 @@ const ExportsPage: React.FC = () => {
 
   const handleSnackbarClose = () => {
     setSnackbarOpen(false);
+  };
+  
+  const handleOpenDetailsDialog = (exportItem: any) => {
+    setSelectedExport(exportItem);
+    setDetailsDialogOpen(true);
+  };
+  
+  const handleOpenPlatformDialog = (exportItem: any) => {
+    setSelectedExport(exportItem);
+    setPlatformDialogOpen(true);
   };
 
   // Filter exports based on selected platform and search term
@@ -236,20 +258,37 @@ const ExportsPage: React.FC = () => {
                               Status: {exportItem.status.charAt(0).toUpperCase() + exportItem.status.slice(1)}
                             </Typography>
                           </CardContent>
-                          <CardActions>
-                            <Button 
-                              size="small" 
-                              startIcon={<CloudDownloadIcon />}
-                              onClick={() => handleDownload(exportItem.id)}
-                            >
-                              Download
-                            </Button>
+                          <CardActions sx={{ justifyContent: 'space-between' }}>
+                            <Box>
+                              <IconButton 
+                                size="small" 
+                                onClick={() => handleOpenDetailsDialog(exportItem)}
+                                title="View details"
+                              >
+                                <InfoIcon fontSize="small" />
+                              </IconButton>
+                              <Button 
+                                size="small" 
+                                startIcon={<CloudDownloadIcon />}
+                                onClick={() => handleDownload(exportItem.id)}
+                              >
+                                Download
+                              </Button>
+                              <Button 
+                                size="small"
+                                startIcon={<ShareIcon />}
+                                onClick={() => handleShareLink(exportItem.url)}
+                              >
+                                Share
+                              </Button>
+                            </Box>
                             <Button 
                               size="small"
-                              startIcon={<ShareIcon />}
-                              onClick={() => handleShareLink(exportItem.url)}
+                              startIcon={<SendIcon />}
+                              onClick={() => handleOpenPlatformDialog(exportItem)}
+                              color="primary"
                             >
-                              Share
+                              Post
                             </Button>
                           </CardActions>
                         </Card>
@@ -289,20 +328,30 @@ const ExportsPage: React.FC = () => {
                                     Status: {exportItem.status.charAt(0).toUpperCase() + exportItem.status.slice(1)}
                                   </Typography>
                                 </CardContent>
-                                <CardActions>
-                                  <Button 
-                                    size="small" 
-                                    startIcon={<CloudDownloadIcon />}
-                                    onClick={() => handleDownload(exportItem.id)}
-                                  >
-                                    Download
-                                  </Button>
+                                <CardActions sx={{ justifyContent: 'space-between' }}>
+                                  <Box>
+                                    <IconButton 
+                                      size="small" 
+                                      onClick={() => handleOpenDetailsDialog(exportItem)}
+                                      title="View details"
+                                    >
+                                      <InfoIcon fontSize="small" />
+                                    </IconButton>
+                                    <Button 
+                                      size="small" 
+                                      startIcon={<CloudDownloadIcon />}
+                                      onClick={() => handleDownload(exportItem.id)}
+                                    >
+                                      Download
+                                    </Button>
+                                  </Box>
                                   <Button 
                                     size="small"
-                                    startIcon={<ShareIcon />}
-                                    onClick={() => handleShareLink(exportItem.url)}
+                                    startIcon={<SendIcon />}
+                                    onClick={() => handleOpenPlatformDialog(exportItem)}
+                                    color="primary"
                                   >
-                                    Share
+                                    Post
                                   </Button>
                                 </CardActions>
                               </Card>
@@ -349,20 +398,30 @@ const ExportsPage: React.FC = () => {
                                 Status: {exportItem.status.charAt(0).toUpperCase() + exportItem.status.slice(1)}
                               </Typography>
                             </CardContent>
-                            <CardActions>
-                              <Button 
-                                size="small" 
-                                startIcon={<CloudDownloadIcon />}
-                                onClick={() => handleDownload(exportItem.id)}
-                              >
-                                Download
-                              </Button>
+                            <CardActions sx={{ justifyContent: 'space-between' }}>
+                              <Box>
+                                <IconButton 
+                                  size="small" 
+                                  onClick={() => handleOpenDetailsDialog(exportItem)}
+                                  title="View details"
+                                >
+                                  <InfoIcon fontSize="small" />
+                                </IconButton>
+                                <Button 
+                                  size="small" 
+                                  startIcon={<CloudDownloadIcon />}
+                                  onClick={() => handleDownload(exportItem.id)}
+                                >
+                                  Download
+                                </Button>
+                              </Box>
                               <Button 
                                 size="small"
-                                startIcon={<ShareIcon />}
-                                onClick={() => handleShareLink(exportItem.url)}
+                                startIcon={<SendIcon />}
+                                onClick={() => handleOpenPlatformDialog(exportItem)}
+                                color="primary"
                               >
-                                Share
+                                Post
                               </Button>
                             </CardActions>
                           </Card>
@@ -385,6 +444,23 @@ const ExportsPage: React.FC = () => {
           Please select a campaign to view its exports.
         </Alert>
       )}
+      
+      {/* Details Dialog */}
+      <ExportDetailsDialog
+        open={detailsDialogOpen}
+        onClose={() => setDetailsDialogOpen(false)}
+        exportItem={selectedExport}
+        onDownload={handleDownload}
+        onShare={handleShareLink}
+      />
+      
+      {/* Export to Platform Dialog */}
+      <ExportToPlatformDialog
+        open={platformDialogOpen}
+        onClose={() => setPlatformDialogOpen(false)}
+        campaignId={selectedCampaignId}
+        exportItems={exports}
+      />
       
       <Snackbar
         open={snackbarOpen}
