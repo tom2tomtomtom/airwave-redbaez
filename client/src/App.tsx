@@ -16,6 +16,7 @@ import CampaignDetailPage from './pages/campaigns/CampaignDetailPage';
 import CreateCampaignPage from './pages/campaigns/CreateCampaignPage';
 import GeneratePage from './pages/generate/GeneratePage';
 import ExportsPage from './pages/exports/ExportsPage';
+import AnalyticsPage from './pages/exports/AnalyticsPage';
 
 // Redux
 import { RootState } from './store';
@@ -54,6 +55,7 @@ const App: React.FC = () => {
         <Route path="campaigns/:id" element={<CampaignDetailPage />} />
         <Route path="generate" element={<GeneratePage />} />
         <Route path="exports" element={<ExportsPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
       </Route>
       
       <Route path="*" element={<Navigate to="/" replace />} />
