@@ -3,9 +3,7 @@ import authReducer from './slices/authSlice';
 import assetsReducer from './slices/assetsSlice';
 import templatesReducer from './slices/templatesSlice';
 import campaignsReducer from './slices/campaignsSlice';
-import generateReducer from './slices/generateSlice';
 import exportsReducer from './slices/exportsSlice';
-import uiReducer from './slices/uiSlice';
 
 export const store = configureStore({
   reducer: {
@@ -13,15 +11,20 @@ export const store = configureStore({
     assets: assetsReducer,
     templates: templatesReducer,
     campaigns: campaignsReducer,
-    generate: generateReducer,
     exports: exportsReducer,
-    ui: uiReducer,
   },
+  // Add middleware or other config here if needed
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
-      serializableCheck: false, // for non-serializable data like File objects
+      serializableCheck: {
+        // Ignore non-serializable values in specific action types
+        ignoredActions: ['assets/uploadAsset/fulfilled'],
+      },
     }),
 });
 
+// Infer the `RootState` and `AppDispatch` types from the store itself
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
+
+export default store;
