@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { 
   Card, 
   CardMedia, 
@@ -26,15 +26,20 @@ import {
   AudioFile as AudioFileIcon
 } from '@mui/icons-material';
 import { Asset } from '../../types/assets';
+import { useAssetOperations } from '../../hooks/useAssetOperations';
 
 interface AssetCardProps {
   asset: Asset;
+  onAssetChanged?: (assetId: string) => void;
 }
 
-const AssetCard: React.FC<AssetCardProps> = ({ asset }) => {
+const AssetCard: React.FC<AssetCardProps> = ({ asset, onAssetChanged }) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [isFavorite, setIsFavorite] = useState(asset.isFavorite || false);
+  const [isFavourite, setIsFavourite] = useState(asset.isFavourite || false);
   const [isPlaying, setIsPlaying] = useState(false);
+  
+  // Use our custom hook for asset operations
+  const { toggleFavourite, deleteAsset, downloadAsset, loading, error } = useAssetOperations();
   
   const handleMenuClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     setAnchorEl(event.currentTarget);
@@ -44,29 +49,38 @@ const AssetCard: React.FC<AssetCardProps> = ({ asset }) => {
     setAnchorEl(null);
   };
 
-  const handleFavoriteToggle = () => {
-    setIsFavorite(!isFavorite);
-    // Here you would dispatch an action to update the favorite status in the backend
-  };
+  const handleFavouriteToggle = useCallback(async () => {
+    const newStatus = await toggleFavourite(asset.id, isFavourite);
+    setIsFavourite(newStatus);
+    
+    if (onAssetChanged) {
+      onAssetChanged(asset.id);
+    }
+  }, [asset.id, isFavourite, toggleFavourite, onAssetChanged]);
 
   const handlePlayToggle = () => {
     setIsPlaying(!isPlaying);
   };
 
-  const handleDelete = () => {
-    // Dispatch delete action
+  const handleDelete = useCallback(async () => {
+    const success = await deleteAsset(asset.id);
+    
+    if (success && onAssetChanged) {
+      onAssetChanged(asset.id);
+    }
+    
     handleMenuClose();
-  };
+  }, [asset.id, deleteAsset, onAssetChanged]);
 
   const handleEdit = () => {
     // Redirect to edit page or open edit dialog
     handleMenuClose();
   };
 
-  const handleDownload = () => {
-    // Handle asset download
+  const handleDownload = useCallback(async () => {
+    await downloadAsset(asset.id);
     handleMenuClose();
-  };
+  }, [asset.id, downloadAsset]);
 
   // Determine icon based on asset type
   const getAssetTypeIcon = () => {
@@ -172,9 +186,10 @@ const AssetCard: React.FC<AssetCardProps> = ({ asset }) => {
           </Typography>
           <IconButton 
             size="small" 
-            onClick={handleFavoriteToggle}
+            onClick={handleFavouriteToggle}
+            disabled={loading}
           >
-            {isFavorite ? <FavoriteIcon color="error" /> : <FavoriteBorderIcon />}
+            {isFavourite ? <FavoriteIcon color="error" /> : <FavoriteBorderIcon />}
           </IconButton>
         </Box>
         

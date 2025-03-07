@@ -16,7 +16,8 @@ import {
   CircularProgress,
   Alert,
   Button,
-  Divider
+  Divider,
+  SelectChangeEvent
 } from '@mui/material';
 import {
   LineChart,
@@ -118,12 +119,12 @@ const AnalyticsPage: React.FC = () => {
     setTabValue(newValue);
   };
   
-  const handleCampaignChange = (event: React.ChangeEvent<{ value: unknown }>) => {
-    setSelectedCampaignId(event.target.value as string);
+  const handleCampaignChange = (event: SelectChangeEvent<string>) => {
+    setSelectedCampaignId(event.target.value);
   };
   
-  const handleDateRangeChange = (event: React.ChangeEvent<{ value: unknown }>) => {
-    setDateRange(event.target.value as string);
+  const handleDateRangeChange = (event: SelectChangeEvent<string>) => {
+    setDateRange(event.target.value);
   };
   
   const formatDateString = (dateStr: string) => {

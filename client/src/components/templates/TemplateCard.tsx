@@ -37,7 +37,7 @@ const getPlatformIcon = (platform: string) => {
     case 'tiktok':
       return <span style={{ fontSize: '16px' }}>📱</span>; // TikTok icon placeholder
     default:
-      return null;
+      return undefined; // Return undefined instead of null
   }
 };
 

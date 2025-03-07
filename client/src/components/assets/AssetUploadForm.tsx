@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React from 'react';
 import { 
   Box, 
   Button, 
@@ -17,130 +17,26 @@ import {
   Add as AddIcon,
   Close as CloseIcon
 } from '@mui/icons-material';
-import { useFormik } from 'formik';
-import * as Yup from 'yup';
+import { useAssetUploadForm, assetTypes } from '../../hooks/useAssetUploadForm';
 
 interface AssetUploadFormProps {
   onSubmit: (formData: FormData) => void;
 }
 
-const assetTypes = [
-  { value: 'image', label: 'Image' },
-  { value: 'video', label: 'Video' },
-  { value: 'audio', label: 'Voice Over' },
-  { value: 'text', label: 'Copy Text' },
-];
-
-const validationSchema = Yup.object({
-  name: Yup.string().required('Name is required'),
-  type: Yup.string().required('Asset type is required').oneOf(['image', 'video', 'audio', 'text']),
-  tags: Yup.array().of(Yup.string()),
-  description: Yup.string(),
-  // File validation happens separately because formik doesn't handle file uploads well
-});
-
 const AssetUploadForm: React.FC<AssetUploadFormProps> = ({ onSubmit }) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
-  const [newTag, setNewTag] = useState('');
-  
-  const formik = useFormik({
-    initialValues: {
-      name: '',
-      type: 'image',
-      tags: [] as string[],
-      description: '',
-      content: '',
-    },
-    validationSchema,
-    onSubmit: (values) => {
-      // For text assets, we don't need a file
-      if (values.type === 'text') {
-        if (!values.content) {
-          setFileError('Content is required for text assets');
-          return;
-        }
-      } else if (!selectedFile) {
-        setFileError('File is required');
-        return;
-      }
-
-      const formData = new FormData();
-      
-      // Add all form values to the FormData
-      Object.keys(values).forEach(key => {
-        if (key === 'tags') {
-          formData.append(key, JSON.stringify(values.tags));
-        } else {
-          formData.append(key, (values as any)[key]);
-        }
-      });
-      
-      // Add the file if it's not a text asset
-      if (values.type !== 'text' && selectedFile) {
-        formData.append('file', selectedFile);
-      }
-      
-      onSubmit(formData);
-    },
-  });
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files[0]) {
-      const file = event.target.files[0];
-      
-      // Validate file type
-      const assetType = formik.values.type;
-      let isValid = false;
-      
-      if (assetType === 'image' && file.type.startsWith('image/')) {
-        isValid = true;
-      } else if (assetType === 'video' && file.type.startsWith('video/')) {
-        isValid = true;
-      } else if (assetType === 'audio' && file.type.startsWith('audio/')) {
-        isValid = true;
-      }
-      
-      if (!isValid) {
-        setFileError(`File must be a valid ${assetType} file`);
-        setSelectedFile(null);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-        return;
-      }
-      
-      setSelectedFile(file);
-      setFileError(null);
-      
-      // Auto-fill name if empty
-      if (!formik.values.name) {
-        formik.setFieldValue('name', file.name.split('.')[0]);
-      }
-    }
-  };
-
-  const handleAddTag = () => {
-    if (newTag && !formik.values.tags.includes(newTag)) {
-      formik.setFieldValue('tags', [...formik.values.tags, newTag]);
-      setNewTag('');
-    }
-  };
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    formik.setFieldValue(
-      'tags', 
-      formik.values.tags.filter(tag => tag !== tagToRemove)
-    );
-  };
-
-  const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      handleAddTag();
-    }
-  };
+  // Use our custom hook to handle form state and logic
+  const {
+    formik, 
+    fileInputRef,
+    selectedFile,
+    fileError,
+    newTag,
+    setNewTag,
+    handleFileChange,
+    handleAddTag,
+    handleRemoveTag,
+    handleTagKeyDown
+  } = useAssetUploadForm({ onSubmit });
 
   return (
     <form onSubmit={formik.handleSubmit}>
@@ -205,7 +101,7 @@ const AssetUploadForm: React.FC<AssetUploadFormProps> = ({ onSubmit }) => {
                 size="small"
                 value={newTag}
                 onChange={(e) => setNewTag(e.target.value)}
-                onKeyDown={handleKeyDown}
+                onKeyDown={handleTagKeyDown}
                 placeholder="Add tags..."
                 fullWidth
               />
