@@ -6,40 +6,36 @@ services:
       context: ./client
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3002:80"
     volumes:
       - ./client:/app
       - /app/node_modules
     depends_on:
       - server
     environment:
-      - REACT_APP_API_URL=http://server:4000
+      - REACT_APP_SERVER_URL=http://localhost:3001
+      - REACT_APP_WEBSOCKET_URL=ws://localhost:3001/ws
 
   server:
     build:
       context: ./server
       dockerfile: Dockerfile
     ports:
-      - "4000:4000"
+      - "3001:3001"
     volumes:
       - ./server:/app
       - /app/node_modules
+      - ./server/uploads:/app/uploads
     environment:
+      - PORT=3001
       - NODE_ENV=development
-      - DATABASE_URL=postgres://postgres:postgres@db:5432/airwave
-      - CREATOMATE_API_KEY=your_creatomate_api_key
-
-  db:
-    image: postgres:14
-    restart: always
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=airwave
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - CREATOMATE_API_KEY=${CREATOMATE_API_KEY}
+      - LLM_API_KEY=${LLM_API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - PROTOTYPE_MODE=true
+      - CORS_ORIGIN=http://localhost:3002
 
 volumes:
-  postgres_data:
+  uploads:

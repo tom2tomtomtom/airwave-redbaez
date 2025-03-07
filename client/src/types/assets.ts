@@ -1,7 +1,15 @@
+/**
+ * Asset type definitions
+ */
+export type AssetType = 'image' | 'video' | 'audio' | 'text';
+
+/**
+ * Asset interface defining the structure of asset objects
+ */
 export interface Asset {
   id: string;
   name: string;
-  type: 'image' | 'video' | 'audio' | 'text';
+  type: AssetType;
   url?: string;
   thumbnailUrl?: string;
   content?: string;
@@ -15,25 +23,35 @@ export interface Asset {
   width?: number;
   height?: number;
   ownerId: string;
-  isFavorite?: boolean;
+  isFavourite?: boolean;
 }
 
+/**
+ * Form data for creating or updating assets
+ */
 export interface AssetFormData {
   name: string;
-  type: 'image' | 'video' | 'audio' | 'text';
+  type: AssetType;
   description?: string;
   tags?: string[];
   content?: string;
   file?: File;
 }
 
+/**
+ * Asset filters for searching and filtering assets
+ */
 export interface AssetFilters {
   search?: string;
-  type?: 'image' | 'video' | 'audio' | 'text' | 'all';
+  type?: AssetType | 'all';
   tags?: string[];
-  favorites?: boolean;
+  favourite?: boolean;
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
   dateRange?: {
     from: string;
     to: string;
   };
+  limit?: number;
+  offset?: number;
 }

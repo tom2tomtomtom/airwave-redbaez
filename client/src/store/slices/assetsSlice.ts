@@ -18,16 +18,16 @@ const initialState: AssetsState = {
   filters: {
     type: 'all',
     search: '',
-    favorites: false,
+    favourite: false,
   },
 };
 
 // Async thunks
-export const fetchAssets = createAsyncThunk(
+export const fetchAssets = createAsyncThunk<any, AssetFilters | undefined>(
   'assets/fetchAssets',
-  async (_, { rejectWithValue }) => {
+  async (filters, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/assets');
+      const response = await axios.get('/api/assets', { params: filters });
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch assets');
@@ -86,11 +86,11 @@ export const toggleFavoriteAsset = createAsyncThunk(
         return rejectWithValue('Asset not found');
       }
       
-      const isFavorite = !asset.isFavorite;
-      const response = await axios.put(`/api/assets/${assetId}/favorite`, { isFavorite });
+      const isFavourite = !asset.isFavourite;
+      const response = await axios.put(`/api/assets/${assetId}/favourite`, { isFavourite });
       return response.data;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to toggle favorite');
+      return rejectWithValue(error.response?.data?.message || 'Failed to toggle favourite');
     }
   }
 );
@@ -104,7 +104,7 @@ const assetsSlice = createSlice({
       state.filters = { ...state.filters, ...action.payload };
     },
     clearAssetFilters: (state) => {
-      state.filters = { type: 'all', search: '', favorites: false };
+      state.filters = { type: 'all', search: '', favourite: false };
     },
     setCurrentAsset: (state, action: PayloadAction<Asset | null>) => {
       state.currentAsset = action.payload;

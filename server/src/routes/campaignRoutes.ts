@@ -1,18 +1,17 @@
 import express from 'express';
-import { authenticateToken } from '../middleware/auth';
+import { checkAuth } from '../middleware/auth.middleware';
 import { supabase } from '../db/supabaseClient';
-import { CreatomateService } from '../services/creatomateService';
+import { creatomateService } from '../services/creatomateService';
 
 const router = express.Router();
-const creatomateService = new CreatomateService();
 
 // Get all campaigns for the current user
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', checkAuth, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('campaigns')
       .select('*')
-      .eq('created_by', req.user.id)
+      .eq('owner_id', req.user.id)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -25,7 +24,7 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // Get a single campaign by ID
-router.get('/:id', authenticateToken, async (req, res) => {
+router.get('/:id', checkAuth, async (req, res) => {
   try {
     // Get campaign with executions
     const { data, error } = await supabase
@@ -35,7 +34,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
         executions (*)
       `)
       .eq('id', req.params.id)
-      .eq('created_by', req.user.id)
+      .eq('owner_id', req.user.id)
       .single();
 
     if (error) throw error;
@@ -51,7 +50,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // Create a new campaign
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', checkAuth, async (req, res) => {
   try {
     const { 
       name,
@@ -60,9 +59,7 @@ router.post('/', authenticateToken, async (req, res) => {
       startDate, 
       endDate, 
       platforms, 
-      assets, 
-      templates, 
-      executions 
+      tags 
     } = req.body;
 
     // Validate required fields
@@ -81,10 +78,9 @@ router.post('/', authenticateToken, async (req, res) => {
           start_date: startDate,
           end_date: endDate,
           platforms,
-          assets,
-          templates,
+          tags,
           status: 'draft',
-          created_by: req.user.id
+          owner_id: req.user.id
         }
       ])
       .select()
@@ -92,42 +88,22 @@ router.post('/', authenticateToken, async (req, res) => {
 
     if (error) throw error;
 
-    const campaignId = data.id;
-
-    // Insert executions if provided
-    if (executions && executions.length > 0) {
-      const executionsToInsert = executions.map(execution => ({
-        campaign_id: campaignId,
-        name: execution.name,
-        template_id: execution.templateId,
-        platform: execution.platform,
-        asset_mappings: execution.assetMappings,
-        settings: execution.settings,
-        status: 'pending'
-      }));
-
-      const { data: executionData, error: executionsError } = await supabase
-        .from('executions')
-        .insert(executionsToInsert)
-        .select();
-
-      if (executionsError) throw executionsError;
-
-      // Add executions to the campaign data
-      data.executions = executionData;
-    } else {
-      data.executions = [];
-    }
+    // Add empty executions array for consistency
+    data.executions = [];
 
     res.status(201).json(transformCampaignFromDb(data));
   } catch (error: any) {
     console.error('Error creating campaign:', error.message);
-    res.status(500).json({ message: 'Failed to create campaign' });
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to create campaign',
+      error: error.message
+    });
   }
 });
 
 // Update a campaign
-router.put('/:id', authenticateToken, async (req, res) => {
+router.put('/:id', checkAuth, async (req, res) => {
   try {
     const { 
       name,
@@ -136,8 +112,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
       startDate, 
       endDate, 
       platforms, 
-      assets, 
-      templates 
+      tags,
+      status
     } = req.body;
 
     // Check ownership
@@ -145,7 +121,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
       .from('campaigns')
       .select('*')
       .eq('id', req.params.id)
-      .eq('created_by', req.user.id)
+      .eq('owner_id', req.user.id)
       .single();
 
     if (fetchError || !existingCampaign) {
@@ -162,9 +138,9 @@ router.put('/:id', authenticateToken, async (req, res) => {
         start_date: startDate,
         end_date: endDate,
         platforms,
-        assets,
-        templates,
-        updated_at: new Date()
+        tags,
+        status: status || existingCampaign.status,
+        updated_at: new Date().toISOString()
       })
       .eq('id', req.params.id)
       .select(`
@@ -178,19 +154,23 @@ router.put('/:id', authenticateToken, async (req, res) => {
     res.json(transformCampaignFromDb(data));
   } catch (error: any) {
     console.error('Error updating campaign:', error.message);
-    res.status(500).json({ message: 'Failed to update campaign' });
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to update campaign',
+      error: error.message
+    });
   }
 });
 
 // Delete a campaign
-router.delete('/:id', authenticateToken, async (req, res) => {
+router.delete('/:id', checkAuth, async (req, res) => {
   try {
     // Check ownership
     const { data: campaign, error: fetchError } = await supabase
       .from('campaigns')
       .select('*')
       .eq('id', req.params.id)
-      .eq('created_by', req.user.id)
+      .eq('owner_id', req.user.id)
       .single();
 
     if (fetchError || !campaign) {
@@ -213,25 +193,38 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 
     if (error) throw error;
 
-    res.json({ message: 'Campaign deleted successfully' });
+    res.json({
+      success: true,
+      message: 'Campaign deleted successfully'
+    });
   } catch (error: any) {
     console.error('Error deleting campaign:', error.message);
-    res.status(500).json({ message: 'Failed to delete campaign' });
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to delete campaign',
+      error: error.message 
+    });
   }
 });
 
 // Add execution to campaign
-router.post('/:id/executions', authenticateToken, async (req, res) => {
+router.post('/:id/executions', checkAuth, async (req, res) => {
   try {
     const campaignId = req.params.id;
-    const execution = req.body;
+    const { 
+      name,
+      templateId,
+      platform,
+      format,
+      assets
+    } = req.body;
 
     // Check campaign ownership
     const { data: campaign, error: fetchError } = await supabase
       .from('campaigns')
       .select('*')
       .eq('id', campaignId)
-      .eq('created_by', req.user.id)
+      .eq('owner_id', req.user.id)
       .single();
 
     if (fetchError || !campaign) {
@@ -244,12 +237,13 @@ router.post('/:id/executions', authenticateToken, async (req, res) => {
       .insert([
         {
           campaign_id: campaignId,
-          name: execution.name,
-          template_id: execution.templateId,
-          platform: execution.platform,
-          asset_mappings: execution.assetMappings,
-          settings: execution.settings,
-          status: 'pending'
+          name,
+          template_id: templateId,
+          platform,
+          format,
+          assets,
+          status: 'draft',
+          owner_id: req.user.id
         }
       ])
       .select()
@@ -257,91 +251,22 @@ router.post('/:id/executions', authenticateToken, async (req, res) => {
 
     if (error) throw error;
 
-    res.status(201).json(transformExecutionFromDb(data));
+    res.status(201).json({
+      success: true,
+      data: transformExecutionFromDb(data)
+    });
   } catch (error: any) {
     console.error('Error adding execution:', error.message);
-    res.status(500).json({ message: 'Failed to add execution to campaign' });
-  }
-});
-
-// Update execution
-router.put('/:campaignId/executions/:executionId', authenticateToken, async (req, res) => {
-  try {
-    const { campaignId, executionId } = req.params;
-    const executionUpdate = req.body;
-
-    // Check campaign ownership
-    const { data: campaign, error: fetchError } = await supabase
-      .from('campaigns')
-      .select('*')
-      .eq('id', campaignId)
-      .eq('created_by', req.user.id)
-      .single();
-
-    if (fetchError || !campaign) {
-      return res.status(404).json({ message: 'Campaign not found or permission denied' });
-    }
-
-    // Update execution
-    const { data, error } = await supabase
-      .from('executions')
-      .update({
-        name: executionUpdate.name,
-        template_id: executionUpdate.templateId,
-        platform: executionUpdate.platform,
-        asset_mappings: executionUpdate.assetMappings,
-        settings: executionUpdate.settings,
-        updated_at: new Date()
-      })
-      .eq('id', executionId)
-      .eq('campaign_id', campaignId)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    res.json(transformExecutionFromDb(data));
-  } catch (error: any) {
-    console.error('Error updating execution:', error.message);
-    res.status(500).json({ message: 'Failed to update execution' });
-  }
-});
-
-// Delete execution
-router.delete('/:campaignId/executions/:executionId', authenticateToken, async (req, res) => {
-  try {
-    const { campaignId, executionId } = req.params;
-
-    // Check campaign ownership
-    const { data: campaign, error: fetchError } = await supabase
-      .from('campaigns')
-      .select('*')
-      .eq('id', campaignId)
-      .eq('created_by', req.user.id)
-      .single();
-
-    if (fetchError || !campaign) {
-      return res.status(404).json({ message: 'Campaign not found or permission denied' });
-    }
-
-    // Delete execution
-    const { error } = await supabase
-      .from('executions')
-      .delete()
-      .eq('id', executionId)
-      .eq('campaign_id', campaignId);
-
-    if (error) throw error;
-
-    res.json({ message: 'Execution deleted successfully' });
-  } catch (error: any) {
-    console.error('Error deleting execution:', error.message);
-    res.status(500).json({ message: 'Failed to delete execution' });
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to add execution to campaign',
+      error: error.message
+    });
   }
 });
 
 // Start rendering campaign executions
-router.post('/:id/render', authenticateToken, async (req, res) => {
+router.post('/:id/render', checkAuth, async (req, res) => {
   try {
     const campaignId = req.params.id;
 
@@ -353,7 +278,7 @@ router.post('/:id/render', authenticateToken, async (req, res) => {
         executions (*)
       `)
       .eq('id', campaignId)
-      .eq('created_by', req.user.id)
+      .eq('owner_id', req.user.id)
       .single();
 
     if (fetchError || !campaign) {
@@ -364,8 +289,8 @@ router.post('/:id/render', authenticateToken, async (req, res) => {
     const { error: updateError } = await supabase
       .from('campaigns')
       .update({
-        status: 'rendering',
-        updated_at: new Date()
+        status: 'active',
+        updated_at: new Date().toISOString()
       })
       .eq('id', campaignId);
 
@@ -373,92 +298,94 @@ router.post('/:id/render', authenticateToken, async (req, res) => {
 
     // Process each execution with Creatomate
     const renderResults = [];
+    
     for (const execution of campaign.executions) {
       try {
-        // Convert asset mappings to Creatomate modifications format
+        // Convert assets to Creatomate modifications format
         const modifications = {};
-        for (const mapping of execution.asset_mappings) {
-          if (mapping.asset_id) {
-            // If asset ID is provided, get the asset URL
-            const { data: asset } = await supabase
-              .from('assets')
-              .select('url, content')
-              .eq('id', mapping.asset_id)
-              .single();
+        
+        if (execution.assets && Array.isArray(execution.assets)) {
+          for (const asset of execution.assets) {
+            if (asset.slotId && asset.assetId) {
+              // Get the asset from the database
+              const { data: assetData } = await supabase
+                .from('assets')
+                .select('url, content, type')
+                .eq('id', asset.assetId)
+                .single();
 
-            if (asset) {
-              if (asset.url) {
-                modifications[mapping.parameter_name] = asset.url;
-              } else if (asset.content) {
-                modifications[mapping.parameter_name] = asset.content;
+              if (assetData) {
+                if (assetData.type === 'text' && assetData.content) {
+                  modifications[asset.slotId] = assetData.content;
+                } else if (assetData.url) {
+                  modifications[asset.slotId] = assetData.url;
+                }
               }
             }
-          } else if (mapping.value) {
-            // Use the direct value
-            modifications[mapping.parameter_name] = mapping.value;
           }
         }
 
-        let renderResult;
-        if (process.env.PROTOTYPE_MODE === 'true') {
-          // Simulate render in prototype mode
-          renderResult = {
-            id: `mock-render-${Date.now()}`,
-            status: 'queued'
-          };
-        } else {
-          // Actual render with Creatomate
-          renderResult = await creatomateService.renderVideo(
-            execution.template_id,
-            modifications
-          );
-        }
+        // Start the render
+        const renderJob = await creatomateService.generateVideo({
+          templateId: execution.template_id,
+          modifications,
+          outputFormat: execution.format || 'mp4'
+        });
 
         // Update execution with render information
         await supabase
           .from('executions')
           .update({
             status: 'rendering',
-            render_id: renderResult.id,
-            updated_at: new Date()
+            render_job_id: renderJob.id,
+            updated_at: new Date().toISOString()
           })
           .eq('id', execution.id);
 
         renderResults.push({
           executionId: execution.id,
-          renderId: renderResult.id,
-          status: renderResult.status
+          jobId: renderJob.id,
+          status: renderJob.status
         });
-      } catch (executionError) {
+      } catch (executionError: any) {
         console.error(`Error rendering execution ${execution.id}:`, executionError);
         
         // Update execution with error status
         await supabase
           .from('executions')
           .update({
-            status: 'error',
-            updated_at: new Date()
+            status: 'failed',
+            updated_at: new Date().toISOString()
           })
           .eq('id', execution.id);
         
         renderResults.push({
           executionId: execution.id,
-          status: 'error',
+          status: 'failed',
           error: executionError.message
         });
       }
     }
 
-    res.json(renderResults);
+    res.json({
+      success: true,
+      message: `Started rendering ${renderResults.length} executions`,
+      data: renderResults
+    });
   } catch (error: any) {
     console.error('Error rendering campaign:', error.message);
-    res.status(500).json({ message: 'Failed to render campaign' });
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to render campaign',
+      error: error.message
+    });
     
     // Revert campaign status
     await supabase
       .from('campaigns')
       .update({
-        status: 'draft'
+        status: 'draft',
+        updated_at: new Date().toISOString()
       })
       .eq('id', req.params.id);
   }
@@ -466,7 +393,7 @@ router.post('/:id/render', authenticateToken, async (req, res) => {
 
 // Helper function to transform campaign from database format to API format
 function transformCampaignFromDb(campaign: any) {
-  const transformed = {
+  return {
     id: campaign.id,
     name: campaign.name,
     description: campaign.description || '',
@@ -474,16 +401,13 @@ function transformCampaignFromDb(campaign: any) {
     startDate: campaign.start_date,
     endDate: campaign.end_date,
     platforms: campaign.platforms || [],
-    assets: campaign.assets || [],
-    templates: campaign.templates || [],
+    tags: campaign.tags || [],
     status: campaign.status,
     createdAt: campaign.created_at,
     updatedAt: campaign.updated_at,
-    createdBy: campaign.created_by,
+    ownerId: campaign.owner_id,
     executions: campaign.executions ? campaign.executions.map(transformExecutionFromDb) : []
   };
-  
-  return transformed;
 }
 
 // Helper function to transform execution from database format to API format
@@ -491,16 +415,18 @@ function transformExecutionFromDb(execution: any) {
   return {
     id: execution.id,
     name: execution.name,
+    campaignId: execution.campaign_id,
     templateId: execution.template_id,
     platform: execution.platform,
-    assetMappings: execution.asset_mappings || [],
-    settings: execution.settings || {},
+    format: execution.format,
+    assets: execution.assets || [],
     status: execution.status,
-    renderId: execution.render_id,
-    renderUrl: execution.render_url,
+    renderJobId: execution.render_job_id,
+    url: execution.url,
     thumbnailUrl: execution.thumbnail_url,
     createdAt: execution.created_at,
-    updatedAt: execution.updated_at
+    updatedAt: execution.updated_at,
+    ownerId: execution.owner_id
   };
 }
 

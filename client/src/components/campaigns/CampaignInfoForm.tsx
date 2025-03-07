@@ -9,6 +9,7 @@ import {
   FormHelperText,
   InputLabel,
   Select,
+  SelectChangeEvent,
   MenuItem,
   Typography,
   Autocomplete,
@@ -26,9 +27,12 @@ interface CampaignInfoFormProps {
     startDate: Date | null;
     endDate: Date | null;
     platforms: string[];
+    status?: string;
   };
   onChange: (values: Partial<CampaignInfoFormProps['campaignInfo']>) => void;
-  errors: Record<string, string>;
+  onPlatformsChange?: (platforms: string[]) => void;
+  onStatusChange?: (status: string) => void;
+  errors?: Record<string, string>;
 }
 
 const platformOptions = [
@@ -36,6 +40,15 @@ const platformOptions = [
   { label: 'Instagram', value: 'instagram' },
   { label: 'YouTube', value: 'youtube' },
   { label: 'TikTok', value: 'tiktok' },
+];
+
+const statusOptions = [
+  { label: 'Draft', value: 'draft' },
+  { label: 'In Progress', value: 'in_progress' },
+  { label: 'Ready for Review', value: 'review' },
+  { label: 'Active', value: 'active' },
+  { label: 'Completed', value: 'completed' },
+  { label: 'Paused', value: 'paused' },
 ];
 
 const clientOptions = [
@@ -51,7 +64,9 @@ const clientOptions = [
 const CampaignInfoForm: React.FC<CampaignInfoFormProps> = ({
   campaignInfo,
   onChange,
-  errors
+  onPlatformsChange,
+  onStatusChange,
+  errors = {}
 }) => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -62,12 +77,26 @@ const CampaignInfoForm: React.FC<CampaignInfoFormProps> = ({
     onChange({ [name]: date });
   };
 
-  const handlePlatformsChange = (event: React.ChangeEvent<{ value: unknown }>) => {
-    onChange({ platforms: event.target.value as string[] });
+  const handlePlatformsChange = (event: SelectChangeEvent<string[]>) => {
+    const platforms = event.target.value as string[];
+    if (onPlatformsChange) {
+      onPlatformsChange(platforms);
+    } else {
+      onChange({ platforms });  
+    }
   };
 
   const handleClientChange = (event: React.SyntheticEvent, value: string | null) => {
     onChange({ client: value || '' });
+  };
+
+  const handleStatusChange = (event: SelectChangeEvent<string>) => {
+    const status = event.target.value;
+    if (onStatusChange) {
+      onStatusChange(status);
+    } else {
+      onChange({ status });
+    }
   };
 
   return (
@@ -186,6 +215,25 @@ const CampaignInfoForm: React.FC<CampaignInfoFormProps> = ({
               Select the platforms where your ads will run. This will help filter appropriate templates in the next step.
             </Typography>
           </Box>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <FormControl fullWidth>
+            <InputLabel id="status-label">Campaign Status</InputLabel>
+            <Select
+              labelId="status-label"
+              name="status"
+              value={campaignInfo.status || 'draft'}
+              onChange={handleStatusChange}
+              label="Campaign Status"
+            >
+              {statusOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </Grid>
       </Grid>
     </LocalizationProvider>

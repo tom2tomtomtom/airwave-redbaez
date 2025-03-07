@@ -4,6 +4,7 @@ import assetsReducer from './slices/assetsSlice';
 import templatesReducer from './slices/templatesSlice';
 import campaignsReducer from './slices/campaignsSlice';
 import exportsReducer from './slices/exportsSlice';
+import llmReducer from './slices/llmSlice';
 
 export const store = configureStore({
   reducer: {
@@ -12,6 +13,7 @@ export const store = configureStore({
     templates: templatesReducer,
     campaigns: campaignsReducer,
     exports: exportsReducer,
+    llm: llmReducer,
   },
   // Add middleware or other config here if needed
   middleware: (getDefaultMiddleware) =>

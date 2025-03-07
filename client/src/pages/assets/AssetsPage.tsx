@@ -2,37 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { 
   Box, 
   Typography, 
-  Grid, 
   Button, 
   Paper, 
   Tabs, 
   Tab, 
-  TextField, 
-  MenuItem, 
-  IconButton,
-  Divider,
-  Chip,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Card,
-  CardMedia,
-  CardContent,
-  CardActions
+  CircularProgress,
+  Alert
 } from '@mui/material';
 import { 
-  Add as AddIcon, 
-  Search as SearchIcon,
-  FilterList as FilterIcon,
-  MoreVert as MoreVertIcon,
+  Add as AddIcon,
   CloudUpload as CloudUploadIcon
 } from '@mui/icons-material';
-import { useDispatch, useSelector } from 'react-redux';
-import { AppDispatch, RootState } from '../../store';
-import { fetchAssets, uploadAsset } from '../../store/slices/assetsSlice';
+import { useDispatch } from 'react-redux';
+import { AppDispatch } from '../../store';
+import { uploadAsset } from '../../store/slices/assetsSlice';
 import AssetUploadForm from '../../components/assets/AssetUploadForm';
-import AssetCard from '../../components/assets/AssetCard';
+import AssetList from '../../components/assets/AssetList';
+import { Asset, AssetType } from '../../types/assets';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -60,37 +50,17 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
-const AssetTypes = [
-  { value: 'all', label: 'All Types' },
-  { value: 'video', label: 'Videos' },
-  { value: 'image', label: 'Images' },
-  { value: 'audio', label: 'Voice Overs' },
-  { value: 'text', label: 'Copy Text' },
-];
+
 
 const AssetsPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const { assets, loading, error } = useSelector((state: RootState) => state.assets);
   
   const [tabValue, setTabValue] = useState(0);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [assetType, setAssetType] = useState('all');
   const [openUploadDialog, setOpenUploadDialog] = useState(false);
-  
-  useEffect(() => {
-    dispatch(fetchAssets());
-  }, [dispatch]);
+  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
-  };
-
-  const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(event.target.value);
-  };
-
-  const handleAssetTypeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setAssetType(event.target.value);
   };
 
   const handleOpenUploadDialog = () => {
@@ -105,13 +75,10 @@ const AssetsPage: React.FC = () => {
     dispatch(uploadAsset(assetData));
     setOpenUploadDialog(false);
   };
-
-  // Filter assets based on search query and type
-  const filteredAssets = assets.filter(asset => {
-    const matchesSearch = asset.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = assetType === 'all' || asset.type === assetType;
-    return matchesSearch && matchesType;
-  });
+  
+  const handleAssetSelect = (asset: Asset | null) => {
+    setSelectedAsset(asset);
+  };
 
   return (
     <Box sx={{ p: 4 }}>
@@ -138,91 +105,37 @@ const AssetsPage: React.FC = () => {
         >
           <Tab label="All Assets" />
           <Tab label="Recent" />
-          <Tab label="Favorites" />
+          <Tab label="Favourites" />
         </Tabs>
-
-        <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-          <TextField
-            placeholder="Search assets..."
-            variant="outlined"
-            size="small"
-            value={searchQuery}
-            onChange={handleSearch}
-            InputProps={{
-              startAdornment: <SearchIcon color="action" sx={{ mr: 1 }} />,
-            }}
-            sx={{ flexGrow: 1 }}
-          />
-          <TextField
-            select
-            label="Asset Type"
-            value={assetType}
-            onChange={handleAssetTypeChange}
-            size="small"
-            sx={{ minWidth: 150 }}
-          >
-            {AssetTypes.map((option) => (
-              <MenuItem key={option.value} value={option.value}>
-                {option.label}
-              </MenuItem>
-            ))}
-          </TextField>
-          <IconButton aria-label="filter">
-            <FilterIcon />
-          </IconButton>
-        </Box>
       </Paper>
 
       <TabPanel value={tabValue} index={0}>
-        {loading ? (
-          <Typography>Loading assets...</Typography>
-        ) : error ? (
-          <Typography color="error">Error loading assets: {error}</Typography>
-        ) : filteredAssets.length === 0 ? (
-          <Box 
-            sx={{ 
-              p: 4, 
-              textAlign: 'center', 
-              bgcolor: 'background.paper', 
-              borderRadius: 1 
-            }}
-          >
-            <CloudUploadIcon sx={{ fontSize: 60, color: 'text.secondary', mb: 2 }} />
-            <Typography variant="h6" gutterBottom>
-              No assets found
-            </Typography>
-            <Typography variant="body2" color="text.secondary" gutterBottom>
-              {searchQuery || assetType !== 'all' 
-                ? 'No assets match your current filters. Try adjusting your search criteria.' 
-                : 'Upload your first asset to get started.'}
-            </Typography>
-            <Button 
-              variant="contained" 
-              color="primary" 
-              startIcon={<AddIcon />}
-              onClick={handleOpenUploadDialog}
-              sx={{ mt: 2 }}
-            >
-              Upload Asset
-            </Button>
-          </Box>
-        ) : (
-          <Grid container spacing={3}>
-            {filteredAssets.map((asset) => (
-              <Grid item xs={12} sm={6} md={4} lg={3} key={asset.id}>
-                <AssetCard asset={asset} />
-              </Grid>
-            ))}
-          </Grid>
-        )}
+        <AssetList 
+          initialType="all" 
+          onAssetSelect={handleAssetSelect} 
+          selectedAssetId={selectedAsset?.id}
+        />
       </TabPanel>
 
       <TabPanel value={tabValue} index={1}>
-        <Typography>Recent assets will appear here</Typography>
+        <AssetList 
+          initialType="all" 
+          showFilters={false}
+          sortBy="date"
+          sortDirection="desc"
+          onAssetSelect={handleAssetSelect}
+          selectedAssetId={selectedAsset?.id}
+        />
       </TabPanel>
 
       <TabPanel value={tabValue} index={2}>
-        <Typography>Favorite assets will appear here</Typography>
+        <AssetList 
+          initialType="all" 
+          showFilters={false}
+          initialFavourite={true}
+          onAssetSelect={handleAssetSelect}
+          selectedAssetId={selectedAsset?.id}
+        />
       </TabPanel>
 
       {/* Upload Asset Dialog */}

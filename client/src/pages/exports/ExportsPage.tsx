@@ -19,6 +19,7 @@ import {
   MenuItem,
   CircularProgress,
   Alert,
+  SelectChangeEvent,
   Snackbar,
   IconButton
 } from '@mui/material';
@@ -69,12 +70,12 @@ const ExportsPage: React.FC = () => {
     setTabValue(newValue);
   };
 
-  const handleCampaignChange = (event: React.ChangeEvent<{ value: unknown }>) => {
-    setSelectedCampaignId(event.target.value as string);
+  const handleCampaignChange = (event: SelectChangeEvent<string>) => {
+    setSelectedCampaignId(event.target.value);
   };
 
-  const handlePlatformChange = (event: React.ChangeEvent<{ value: unknown }>) => {
-    setSelectedPlatform(event.target.value as string);
+  const handlePlatformChange = (event: SelectChangeEvent<string>) => {
+    setSelectedPlatform(event.target.value);
   };
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
