@@ -16,7 +16,9 @@ import exportsRoutes from './routes/exports.routes';
 import webhooksRoutes from './routes/webhooks.routes';
 import llmRoutes from './routes/llm.routes';
 import signoffRoutes from './routes/signoff.routes';
+import signoffSessionsRoutes from './routes/signoff-sessions.routes';
 import matrixRoutes from './routes/matrix.routes';
+import briefRoutes from './routes/briefRoutes';
 
 // Initialize environment variables
 dotenv.config();
@@ -67,7 +69,8 @@ app.get('/', (req, res) => {
       '/api/templates',
       '/api/campaigns',
       '/api/creatomate',
-      '/api/exports'
+      '/api/exports',
+      '/api/briefs'
     ]
   });
 });
@@ -82,10 +85,12 @@ app.use('/api/exports', exportsRoutes);
 app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/llm', llmRoutes);
 app.use('/api/signoff', signoffRoutes);
+app.use('/api/signoff-sessions', signoffSessionsRoutes);
 app.use('/api/matrix', matrixRoutes);
+app.use('/api/briefs', briefRoutes);
 
 // Start the server - make sure we listen on all interfaces
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Root URL: http://localhost:${PORT}/`);
   console.log(`Health check: http://localhost:${PORT}/health`);

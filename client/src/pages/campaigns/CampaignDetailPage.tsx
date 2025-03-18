@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import { AppDispatch } from '../../store';
 import {
   Box,
   Typography,
@@ -54,7 +55,7 @@ const TabPanel = (props: TabPanelProps) => {
 const CampaignDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   
   const { campaigns, loading, error } = useSelector((state: RootState) => state.campaigns);
   const campaign = campaigns.find(c => c.id === id) || null;
@@ -178,10 +179,11 @@ const CampaignDetailPage: React.FC = () => {
     
     // Update campaign with matrix ID if it doesn't already have it
     if (id && savedMatrixId && (!campaign?.matrixId || campaign.matrixId !== savedMatrixId)) {
-      // @ts-ignore
       dispatch(updateCampaign({
         id,
-        matrixId: savedMatrixId
+        data: {
+          matrixId: savedMatrixId
+        }
       }));
     }
   };

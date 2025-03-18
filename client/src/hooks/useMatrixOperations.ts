@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { apiClient } from '../utils/api';
+import apiClient from '../utils/api';
 
 // Types
 export interface Asset {
@@ -76,7 +76,7 @@ export const useMatrixOperations = (campaignId: string, initialMatrixId?: string
       
       if (matrixId) {
         // Load existing matrix
-        const response = await apiClient.matrix.getById(matrixId);
+        const response = await apiClient.matrix.getMatrixById(matrixId);
         data = response.data.data;
       } else {
         // Create new matrix structure
@@ -329,26 +329,39 @@ export const useMatrixOperations = (campaignId: string, initialMatrixId?: string
       // Call API to render the row
       await apiClient.matrix.renderRow(matrixId, rowId);
       
-      // In a real app, the websocket would update the status
-      // Simulate completion for prototype
-      setTimeout(() => {
-        setMatrixData(prevMatrix => {
-          if (!prevMatrix) return null;
+      // In a production implementation, we would set up WebSocket listeners here
+      // For now, we'll just update the state directly after the API call
+      
+      // The API call would return a render job ID that we can use to track the render progress
+      // const renderJobId = await apiClient.matrix.renderRow(matrixId, rowId);
+      
+      // Subscribe to render job updates
+      const handleRenderUpdate = (update: { renderJobId: string; status: string; previewUrl: string }) => {
+        // In a real implementation, this would be called when we receive a WebSocket update
+        if (update.renderJobId && update.status === 'complete') {
+          setMatrixData(prevMatrix => {
+            if (!prevMatrix) return null;
+            
+            return {
+              ...prevMatrix,
+              rows: prevMatrix.rows.map(row => 
+                row.id === rowId
+                  ? { 
+                      ...row, 
+                      renderStatus: 'complete',
+                      previewUrl: update.previewUrl
+                    }
+                  : row
+              )
+            };
+          });
           
-          return {
-            ...prevMatrix,
-            rows: prevMatrix.rows.map(row => 
-              row.id === rowId
-                ? { 
-                    ...row, 
-                    renderStatus: 'complete',
-                    previewUrl: 'https://via.placeholder.com/300x200?text=Rendered+Preview'
-                  }
-                : row
-            )
-          };
-        });
-      }, 3000);
+          // Unsubscribe from updates for this job
+          // renderUpdateService.unsubscribe(renderJobId, handleRenderUpdate);
+        }
+      };
+      
+      // renderUpdateService.subscribe(renderJobId, handleRenderUpdate);
     } catch (err: any) {
       console.error('Error rendering row:', err);
       setError(err.response?.data?.message || 'Failed to render row');
@@ -391,24 +404,51 @@ export const useMatrixOperations = (campaignId: string, initialMatrixId?: string
       // Call API to render all rows
       await apiClient.matrix.renderAll(matrixId);
       
-      // In a real app, the websocket would update the status
-      // Simulate completion for prototype
-      setTimeout(() => {
-        setMatrixData(prevMatrix => {
-          if (!prevMatrix) return null;
+      // In a production implementation, we would set up WebSocket listeners here
+      // For now, we'll just update the state directly after the API call
+      
+      // The API call would return a batch render job ID that we can use to track the render progress
+      // const batchRenderJobId = await apiClient.matrix.renderAll(matrixId);
+      
+      // Subscribe to batch render job updates
+      const handleBatchRenderUpdate = (update: { 
+        batchRenderJobId?: string; 
+        status?: string; 
+        completedRows?: Array<{rowId: string; previewUrl: string}>
+      }) => {
+        // In a real implementation, this would be called when we receive a WebSocket update
+        if (update.batchRenderJobId) {
+          // Update individual row statuses
+          if (update.completedRows) {
+            setMatrixData(prevMatrix => {
+              if (!prevMatrix) return null;
+              
+              return {
+                ...prevMatrix,
+                rows: prevMatrix.rows.map(row => {
+                  const completedRow = update.completedRows?.find(cr => cr.rowId === row.id);
+                  if (completedRow) {
+                    return { 
+                      ...row, 
+                      renderStatus: 'complete',
+                      previewUrl: completedRow.previewUrl
+                    };
+                  }
+                  return row;
+                })
+              };
+            });
+          }
           
-          return {
-            ...prevMatrix,
-            rows: prevMatrix.rows.map(row => ({ 
-              ...row, 
-              renderStatus: 'complete',
-              previewUrl: 'https://via.placeholder.com/300x200?text=Rendered+Preview'
-            }))
-          };
-        });
-        
-        setRenderingAll(false);
-      }, 5000);
+          // If batch job is complete, update UI state
+          if (update.status === 'complete') {
+            setRenderingAll(false);
+            // renderUpdateService.unsubscribe(batchRenderJobId, handleBatchRenderUpdate);
+          }
+        }
+      };
+      
+      // renderUpdateService.subscribe(batchRenderJobId, handleBatchRenderUpdate);
     } catch (err: any) {
       console.error('Error rendering all rows:', err);
       setError(err.response?.data?.message || 'Failed to render all rows');

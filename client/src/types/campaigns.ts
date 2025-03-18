@@ -39,6 +39,7 @@ export interface Campaign {
   createdAt: string;
   updatedAt: string;
   createdBy: string;
+  matrixId?: string;
 }
 
 export interface CampaignFormData {
@@ -51,6 +52,7 @@ export interface CampaignFormData {
   assets: string[];
   templates: string[];
   executions: Execution[];
+  matrixId?: string;
 }
 
 export interface CampaignFilters {

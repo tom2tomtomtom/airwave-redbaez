@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Asset, AssetFilters } from '../types/assets';
+import { Asset, AssetFilters, AssetType } from '../types/assets';
 import { useAssetOperations } from './useAssetOperations';
 
 /**
@@ -11,7 +11,7 @@ import { useAssetOperations } from './useAssetOperations';
  * @param showFilters Whether to display filtering options
  */
 export const useAssetSelectionState = (
-  initialType: string = 'all',
+  initialType: AssetType | 'all' = 'all',
   initialFavourite: boolean = false,
   initialSortBy: string = 'date',
   initialSortDirection: 'asc' | 'desc' = 'desc',
@@ -50,6 +50,12 @@ export const useAssetSelectionState = (
   // Sort assets when they change or when sort options change
   useEffect(() => {
     const sortAssets = () => {
+      // Ensure assets is an array before attempting to sort
+      if (!Array.isArray(assets) || assets.length === 0) {
+        setSortedAssets([]);
+        return;
+      }
+      
       // Create a copy to avoid mutating original array
       const sorted = [...assets].sort((a, b) => {
         const { sortBy, sortDirection } = filters;
@@ -118,7 +124,10 @@ export const useAssetSelectionState = (
       ...prevFilters,
       ...newFilters
     }));
-  }, []);
+    // We need to manually load assets here since we removed loadAssets from the effect dependency
+    // array to prevent infinite loops
+    setTimeout(() => loadAssets(), 0);
+  }, [loadAssets]);
   
   /**
    * Select an asset by ID
@@ -143,9 +152,12 @@ export const useAssetSelectionState = (
   }, [loadAssets]);
   
   // Effect to load assets when component mounts or filters change
+  // Using an empty dependency array to ensure it only runs once on mount
+  // We'll rely on explicit calls to loadAssets when filters change
   useEffect(() => {
     loadAssets();
-  }, [loadAssets]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return {
     assets: sortedAssets,

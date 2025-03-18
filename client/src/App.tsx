@@ -11,6 +11,7 @@ import ClientSignOffPortal from './components/signoff/ClientSignOffPortal';
 
 // Pages
 import LoginPage from './pages/auth/LoginPage';
+import RegisterPage from './pages/auth/RegisterPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import AssetsPage from './pages/assets/AssetsPage';
 import TemplatesPage from './pages/templates/TemplatesPage';
@@ -52,8 +53,13 @@ const App: React.FC = () => {
   return (
     <Routes>
       {/* Public routes */}
-      <Route path="/login" element={
+      <Route path="/auth/login" element={
         isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage />
+      } />
+      <Route path="/login" element={<Navigate to="/auth/login" replace />} />
+      
+      <Route path="/auth/register" element={
+        isAuthenticated ? <Navigate to="/dashboard" /> : <RegisterPage />
       } />
       
       {/* Client sign-off portal (publicly accessible with token) */}

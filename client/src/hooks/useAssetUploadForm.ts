@@ -91,20 +91,40 @@ export const useAssetUploadForm = ({ onSubmit }: UseAssetUploadFormProps) => {
     if (event.target.files && event.target.files[0]) {
       const file = event.target.files[0];
       
+      // Log file information for debugging
+      console.log('File selected:', {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        lastModified: new Date(file.lastModified).toISOString()
+      });
+      
       // Validate file type
       const assetType = formik.values.type;
       let isValid = false;
       
-      if (assetType === 'image' && file.type.startsWith('image/')) {
+      // More permissive file type checking
+      if (assetType === 'image' && (
+          file.type.startsWith('image/') || 
+          file.name.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i)
+        )) {
         isValid = true;
-      } else if (assetType === 'video' && file.type.startsWith('video/')) {
+      } else if (assetType === 'video' && (
+          file.type.startsWith('video/') ||
+          file.name.match(/\.(mp4|mov|avi|webm|mkv)$/i)
+        )) {
         isValid = true;
-      } else if (assetType === 'audio' && file.type.startsWith('audio/')) {
+      } else if (assetType === 'audio' && (
+          file.type.startsWith('audio/') ||
+          file.name.match(/\.(mp3|wav|ogg|aac|flac)$/i)
+        )) {
         isValid = true;
       }
       
       if (!isValid) {
-        setFileError(`File must be a valid ${assetType} file`);
+        const errorMsg = `File must be a valid ${assetType} file. Selected: ${file.type || 'unknown type'}`;
+        console.error(errorMsg, file);
+        setFileError(errorMsg);
         setSelectedFile(null);
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
@@ -119,6 +139,8 @@ export const useAssetUploadForm = ({ onSubmit }: UseAssetUploadFormProps) => {
       if (!formik.values.name) {
         formik.setFieldValue('name', file.name.split('.')[0]);
       }
+    } else {
+      console.warn('No file selected or event.target.files is null');
     }
   }, [formik]);
 
@@ -169,7 +191,9 @@ export const useAssetUploadForm = ({ onSubmit }: UseAssetUploadFormProps) => {
     formik,
     fileInputRef,
     selectedFile,
+    setSelectedFile,
     fileError,
+    setFileError,
     newTag,
     setNewTag,
     handleFileChange,

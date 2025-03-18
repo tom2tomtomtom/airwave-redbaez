@@ -302,7 +302,7 @@ router.post('/:id/render', checkAuth, async (req, res) => {
     for (const execution of campaign.executions) {
       try {
         // Convert assets to Creatomate modifications format
-        const modifications = {};
+        const modifications: Record<string, string> = {};
         
         if (execution.assets && Array.isArray(execution.assets)) {
           for (const asset of execution.assets) {

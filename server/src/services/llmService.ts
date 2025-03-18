@@ -215,7 +215,7 @@ class LLMService {
       {
         id: `motivation-${Date.now()}-7`,
         title: `${baseTitle}: Status Enhancement`,
-        description: 'The product enhances the user's social standing and image.',
+        description: 'The product enhances the user\'s social standing and image.',
         explanation: 'This motivation connects with aspirational desires. Your target demographic shows engagement with luxury and premium positioning in similar products.',
         selected: false
       },

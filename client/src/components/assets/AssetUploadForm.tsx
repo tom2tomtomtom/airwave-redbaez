@@ -29,7 +29,9 @@ const AssetUploadForm: React.FC<AssetUploadFormProps> = ({ onSubmit }) => {
     formik, 
     fileInputRef,
     selectedFile,
+    setSelectedFile,
     fileError,
+    setFileError,
     newTag,
     setNewTag,
     handleFileChange,
@@ -114,7 +116,7 @@ const AssetUploadForm: React.FC<AssetUploadFormProps> = ({ onSubmit }) => {
               </IconButton>
             </Box>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-              {formik.values.tags.map((tag, index) => (
+              {formik.values.tags?.map((tag, index) => (
                 <Chip
                   key={index}
                   label={tag}
@@ -156,7 +158,35 @@ const AssetUploadForm: React.FC<AssetUploadFormProps> = ({ onSubmit }) => {
                 borderStyle: fileError ? 'solid' : 'dashed',
                 borderColor: fileError ? 'error.main' : 'divider',
                 bgcolor: fileError ? 'error.light' : 'background.paper',
+                cursor: 'pointer',
+                '&:hover': {
+                  borderColor: 'primary.main',
+                  bgcolor: 'action.hover'
+                }
               }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                  const file = e.dataTransfer.files[0];
+                  // Create a synthetic event object that mimics the structure expected by handleFileChange
+                  const syntheticEvent = {
+                    target: {
+                      files: e.dataTransfer.files
+                    }
+                  } as React.ChangeEvent<HTMLInputElement>;
+                  handleFileChange(syntheticEvent);
+                }
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={() => fileInputRef.current?.click()}
             >
               {selectedFile ? (
                 <Box sx={{ width: '100%', textAlign: 'center' }}>

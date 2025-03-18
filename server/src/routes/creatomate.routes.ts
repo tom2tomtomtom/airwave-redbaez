@@ -295,7 +295,7 @@ router.post('/platform-formats', checkAuth, async (req, res) => {
     // Get unique formats needed for the requested platforms
     const outputFormats = Array.from(
       new Set(
-        platforms.flatMap(platform => 
+        platforms.flatMap((platform: string) => 
           platformFormats[platform] || ['mp4'] // Default to mp4 if platform not found
         )
       )
@@ -308,7 +308,7 @@ router.post('/platform-formats', checkAuth, async (req, res) => {
       const renderJob = await creatomateService.generateVideo({
         templateId,
         modifications,
-        outputFormat: format
+        outputFormat: format as string
       });
       
       jobs.push({
