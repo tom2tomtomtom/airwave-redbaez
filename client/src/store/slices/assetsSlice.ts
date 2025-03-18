@@ -116,8 +116,9 @@ const assetsSlice = createSlice({
       state.loading = true;
       state.error = null;
     });
-    builder.addCase(fetchAssets.fulfilled, (state, action: PayloadAction<Asset[]>) => {
-      state.assets = action.payload;
+    builder.addCase(fetchAssets.fulfilled, (state, action) => {
+      // Ensure we always have an array, even if the API returns null, undefined, or an object
+      state.assets = Array.isArray(action.payload) ? action.payload : [];
       state.loading = false;
     });
     builder.addCase(fetchAssets.rejected, (state, action) => {

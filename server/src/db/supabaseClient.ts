@@ -3,22 +3,177 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+const isDevelopment = process.env.NODE_ENV !== 'production';
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
+
+// Determine which key to use based on environment
+// In development, prefer the service role key for unrestricted access
+let supabaseKey;
+if (isDevelopment && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.log('⚠️ Using Supabase service role key for development');
+  supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+} else {
+  supabaseKey = process.env.SUPABASE_KEY;
+}
 
 if (!supabaseUrl || !supabaseKey) {
   throw new Error('Missing Supabase credentials. Please check your .env file');
 }
 
+// Create client with appropriate key
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
 // For prototype mode, we'll use Supabase's built-in SQL execution
 // to create tables directly instead of using RPC calls
+/**
+ * Create signoff sessions table
+ */
+async function createSignoffSessionsTable() {
+  try {
+    console.log('Checking signoff_sessions table...');
+    
+    // Check if the table is accessible
+    const { error } = await supabase.from('signoff_sessions').select('count').limit(1);
+    
+    if (!error) {
+      console.log('signoff_sessions table already exists');
+      return;
+    }
+    
+    console.log('Creating signoff_sessions table...');
+    
+    // Create the table with SQL
+    const { error: createError } = await supabase.rpc('exec_sql', {
+      sql_string: `
+        CREATE TABLE IF NOT EXISTS signoff_sessions (
+          id UUID PRIMARY KEY,
+          campaign_id UUID REFERENCES campaigns(id),
+          title TEXT NOT NULL,
+          description TEXT,
+          status TEXT NOT NULL CHECK (status IN ('draft', 'sent', 'in_review', 'approved', 'rejected', 'completed')),
+          client_email TEXT NOT NULL,
+          client_name TEXT NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          expires_at TIMESTAMP WITH TIME ZONE,
+          access_token TEXT NOT NULL,
+          created_by UUID REFERENCES auth.users(id),
+          feedback TEXT,
+          matrix_id UUID,
+          review_url TEXT
+        );
+      `
+    });
+    
+    if (createError) {
+      console.error('Error creating signoff_sessions table:', createError);
+      throw createError;
+    }
+    
+    console.log('signoff_sessions table created successfully');
+  } catch (error) {
+    console.error('Error in createSignoffSessionsTable:', error);
+    throw error;
+  }
+}
+
+/**
+ * Create signoff assets table
+ */
+async function createSignoffAssetsTable() {
+  try {
+    console.log('Checking signoff_assets table...');
+    
+    // Check if the table is accessible
+    const { error } = await supabase.from('signoff_assets').select('count').limit(1);
+    
+    if (!error) {
+      console.log('signoff_assets table already exists');
+      return;
+    }
+    
+    console.log('Creating signoff_assets table...');
+    
+    // Create the table with SQL
+    const { error: createError } = await supabase.rpc('exec_sql', {
+      sql_string: `
+        CREATE TABLE IF NOT EXISTS signoff_assets (
+          id UUID PRIMARY KEY,
+          session_id UUID REFERENCES signoff_sessions(id) ON DELETE CASCADE,
+          asset_id UUID REFERENCES assets(id),
+          status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')),
+          feedback TEXT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          version_number INTEGER NOT NULL DEFAULT 1
+        );
+      `
+    });
+    
+    if (createError) {
+      console.error('Error creating signoff_assets table:', createError);
+      throw createError;
+    }
+    
+    console.log('signoff_assets table created successfully');
+  } catch (error) {
+    console.error('Error in createSignoffAssetsTable:', error);
+    throw error;
+  }
+}
+
+/**
+ * Create signoff responses table
+ */
+async function createSignoffResponsesTable() {
+  try {
+    console.log('Checking signoff_responses table...');
+    
+    // Check if the table is accessible
+    const { error } = await supabase.from('signoff_responses').select('count').limit(1);
+    
+    if (!error) {
+      console.log('signoff_responses table already exists');
+      return;
+    }
+    
+    console.log('Creating signoff_responses table...');
+    
+    // Create the table with SQL
+    const { error: createError } = await supabase.rpc('exec_sql', {
+      sql_string: `
+        CREATE TABLE IF NOT EXISTS signoff_responses (
+          id UUID PRIMARY KEY,
+          session_id UUID REFERENCES signoff_sessions(id) ON DELETE CASCADE,
+          client_name TEXT NOT NULL,
+          client_email TEXT NOT NULL,
+          feedback TEXT,
+          status TEXT NOT NULL CHECK (status IN ('approved', 'rejected', 'partial')),
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          approved_assets JSONB,
+          rejected_assets JSONB
+        );
+      `
+    });
+    
+    if (createError) {
+      console.error('Error creating signoff_responses table:', createError);
+      throw createError;
+    }
+    
+    console.log('signoff_responses table created successfully');
+  } catch (error) {
+    console.error('Error in createSignoffResponsesTable:', error);
+    throw error;
+  }
+}
+
 export async function initializeDatabase() {
   try {
-    if (process.env.PROTOTYPE_MODE === 'true') {
-      console.log('Running in PROTOTYPE_MODE. Using simplified database setup.');
-    }
+    console.log('Initializing database with real database connection.');
+    
+    // Create users table first (since other tables may reference it)
+    await createUsersTable();
     
     // Create assets table
     await createAssetsTable();
@@ -35,6 +190,15 @@ export async function initializeDatabase() {
     // Create exports table
     await createExportsTable();
     
+    // Create signoff sessions table
+    await createSignoffSessionsTable();
+    
+    // Create signoff assets table
+    await createSignoffAssetsTable();
+    
+    // Create signoff responses table
+    await createSignoffResponsesTable();
+    
     console.log('Database initialization complete.');
   } catch (error) {
     console.error('Error initializing database:', error);
@@ -43,34 +207,19 @@ export async function initializeDatabase() {
 
 async function createAssetsTable() {
   try {
-    console.log('Creating assets table...');
+    console.log('Checking assets table...');
     
-    const { error } = await supabase.rpc('create_table_if_not_exists', {
-      table_name: 'assets',
-      table_definition: `
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        name TEXT NOT NULL,
-        type TEXT NOT NULL,
-        url TEXT,
-        thumbnail_url TEXT,
-        content TEXT,
-        description TEXT,
-        tags JSONB,
-        metadata JSONB,
-        owner_id UUID,
-        is_favorite BOOLEAN DEFAULT false,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      `
-    });
+    // Just check if the table is accessible
+    const { error } = await supabase.from('assets').select('count').limit(1);
     
     if (error) {
-      console.error('Error creating assets table:', error);
-      
+      console.error('Error checking assets table:', error);
       // For prototype mode, we continue anyway to allow the application to function
       if (process.env.PROTOTYPE_MODE === 'true') {
         console.log('In prototype mode, continuing with in-memory data...');
       }
+    } else {
+      console.log('Assets table seems to be accessible.');
     }
   } catch (error) {
     console.error('Error checking if table exists:', error);
@@ -100,10 +249,8 @@ async function createTemplatesTable() {
     if (error) {
       console.error('Error creating templates table:', error);
       
-      // For prototype mode, we continue anyway
-      if (process.env.PROTOTYPE_MODE === 'true') {
-        console.log('In prototype mode, continuing with in-memory data...');
-      }
+      // Log error but don't throw to allow other tables to be created
+      console.log('Continuing with database initialization...');
     }
   } catch (error) {
     console.error('Error checking if table exists:', error);
@@ -135,10 +282,8 @@ async function createCampaignsTable() {
     if (error) {
       console.error('Error creating campaigns table:', error);
       
-      // For prototype mode, we continue anyway
-      if (process.env.PROTOTYPE_MODE === 'true') {
-        console.log('In prototype mode, continuing with in-memory data...');
-      }
+      // Log error but don't throw to allow other tables to be created
+      console.log('Continuing with database initialization...');
     }
   } catch (error) {
     console.error('Error checking if table exists:', error);
@@ -172,10 +317,8 @@ async function createExecutionsTable() {
     if (error) {
       console.error('Error creating executions table:', error);
       
-      // For prototype mode, we continue anyway
-      if (process.env.PROTOTYPE_MODE === 'true') {
-        console.log('In prototype mode, continuing with in-memory data...');
-      }
+      // Log error but don't throw to allow other tables to be created
+      console.log('Continuing with database initialization...');
     }
   } catch (error) {
     console.error('Error checking if table exists:', error);
@@ -206,12 +349,55 @@ async function createExportsTable() {
     if (error) {
       console.error('Error creating exports table:', error);
       
-      // For prototype mode, we continue anyway
-      if (process.env.PROTOTYPE_MODE === 'true') {
-        console.log('In prototype mode, continuing with in-memory data...');
-      }
+      // Log error but don't throw to allow other tables to be created
+      console.log('Continuing with database initialization...');
     }
   } catch (error) {
     console.error('Error checking if table exists:', error);
+  }
+}
+
+/**
+ * Create users table for authentication and authorization
+ */
+async function createUsersTable() {
+  try {
+    console.log('Checking users table...');
+    
+    // Just check if the table is accessible
+    const { error } = await supabase.from('users').select('count').limit(1);
+    
+    if (error) {
+      console.error('Error checking users table:', error);
+      
+      // Try to create the default admin user if in development
+      if (process.env.NODE_ENV === 'development') {
+        try {
+          // Create a user via auth API
+          const { error: signUpError } = await supabase.auth.signUp({
+            email: 'admin@airwave.com',
+            password: 'Admin123!',
+            options: {
+              data: {
+                name: 'Admin User',
+                role: 'admin'
+              }
+            }
+          });
+          
+          if (signUpError) {
+            console.error('Error creating default admin user:', signUpError);
+          } else {
+            console.log('Default admin user created successfully.');
+          }
+        } catch (e) {
+          console.error('Exception creating default user:', e);
+        }
+      }
+    } else {
+      console.log('Users table seems to be accessible.');
+    }
+  } catch (error) {
+    console.error('Error checking users table:', error);
   }
 }

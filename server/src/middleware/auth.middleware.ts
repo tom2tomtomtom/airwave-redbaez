@@ -12,7 +12,7 @@ declare global {
 }
 
 // Environment check for prototype mode
-const PROTOTYPE_MODE = process.env.PROTOTYPE_MODE === 'true';
+const PROTOTYPE_MODE = false; // Force disable prototype mode
 
 // Secret key for JWT
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-for-development-only';
@@ -43,19 +43,9 @@ export const checkAuth = async (req: Request, res: Response, next: NextFunction)
         return res.status(403).json({ message: 'Invalid or expired token' });
       }
 
-      // Get user from Supabase
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', decoded.id)
-        .single();
-
-      if (error || !user) {
-        return res.status(403).json({ message: 'User not found or not authorized' });
-      }
-
-      // Attach user to request object
-      req.user = user;
+      // In this implementation, we trust the decoded JWT without additional DB lookup
+      // This is temporary until we implement proper user management in Supabase
+      req.user = decoded;
       next();
     });
   } catch (error) {

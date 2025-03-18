@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
+import { AppDispatch } from '../../store';
 import {
   Box,
   Typography,
@@ -58,7 +59,7 @@ const styleOptions = [
 
 const CopyGenerationPage: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   
   // Get state from Redux
   const {

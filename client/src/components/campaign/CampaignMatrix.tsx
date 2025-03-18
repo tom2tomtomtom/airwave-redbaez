@@ -85,17 +85,11 @@ const assetTypeIcons = {
 };
 
 const CampaignMatrix: React.FC<CampaignMatrixProps> = ({ campaignId, matrixId, onSave }) => {
-  // State for matrix data
-  const [matrixData, setMatrixData] = useState<MatrixData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [renderingAll, setRenderingAll] = useState(false);
-  
   // State for asset selection
   const [assets, setAssets] = useState<Asset[]>([]);
   const [assetsLoading, setAssetsLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<MatrixSlot | null>(null);
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [assetSelectorOpen, setAssetSelectorOpen] = useState(false);
   const [assetFilter, setAssetFilter] = useState('');
   const [assetTypeFilter, setAssetTypeFilter] = useState<string>('all');
@@ -185,15 +179,17 @@ const CampaignMatrix: React.FC<CampaignMatrixProps> = ({ campaignId, matrixId, o
       setAssets(response.data.data);
     } catch (err: any) {
       console.error('Error loading assets:', err);
-      setError(err.response?.data?.message || 'Failed to load assets');
+      // Use error from the hook instead of calling setError directly
+      console.error(err.response?.data?.message || 'Failed to load assets');
     } finally {
       setAssetsLoading(false);
     }
   };
   
   // Open asset selector for a slot
-  const handleOpenAssetSelector = (slot: MatrixSlot) => {
+  const handleOpenAssetSelector = (slot: MatrixSlot, rowId: string) => {
     setSelectedSlot(slot);
+    setSelectedRowId(rowId);
     setAssetSelectorOpen(true);
     setAssetFilter('');
     setAssetTypeFilter('all');
@@ -204,26 +200,15 @@ const CampaignMatrix: React.FC<CampaignMatrixProps> = ({ campaignId, matrixId, o
   const handleCloseAssetSelector = () => {
     setAssetSelectorOpen(false);
     setSelectedSlot(null);
+    setSelectedRowId(null);
   };
   
   // Select an asset for a slot
   const handleSelectAsset = (asset: Asset) => {
-    if (!selectedSlot || !matrixData) return;
+    if (!selectedSlot || !selectedRowId || !matrixData) return;
     
     // Update the matrix with the selected asset
-    const updatedMatrix = {
-      ...matrixData,
-      rows: matrixData.rows.map(row => ({
-        ...row,
-        slots: row.slots.map(slot => 
-          slot.id === selectedSlot.id 
-            ? { ...slot, assetId: asset.id } 
-            : slot
-        )
-      }))
-    };
-    
-    setMatrixData(updatedMatrix);
+    setSlotAsset(selectedRowId, selectedSlot.id, asset.id);
     handleCloseAssetSelector();
   };
   
@@ -232,23 +217,7 @@ const CampaignMatrix: React.FC<CampaignMatrixProps> = ({ campaignId, matrixId, o
     if (!matrixData) return;
     
     // Update the matrix with the toggled lock state
-    const updatedMatrix = {
-      ...matrixData,
-      rows: matrixData.rows.map(row => 
-        row.id === rowId
-          ? {
-              ...row,
-              slots: row.slots.map(slot => 
-                slot.id === slotId
-                  ? { ...slot, locked: !slot.locked }
-                  : slot
-              )
-            }
-          : row
-      )
-    };
-    
-    setMatrixData(updatedMatrix);
+    toggleSlotLock(rowId, slotId);
   };
   
   // Toggle row lock
@@ -256,46 +225,15 @@ const CampaignMatrix: React.FC<CampaignMatrixProps> = ({ campaignId, matrixId, o
     if (!matrixData) return;
     
     // Update the matrix with the toggled lock state
-    const updatedMatrix = {
-      ...matrixData,
-      rows: matrixData.rows.map(row => 
-        row.id === rowId
-          ? { ...row, locked: !row.locked }
-          : row
-      )
-    };
-    
-    setMatrixData(updatedMatrix);
+    toggleRowLock(rowId);
   };
   
   // Add a new row
   const handleAddRow = () => {
     if (!matrixData) return;
     
-    // Create slots for the new row based on the existing columns
-    const newSlots = matrixData.columns.map(col => ({
-      id: `slot-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-      type: col.type,
-      assetId: null,
-      locked: false,
-      name: col.name,
-    }));
-    
-    // Add the new row to the matrix
-    const updatedMatrix = {
-      ...matrixData,
-      rows: [
-        ...matrixData.rows,
-        {
-          id: `row-${Date.now()}-${matrixData.rows.length + 1}`,
-          slots: newSlots,
-          locked: false,
-          renderStatus: 'idle',
-        }
-      ]
-    };
-    
-    setMatrixData(updatedMatrix);
+    // Add a new row using the hook function
+    addRow();
   };
   
   // Delete a row
@@ -303,41 +241,15 @@ const CampaignMatrix: React.FC<CampaignMatrixProps> = ({ campaignId, matrixId, o
     if (!matrixData) return;
     
     // Remove the row from the matrix
-    const updatedMatrix = {
-      ...matrixData,
-      rows: matrixData.rows.filter(row => row.id !== rowId)
-    };
-    
-    setMatrixData(updatedMatrix);
+    deleteRow(rowId);
   };
   
   // Duplicate a row
   const handleDuplicateRow = (rowId: string) => {
     if (!matrixData) return;
     
-    // Find the row to duplicate
-    const rowToDuplicate = matrixData.rows.find(row => row.id === rowId);
-    if (!rowToDuplicate) return;
-    
-    // Create a duplicate of the row with new IDs
-    const duplicatedRow = {
-      id: `row-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-      slots: rowToDuplicate.slots.map(slot => ({
-        ...slot,
-        id: `slot-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-        locked: false
-      })),
-      locked: false,
-      renderStatus: 'idle',
-    };
-    
-    // Add the duplicated row to the matrix
-    const updatedMatrix = {
-      ...matrixData,
-      rows: [...matrixData.rows, duplicatedRow]
-    };
-    
-    setMatrixData(updatedMatrix);
+    // Duplicate the row using the hook function
+    duplicateRow(rowId);
   };
   
   // Save the matrix
@@ -527,7 +439,7 @@ const CampaignMatrix: React.FC<CampaignMatrixProps> = ({ campaignId, matrixId, o
                               backgroundColor: slot.locked ? '#f5f5f5' : '#f9f9f9'
                             }
                           }}
-                          onClick={() => !slot.locked && handleOpenAssetSelector(slot)}
+                          onClick={() => !slot.locked && handleOpenAssetSelector(slot, row.id)}
                         >
                           {slot.assetId ? (
                             <Box sx={{ textAlign: 'center' }}>

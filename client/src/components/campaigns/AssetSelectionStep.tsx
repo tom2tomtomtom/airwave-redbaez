@@ -155,7 +155,7 @@ const AssetSelectionStep: React.FC<AssetSelectionStepProps> = ({
     const matchesSearch = asset.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = assetType === 'all' || asset.type === assetType;
     const matchesTab = tabValue === 0 || // All assets tab
-      (tabValue === 1 && asset.isFavorite); // Favorites tab
+      (tabValue === 1 && asset.isFavourite); // Favourites tab
     
     return matchesSearch && matchesType && matchesTab;
   });

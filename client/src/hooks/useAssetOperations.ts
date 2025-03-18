@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { useSelector } from 'react-redux';
 import { Asset, AssetFilters } from '../types/assets';
 import { apiClient } from '../utils/api';
+import { RootState } from '../store';
 
 /**
  * Custom hook for asset management operations
@@ -8,6 +10,9 @@ import { apiClient } from '../utils/api';
 export const useAssetOperations = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Get token from Redux store
+  const authToken = useSelector((state: RootState) => state.auth.token);
 
   /**
    * Toggle favourite status of an asset
@@ -54,6 +59,14 @@ export const useAssetOperations = () => {
     try {
       setLoading(true);
       setError(null);
+      
+      // Verify we have a token before making the request
+      const token = authToken || localStorage.getItem('token');
+      if (!token) {
+        console.warn('No authentication token found when fetching assets');
+        setError('You need to be logged in to view assets');
+        return [];
+      }
       
       const response = await apiClient.assets.getAll(filters);
       return response.data.data;

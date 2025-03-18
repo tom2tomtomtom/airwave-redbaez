@@ -2,6 +2,8 @@ import express from 'express';
 import { checkAuth } from '../middleware/auth.middleware';
 import { supabase } from '../db/supabaseClient';
 import { v4 as uuidv4 } from 'uuid';
+import { signoffService } from '../services/signoffService';
+import { SignoffSession, SignoffAsset, SignoffResponse } from '../models/signoff.model';
 
 const router = express.Router();
 

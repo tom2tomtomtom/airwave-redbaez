@@ -27,6 +27,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { RootState } from '../../store';
 import { processBrief, regenerateMotivations, toggleMotivationSelection } from '../../store/slices/llmSlice';
+import apiClient from '../../utils/api';
 import PageHeader from '../../components/layout/PageHeader';
 import type { BriefData, Motivation } from '../../store/slices/llmSlice';
 
@@ -89,23 +90,28 @@ const StrategyPage: React.FC = () => {
     setError(null);
     
     try {
-      // Simulate parsing the brief file
-      // In a real implementation, you would parse the file contents here
-      // For this prototype, we'll simulate a delay and fill the form with mock data
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Send the file to the API for processing
+      const formData = new FormData();
+      formData.append('file', briefFile);
       
-      // Populate the form with mock data from the file
+      const response = await apiClient.strategy.processBrief(formData);
+      
+      if (!response.data || !response.data.success) {
+        throw new Error(response.data?.message || 'Failed to process brief file');
+      }
+      
+      // Populate the form with data extracted from the file
       setBriefData({
-        clientName: 'Client from File',
-        projectName: 'Project from File',
-        productDescription: 'This is a product description extracted from the uploaded brief file.',
-        targetAudience: 'Target audience details extracted from the file.',
-        competitiveContext: 'Competitive context extracted from the file.',
-        campaignObjectives: 'Campaign objectives extracted from the file.',
-        keyMessages: 'Key messages extracted from the file.',
-        mandatories: 'Mandatories extracted from the file.',
-        additionalInfo: 'Additional information extracted from the file.',
-        tonePreference: 'Tone preference extracted from the file.'
+        clientName: response.data.clientName || '',
+        projectName: response.data.projectName || '',
+        productDescription: response.data.productDescription || '',
+        targetAudience: response.data.targetAudience || '',
+        competitiveContext: response.data.competitiveContext || '',
+        campaignObjectives: response.data.campaignObjectives || '',
+        keyMessages: response.data.keyMessages || '',
+        mandatories: response.data.mandatories || '',
+        additionalInfo: response.data.additionalInfo || '',
+        tonePreference: response.data.tonePreference || ''
       });
       
       setSuccessMessage('Brief file processed successfully!');

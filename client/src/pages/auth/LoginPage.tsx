@@ -31,7 +31,7 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { loading, error } = useSelector((state: RootState) => state.auth);
-  const [showPrototypeHelp, setShowPrototypeHelp] = useState(false);
+  // Removed prototype help state as we're using real authentication
   
   // Get the location the user was trying to access before redirecting to login
   const { from } = (location.state as LocationState) || { from: { pathname: '/dashboard' } };
@@ -54,14 +54,7 @@ const LoginPage: React.FC = () => {
     },
   });
   
-  const handleDemoLogin = () => {
-    // For prototype, use a demo account
-    formik.setValues({
-      email: 'admin@redbaez.com',
-      password: 'admin123'
-    });
-    setShowPrototypeHelp(true);
-  };
+  // Removed demo login functionality as we're using real authentication
   
   return (
     <Container component="main" maxWidth="sm">
@@ -104,15 +97,7 @@ const LoginPage: React.FC = () => {
             </Alert>
           )}
           
-          {showPrototypeHelp && (
-            <Alert severity="info" sx={{ mb: 2 }}>
-              <Typography variant="body2">
-                For this prototype, you can use: <br />
-                Email: <strong>admin@redbaez.com</strong> <br />
-                Password: <strong>admin123</strong>
-              </Typography>
-            </Alert>
-          )}
+          {/* Removed prototype help alert as we're using real authentication */}
           
           <Box component="form" onSubmit={formik.handleSubmit} sx={{ mt: 1 }}>
             <TextField
@@ -152,19 +137,17 @@ const LoginPage: React.FC = () => {
               {loading ? <CircularProgress size={24} /> : 'Sign In'}
             </Button>
             
-            <Button
-              fullWidth
-              variant="outlined"
-              sx={{ mb: 2 }}
-              onClick={handleDemoLogin}
-            >
-              Use Demo Account
-            </Button>
+            {/* Removed demo account button as we're using real authentication */}
             
-            <Grid container justifyContent="center">
+            <Grid container justifyContent="center" spacing={2}>
               <Grid item>
-                <Link component="button" variant="body2" onClick={() => setShowPrototypeHelp(true)}>
-                  Need help signing in?
+                <Link component="button" variant="body2" onClick={() => {}}>
+                  Forgot password?
+                </Link>
+              </Grid>
+              <Grid item>
+                <Link component={RouterLink} to="/auth/register" variant="body2">
+                  Don't have an account? Sign up
                 </Link>
               </Grid>
             </Grid>

@@ -19,19 +19,31 @@ api.interceptors.request.use(
     // Get token from localStorage
     const token = localStorage.getItem('token');
     
+    console.log(`Request to ${config.url}, token:`, token ? 'Found token' : 'No token');
+    
     // If token exists, add it to the Authorization header
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      console.log('Added Authorization header with token');
+    } else {
+      // Log warning only for authenticated endpoints (not login/register)
+      const isAuthEndpoint = config.url && !['/auth/login', '/auth/register'].includes(config.url);
+      
+      if (isAuthEndpoint) {
+        console.warn(`No authentication token available for request to ${config.url}`);
+      }
     }
     
     // Log requests in development
     if (process.env.NODE_ENV === 'development') {
       console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`);
+      console.log('Request headers:', config.headers);
     }
     
     return config;
   },
   (error) => {
+    console.error('Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
@@ -42,32 +54,295 @@ api.interceptors.response.use(
     // Log responses in development
     if (process.env.NODE_ENV === 'development') {
       console.log(`API Response: ${response.status} ${response.config.url}`);
+      console.log('Response data:', response.data);
     }
     return response;
   },
   (error) => {
     // Handle authentication errors
-    if (error.response && error.response.status === 401) {
-      // If we get a 401 response, the token might be invalid or expired
-      localStorage.removeItem('token');
+    if (error.response) {
+      console.error(`API Error ${error.response.status}:`, error.response.data);
       
-      // Redirect to login page if not already there
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+      if (error.response.status === 401) {
+        // If we get a 401 response, the token might be invalid or expired
+        console.warn('Unauthorized access - clearing token');
+        localStorage.removeItem('token');
+        
+        // Redirect to login page if not already there
+        if (window.location.pathname !== '/login') {
+          console.log('Redirecting to login page...');
+          window.location.href = '/login';
+        }
+      } else if (error.response.status === 403) {
+        console.error('Forbidden access - permissions issue:', error.response.data);
       }
-    }
-    
-    // Log error responses in development
-    if (process.env.NODE_ENV === 'development') {
-      console.error('API Error:', error.response ? error.response.data : error.message);
+    } else {
+      // Network error or other issue
+      console.error('API Error (non-response):', error.message);
     }
     
     return Promise.reject(error);
   }
 );
 
+// Define the API client interface types
+interface AssetAPI {
+  getAll: (filters?: Record<string, any>) => Promise<AxiosResponse>;
+  getById: (id: string) => Promise<AxiosResponse>;
+  upload: (formData: FormData) => Promise<AxiosResponse>;
+  update: (id: string, data: Record<string, any>) => Promise<AxiosResponse>;
+  delete: (id: string) => Promise<AxiosResponse>;
+  search: (query: string, filters?: Record<string, any>) => Promise<AxiosResponse>;
+  getTags: () => Promise<AxiosResponse>;
+  generateAssetLabel: (assetType: string, projectData?: Record<string, any>) => Promise<AxiosResponse>;
+  updateFavourite: (id: string, isFavourite: boolean) => Promise<AxiosResponse>;
+  download: (id: string) => Promise<AxiosResponse>;
+}
+
+interface CampaignAPI {
+  getAll: (filters?: Record<string, any>) => Promise<AxiosResponse>;
+  getById: (id: string) => Promise<AxiosResponse>;
+  create: (data: Record<string, any>) => Promise<AxiosResponse>;
+  update: (id: string, data: Record<string, any>) => Promise<AxiosResponse>;
+  delete: (id: string) => Promise<AxiosResponse>;
+  getActivities: (id: string) => Promise<AxiosResponse>;
+  addExecution: (id: string, data: Record<string, any>) => Promise<AxiosResponse>;
+}
+
+interface CopyRequestType {
+  motivationIds: string[];
+  tone: string;
+  style: string;
+  frameCount: number;
+  length: "short" | "medium" | "long";
+  includeCallToAction: boolean;
+  callToActionText?: string;
+}
+
+interface BriefDataType {
+  clientName: string;
+  projectName: string;
+  productDescription: string;
+  targetAudience: string;
+  competitiveContext: string;
+  campaignObjectives: string;
+  keyMessages: string;
+  mandatories: string;
+  additionalInfo?: string;
+  tonePreference?: string;
+}
+
+interface MotivationType {
+  id: string;
+  title: string;
+  description: string;
+  explanation: string;
+  selected: boolean;
+}
+
+interface LLMAPI {
+  processBrief: (briefData: Record<string, any>) => Promise<AxiosResponse>;
+  generateMotivations: (briefData: Record<string, any>) => Promise<AxiosResponse>;
+  generateCopy: (
+    copyRequest: CopyRequestType,
+    briefData: BriefDataType,
+    motivations: MotivationType[]
+  ) => Promise<AxiosResponse>;
+  parseBrief: (briefData: Record<string, any>) => Promise<AxiosResponse>;
+  regenerateMotivations: (
+    briefData: Record<string, any>,
+    feedback: string
+  ) => Promise<AxiosResponse>;
+}
+
+interface StrategyAPI {
+  processBrief: (formData: FormData) => Promise<AxiosResponse>;
+  generateStrategy: (briefData: Record<string, any>) => Promise<AxiosResponse>;
+}
+
+interface ApiClient {
+  // Allow access to Axios defaults for backwards compatibility
+  defaults?: any;
+  
+  // Matrix methods (used for both direct access and via matrix.x)
+  createMatrix: (data: Record<string, any>) => Promise<AxiosResponse>;
+  getCampaignMatrices: (campaignId: string) => Promise<AxiosResponse>;
+  getMatrixById: (id: string) => Promise<AxiosResponse>;
+  generateCombinations: (id: string, options: Record<string, any>) => Promise<AxiosResponse>;
+  renderRow: (id: string, rowId: string) => Promise<AxiosResponse>;
+  toggleRowLock: (id: string, rowId: string, locked: boolean) => Promise<AxiosResponse>;
+  toggleSlotLock: (id: string, slotId: string, locked: boolean) => Promise<AxiosResponse>;
+  renderAll: (id: string) => Promise<AxiosResponse>;
+  // Auth section
+  auth: {
+    login: (email: string, password: string) => Promise<AxiosResponse>;
+    register: (email: string, password: string, name: string) => Promise<AxiosResponse>;
+    getProfile: () => Promise<AxiosResponse>;
+  };
+  
+  // Direct access to auth endpoints (deprecated)
+  login: (email: string, password: string) => Promise<AxiosResponse>;
+  register: (email: string, password: string, name: string) => Promise<AxiosResponse>;
+  getProfile: () => Promise<AxiosResponse>;
+  
+  // Assets section
+  assets: AssetAPI;
+  
+  // Campaigns section
+  campaigns: CampaignAPI;
+  
+  // Templates section
+  templates: {
+    getAll: (filters?: Record<string, any>) => Promise<AxiosResponse>;
+    getById: (id: string) => Promise<AxiosResponse>;
+    getFromCreatomate: () => Promise<AxiosResponse>;
+  };
+  
+  // Executions section
+  executions: {
+    getById: (id: string) => Promise<AxiosResponse>;
+    update: (id: string, data: Record<string, any>) => Promise<AxiosResponse>;
+    delete: (id: string) => Promise<AxiosResponse>;
+  };
+  
+  // Creatomate section
+  creatomate: {
+    generateVideo: (data: Record<string, any>) => Promise<AxiosResponse>;
+    generatePreview: (data: Record<string, any>) => Promise<AxiosResponse>;
+    checkRenderStatus: (jobId: string) => Promise<AxiosResponse>;
+    batchGenerate: (data: Record<string, any>) => Promise<AxiosResponse>;
+    generatePlatformFormats: (data: Record<string, any>) => Promise<AxiosResponse>;
+  };
+  
+  // Exports section
+  exports: {
+    getPlatformSpecs: () => Promise<AxiosResponse>;
+    exportCampaign: (campaignId: string, data: Record<string, any>) => Promise<AxiosResponse>;
+    downloadExport: (campaignId: string) => Promise<AxiosResponse>;
+  };
+  
+  // Users section
+  users: {
+    getAll: () => Promise<AxiosResponse>;
+    getById: (id: string) => Promise<AxiosResponse>;
+    create: (data: Record<string, any>) => Promise<AxiosResponse>;
+    update: (id: string, data: Record<string, any>) => Promise<AxiosResponse>;
+    delete: (id: string) => Promise<AxiosResponse>;
+  };
+  
+  // Direct access to users endpoints (deprecated)
+  getAll: () => Promise<AxiosResponse>;
+  getById: (id: string) => Promise<AxiosResponse>;
+  create: (data: Record<string, any>) => Promise<AxiosResponse>;
+  update: (id: string, data: Record<string, any>) => Promise<AxiosResponse>;
+  delete: (id: string) => Promise<AxiosResponse>;
+  
+  // Workflow section
+  workflow: {
+    getTasks: (filters?: Record<string, any>) => Promise<AxiosResponse>;
+    getTaskById: (id: string) => Promise<AxiosResponse>;
+    createTask: (data: Record<string, any>) => Promise<AxiosResponse>;
+    updateTask: (id: string, data: Record<string, any>) => Promise<AxiosResponse>;
+    deleteTask: (id: string) => Promise<AxiosResponse>;
+    assignTask: (id: string, userId: string) => Promise<AxiosResponse>;
+    completeTask: (id: string, data?: Record<string, any>) => Promise<AxiosResponse>;
+  };
+  
+  // Direct access to workflow endpoints (deprecated)
+  getTasks: (filters?: Record<string, any>) => Promise<AxiosResponse>;
+  getTaskById: (id: string) => Promise<AxiosResponse>;
+  createTask: (data: Record<string, any>) => Promise<AxiosResponse>;
+  updateTask: (id: string, data: Record<string, any>) => Promise<AxiosResponse>;
+  deleteTask: (id: string) => Promise<AxiosResponse>;
+  assignTask: (id: string, userId: string) => Promise<AxiosResponse>;
+  completeTask: (id: string, data?: Record<string, any>) => Promise<AxiosResponse>;
+  
+  // LLM section
+  llm: {
+    processBrief: (briefData: Record<string, any>) => Promise<AxiosResponse>;
+    generateMotivations: (briefData: Record<string, any>) => Promise<AxiosResponse>;
+    generateCopy: (
+      copyRequest: CopyRequestType,
+      briefData: BriefDataType,
+      motivations: MotivationType[]
+    ) => Promise<AxiosResponse>;
+    parseBrief: (briefData: Record<string, any>) => Promise<AxiosResponse>;
+    regenerateMotivations: (
+      briefData: Record<string, any>,
+      feedback: string
+    ) => Promise<AxiosResponse>;
+  };
+  
+  // Signoff section
+  signoff: {
+    create: (data: Record<string, any>) => Promise<AxiosResponse>;
+    getCampaignItems: (campaignId: string) => Promise<AxiosResponse>;
+    getSignoffById: (id: string) => Promise<AxiosResponse>;
+    updateStatus: (id: string, status: string, comments?: string) => Promise<AxiosResponse>;
+    createNewVersion: (id: string, content: any, title?: string) => Promise<AxiosResponse>;
+    getClientItem: (token: string) => Promise<AxiosResponse>;
+    clientRespond: (token: string, status: string, comments?: string) => Promise<AxiosResponse>;
+  };
+  
+  // Direct access to signoff endpoints (deprecated)
+  getCampaignItems: (campaignId: string) => Promise<AxiosResponse>;
+  getSignoffById: (id: string) => Promise<AxiosResponse>;
+  updateStatus: (id: string, status: string, comments?: string) => Promise<AxiosResponse>;
+  createNewVersion: (id: string, content: any, title?: string) => Promise<AxiosResponse>;
+  getClientItem: (token: string) => Promise<AxiosResponse>;
+  clientRespond: (token: string, status: string, comments?: string) => Promise<AxiosResponse>;
+  
+  // Matrix section
+  matrix: {
+    create: (data: Record<string, any>) => Promise<AxiosResponse>;
+    getCampaignMatrices: (campaignId: string) => Promise<AxiosResponse>;
+    getMatrixById: (id: string) => Promise<AxiosResponse>;
+    update: (id: string, data: Record<string, any>) => Promise<AxiosResponse>;
+    generateCombinations: (id: string, options: Record<string, any>) => Promise<AxiosResponse>;
+    renderRow: (id: string, rowId: string) => Promise<AxiosResponse>;
+    toggleRowLock: (id: string, rowId: string, locked: boolean) => Promise<AxiosResponse>;
+    toggleSlotLock: (id: string, slotId: string, locked: boolean) => Promise<AxiosResponse>;
+    renderAll: (id: string) => Promise<AxiosResponse>;
+  };
+  
+
+  
+  // Strategy section
+  strategy: {
+    processBrief: (formData: FormData) => Promise<AxiosResponse>;
+    generateStrategy: (briefData: Record<string, any>) => Promise<AxiosResponse>;
+  };
+}
+
+// Removing LegacyApiClient interface to avoid duplicate identifiers
+
 // API wrapper functions with better TypeScript support
-export const apiClient = {
+// Implement the ApiClient interface
+const apiClient: ApiClient = {
+  // Add matrix direct access methods (these will be accessed via the matrix section as well)
+  createMatrix: (data: Record<string, any>): Promise<AxiosResponse> =>
+    api.post('/matrix', data),
+    
+  getCampaignMatrices: (campaignId: string): Promise<AxiosResponse> =>
+    api.get(`/matrix/campaign/${campaignId}`),
+    
+  getMatrixById: (id: string): Promise<AxiosResponse> =>
+    api.get(`/matrix/${id}`),
+    
+  generateCombinations: (id: string, options: Record<string, any>): Promise<AxiosResponse> =>
+    api.post(`/matrix/${id}/generate`, options),
+    
+  renderRow: (id: string, rowId: string): Promise<AxiosResponse> =>
+    api.post(`/matrix/${id}/render/${rowId}`),
+    
+  toggleRowLock: (id: string, rowId: string, locked: boolean): Promise<AxiosResponse> =>
+    api.post(`/matrix/${id}/lock-row/${rowId}`, { locked }),
+    
+  toggleSlotLock: (id: string, slotId: string, locked: boolean): Promise<AxiosResponse> =>
+    api.post(`/matrix/${id}/lock-slot/${slotId}`, { locked }),
+    
+  renderAll: (id: string): Promise<AxiosResponse> =>
+    api.post(`/matrix/${id}/render-all`),
   // Auth endpoints
   auth: {
     login: (email: string, password: string): Promise<AxiosResponse> => 
@@ -79,6 +354,16 @@ export const apiClient = {
     getProfile: (): Promise<AxiosResponse> => 
       api.get('/auth/me'),
   },
+
+  // Direct access to auth endpoints (deprecated, use auth.x instead)
+  login: (email: string, password: string): Promise<AxiosResponse> => 
+    api.post('/auth/login', { email, password }),
+    
+  register: (email: string, password: string, name: string): Promise<AxiosResponse> => 
+    api.post('/auth/register', { email, password, name }),
+    
+  getProfile: (): Promise<AxiosResponse> => 
+    api.get('/auth/me'),
   
   // Assets endpoints
   assets: {
@@ -125,6 +410,28 @@ export const apiClient = {
      */
     delete: (id: string): Promise<AxiosResponse> => 
       api.delete(`/assets/${id}`),
+      
+    /**
+     * Search for assets by query string and optional filters
+     * @param query Search query
+     * @param filters Optional filters
+     */
+    search: (query: string, filters?: Record<string, any>): Promise<AxiosResponse> => 
+      api.get('/assets/search', { params: { query, ...filters } }),
+      
+    /**
+     * Get all available asset tags
+     */
+    getTags: (): Promise<AxiosResponse> => 
+      api.get('/assets/tags'),
+      
+    /**
+     * Generate a label for an asset based on its type
+     * @param assetType Type of asset
+     * @param projectData Optional project data for context
+     */
+    generateAssetLabel: (assetType: string, projectData?: Record<string, any>): Promise<AxiosResponse> => 
+      api.post('/assets/generate-label', { assetType, projectData }),
     
     /**
      * Toggle the favourite status of an asset
@@ -170,6 +477,9 @@ export const apiClient = {
     
     delete: (id: string): Promise<AxiosResponse> => 
       api.delete(`/campaigns/${id}`),
+      
+    getActivities: (id: string): Promise<AxiosResponse> => 
+      api.get(`/campaigns/${id}/activities`),
     
     addExecution: (campaignId: string, data: Record<string, any>): Promise<AxiosResponse> => 
       api.post(`/campaigns/${campaignId}/executions`, data),
@@ -219,24 +529,27 @@ export const apiClient = {
       }),
   },
   
-  // LLM/Strategy endpoints
+  // LLM endpoints
   llm: {
+    /**
+     * Process a client brief
+     * @param briefData The client brief data
+     */
+    processBrief: (briefData: Record<string, any>): Promise<AxiosResponse> =>
+      api.post('/llm/process-brief', briefData),
+      
+    /**
+     * Generate motivations from brief data
+     * @param briefData The brief data
+     */
+    generateMotivations: (briefData: Record<string, any>): Promise<AxiosResponse> =>
+      api.post('/llm/generate-motivations', briefData),
+      
     /**
      * Parse a client brief to generate motivations
      * @param briefData The client brief data
      */
-    parseBrief: (briefData: {
-      clientName: string;
-      projectName: string;
-      productDescription: string;
-      targetAudience: string;
-      competitiveContext: string;
-      campaignObjectives: string;
-      keyMessages: string;
-      mandatories: string;
-      additionalInfo?: string;
-      tonePreference?: string;
-    }): Promise<AxiosResponse> =>
+    parseBrief: (briefData: Record<string, any>): Promise<AxiosResponse> =>
       api.post('/llm/parse-brief', briefData),
       
     /**
@@ -245,18 +558,7 @@ export const apiClient = {
      * @param feedback User feedback for regeneration
      */
     regenerateMotivations: (
-      briefData: {
-        clientName: string;
-        projectName: string;
-        productDescription: string;
-        targetAudience: string;
-        competitiveContext: string;
-        campaignObjectives: string;
-        keyMessages: string;
-        mandatories: string;
-        additionalInfo?: string;
-        tonePreference?: string;
-      }, 
+      briefData: Record<string, any>, 
       feedback: string
     ): Promise<AxiosResponse> =>
       api.post('/llm/regenerate-motivations', { briefData, feedback }),
@@ -308,7 +610,7 @@ export const apiClient = {
     getCampaignItems: (campaignId: string): Promise<AxiosResponse> =>
       api.get(`/signoff/campaign/${campaignId}`),
       
-    getById: (id: string): Promise<AxiosResponse> =>
+    getSignoffById: (id: string): Promise<AxiosResponse> =>
       api.get(`/signoff/${id}`),
       
     updateStatus: (id: string, status: string, comments?: string): Promise<AxiosResponse> =>
@@ -325,6 +627,82 @@ export const apiClient = {
       api.put(`/signoff/client/${token}/respond`, { status, comments }),
   },
   
+  // Direct access to signoff endpoints (deprecated, use signoff.x instead)
+  getCampaignItems: (campaignId: string): Promise<AxiosResponse> =>
+    api.get(`/signoff/campaign/${campaignId}`),
+    
+  getSignoffById: (id: string): Promise<AxiosResponse> =>
+    api.get(`/signoff/${id}`),
+    
+  updateStatus: (id: string, status: string, comments?: string): Promise<AxiosResponse> =>
+    api.put(`/signoff/${id}/status`, { status, comments }),
+    
+  createNewVersion: (id: string, content: any, title?: string): Promise<AxiosResponse> =>
+    api.post(`/signoff/${id}/versions`, { content, title }),
+    
+  // Client portal (no auth required)
+  getClientItem: (token: string): Promise<AxiosResponse> =>
+    api.get(`/signoff/client/${token}`),
+    
+  clientRespond: (token: string, status: string, comments?: string): Promise<AxiosResponse> =>
+    api.put(`/signoff/client/${token}/respond`, { status, comments }),
+    
+  // Direct access to workflow endpoints (deprecated, use workflow.x instead)
+  getTasks: (filters?: Record<string, any>): Promise<AxiosResponse> =>
+    api.get('/workflow/tasks', { params: filters }),
+    
+  getTaskById: (id: string): Promise<AxiosResponse> =>
+    api.get(`/workflow/tasks/${id}`),
+    
+  createTask: (data: Record<string, any>): Promise<AxiosResponse> =>
+    api.post('/workflow/tasks', data),
+    
+  updateTask: (id: string, data: Record<string, any>): Promise<AxiosResponse> =>
+    api.put(`/workflow/tasks/${id}`, data),
+    
+  deleteTask: (id: string): Promise<AxiosResponse> =>
+    api.delete(`/workflow/tasks/${id}`),
+    
+  assignTask: (id: string, userId: string): Promise<AxiosResponse> =>
+    api.put(`/workflow/tasks/${id}/assign`, { userId }),
+    
+  completeTask: (id: string, data?: Record<string, any>): Promise<AxiosResponse> =>
+    api.put(`/workflow/tasks/${id}/complete`, data),
+  
+  // Direct access to users endpoints (deprecated, use users.x instead)
+  getAll: (): Promise<AxiosResponse> => 
+    api.get('/users'),
+  
+  getById: (id: string): Promise<AxiosResponse> => 
+    api.get(`/users/${id}`),
+    
+  create: (data: Record<string, any>): Promise<AxiosResponse> => 
+    api.post('/users', data),
+  
+  update: (id: string, data: Record<string, any>): Promise<AxiosResponse> => 
+    api.put(`/users/${id}`, data),
+  
+  delete: (id: string): Promise<AxiosResponse> => 
+    api.delete(`/users/${id}`),
+  
+  // Users endpoints
+  users: {
+    getAll: (): Promise<AxiosResponse> =>
+      api.get('/users'),
+      
+    getById: (id: string): Promise<AxiosResponse> =>
+      api.get(`/users/${id}`),
+      
+    create: (data: Record<string, any>): Promise<AxiosResponse> => 
+      api.post('/users', data),
+    
+    update: (id: string, data: Record<string, any>): Promise<AxiosResponse> => 
+      api.put(`/users/${id}`, data),
+    
+    delete: (id: string): Promise<AxiosResponse> => 
+      api.delete(`/users/${id}`),
+  },
+  
   // Matrix endpoints
   matrix: {
     create: (data: Record<string, any>): Promise<AxiosResponse> =>
@@ -333,7 +711,7 @@ export const apiClient = {
     getCampaignMatrices: (campaignId: string): Promise<AxiosResponse> =>
       api.get(`/matrix/campaign/${campaignId}`),
       
-    getById: (id: string): Promise<AxiosResponse> =>
+    getMatrixById: (id: string): Promise<AxiosResponse> =>
       api.get(`/matrix/${id}`),
       
     update: (id: string, data: Record<string, any>): Promise<AxiosResponse> =>
@@ -354,6 +732,58 @@ export const apiClient = {
     renderAll: (id: string): Promise<AxiosResponse> =>
       api.post(`/matrix/${id}/render-all`),
   },
+  
+  // Strategy endpoints
+  strategy: {
+    /**
+     * Process a brief file and extract structured data
+     * @param formData Form data containing the brief file
+     */
+    processBrief: (formData: FormData): Promise<AxiosResponse> => {
+      const config: AxiosRequestConfig = {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      };
+      return api.post('/strategy/process-brief', formData, config);
+    },
+
+    /**
+     * Generate a strategy from brief data
+     * @param briefData The brief data used to generate the strategy
+     */
+    generateStrategy: (briefData: Record<string, any>): Promise<AxiosResponse> => 
+      api.post('/strategy/generate', briefData)
+  },
+  
+  // Workflow section
+  workflow: {
+    getTasks: (filters?: Record<string, any>): Promise<AxiosResponse> =>
+      api.get('/workflow/tasks', { params: filters }),
+      
+    getTaskById: (id: string): Promise<AxiosResponse> =>
+      api.get(`/workflow/tasks/${id}`),
+      
+    createTask: (data: Record<string, any>): Promise<AxiosResponse> =>
+      api.post('/workflow/tasks', data),
+      
+    updateTask: (id: string, data: Record<string, any>): Promise<AxiosResponse> =>
+      api.put(`/workflow/tasks/${id}`, data),
+      
+    deleteTask: (id: string): Promise<AxiosResponse> =>
+      api.delete(`/workflow/tasks/${id}`),
+      
+    assignTask: (id: string, userId: string): Promise<AxiosResponse> =>
+      api.put(`/workflow/tasks/${id}/assign`, { userId }),
+      
+    completeTask: (id: string, data?: Record<string, any>): Promise<AxiosResponse> =>
+      api.put(`/workflow/tasks/${id}/complete`, data),
+  },
 };
 
-export default api;
+// Set axios defaults to use on the api object
+apiClient.defaults = api.defaults;
+
+// Export both as default and named export for backward compatibility
+export default apiClient;
+export { apiClient };
