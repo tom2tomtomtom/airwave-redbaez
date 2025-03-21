@@ -29,9 +29,10 @@ import {
 } from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../store';
-import { fetchTemplates } from '../../store/slices/templatesSlice';
+import { fetchTemplates, deleteTemplate } from '../../store/slices/templatesSlice';
 import TemplateCard from '../../components/templates/TemplateCard';
 import TemplateDetailDialog from '../../components/templates/TemplateDetailDialog';
+import ImportTemplateDialog from '../../components/templates/ImportTemplateDialog';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -84,11 +85,33 @@ const TemplatesPage: React.FC = () => {
   const [selectedPlatform, setSelectedPlatform] = useState('all');
   const [selectedFormat, setSelectedFormat] = useState('all');
   const [openTemplateDetail, setOpenTemplateDetail] = useState(false);
+  const [openImportDialog, setOpenImportDialog] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
 
   useEffect(() => {
+    console.log('Fetching templates...');
     dispatch(fetchTemplates());
   }, [dispatch]);
+  
+  // Debug logger for templates with validation
+  useEffect(() => {
+    if (templates.length > 0) {
+      console.log('Templates loaded:', templates.length);
+      console.log('Format values:', templates.map(t => ({ id: t.id, name: t.name, format: t.format })));
+      
+      // Check for problematic templates
+      const problematicTemplates = templates.filter(t => {
+        // Check for templates with missing required properties or invalid formats
+        return !t.id || !t.name || 
+               !t.format || !['square', 'landscape', 'portrait', 'story'].includes(t.format) || 
+               !t.platforms || !Array.isArray(t.platforms);
+      });
+      
+      if (problematicTemplates.length > 0) {
+        console.warn('Found problematic templates:', problematicTemplates);
+      }
+    }
+  }, [templates]);
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -115,11 +138,30 @@ const TemplatesPage: React.FC = () => {
     setOpenTemplateDetail(false);
   };
 
+  const handleDeleteTemplate = (templateId: string) => {
+    dispatch(deleteTemplate(templateId));
+  };
+
   // Filter templates based on search query, platform, and format
+  // Also filter out any invalid templates that might cause rendering issues
   const filteredTemplates = templates.filter(template => {
+    // Skip invalid templates
+    if (!template.id || !template.name || 
+        !template.format || !['square', 'landscape', 'portrait', 'story'].includes(template.format) || 
+        !template.platforms || !Array.isArray(template.platforms)) {
+      return false;
+    }
+    
+    // Make sure template has the required description property
+    const description = template.description || '';
+    
     const matchesSearch = template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          template.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesPlatform = selectedPlatform === 'all' || template.platforms.includes(selectedPlatform);
+                          description.toLowerCase().includes(searchQuery.toLowerCase());
+    // Fix platform filtering - ensure we properly check if platforms array exists and contains the selected platform
+    const matchesPlatform = selectedPlatform === 'all' || 
+      (Array.isArray(template.platforms) && template.platforms.some(p => 
+        p.toLowerCase() === selectedPlatform.toLowerCase()
+      ));
     const matchesFormat = selectedFormat === 'all' || template.format === selectedFormat;
     
     return matchesSearch && matchesPlatform && matchesFormat;
@@ -131,15 +173,25 @@ const TemplatesPage: React.FC = () => {
         <Typography variant="h4" component="h1">
           Template Browser
         </Typography>
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<RefreshIcon />}
-          onClick={() => dispatch(fetchTemplates())}
-          disabled={loading}
-        >
-          Refresh Templates
-        </Button>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button
+            variant="outlined"
+            color="primary"
+            onClick={() => setOpenImportDialog(true)}
+            disabled={loading}
+          >
+            Import Template
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<RefreshIcon />}
+            onClick={() => dispatch(fetchTemplates())}
+            disabled={loading}
+          >
+            Refresh Templates
+          </Button>
+        </Box>
       </Box>
 
       <Paper sx={{ mb: 4 }}>
@@ -226,12 +278,35 @@ const TemplatesPage: React.FC = () => {
             </Typography>
           </Box>
         ) : (
-          <Grid container spacing={3}>
+          <Grid 
+            container 
+            spacing={3} 
+            sx={{ 
+              position: 'relative',
+              mt: 1,
+              mb: 4, // Add bottom margin to prevent overlap with any content below
+              '& .MuiGrid-item': {
+                // Add padding to grid items to prevent hover effects from getting cut off
+                paddingTop: 1,
+                paddingBottom: 1,
+              }
+            }}
+          >
             {filteredTemplates.map((template) => (
-              <Grid item xs={12} sm={6} md={4} key={template.id}>
+              <Grid 
+                item 
+                xs={12} 
+                sm={6} 
+                md={4} 
+                key={template.id}
+                sx={{ 
+                  overflow: 'visible' // Allow hover effects to overflow
+                }}
+              >
                 <TemplateCard 
                   template={template}
                   onClick={() => handleTemplateClick(template)}
+                  onDelete={handleDeleteTemplate}
                 />
               </Grid>
             ))}
@@ -240,11 +315,124 @@ const TemplatesPage: React.FC = () => {
       </TabPanel>
 
       <TabPanel value={tabValue} index={1}>
-        <Typography>Recent templates will appear here</Typography>
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+            <CircularProgress />
+          </Box>
+        ) : filteredTemplates.length === 0 ? (
+          <Box
+            sx={{
+              p: 4,
+              textAlign: 'center',
+              bgcolor: 'background.paper',
+              borderRadius: 1
+            }}
+          >
+            <Typography variant="h6" gutterBottom>
+              No recent templates
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Recently viewed templates will appear here
+            </Typography>
+          </Box>
+        ) : (
+          <Grid 
+            container 
+            spacing={3} 
+            sx={{ 
+              position: 'relative',
+              mt: 1,
+              mb: 4,
+              '& .MuiGrid-item': {
+                paddingTop: 1,
+                paddingBottom: 1,
+              }
+            }}
+          >
+            {/* Filter for recent templates - sorted by most recently updated */}
+            {filteredTemplates
+              .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+              .slice(0, 12) // Show only the 12 most recent templates
+              .map((template) => (
+                <Grid 
+                  item 
+                  xs={12} 
+                  sm={6} 
+                  md={4} 
+                  key={template.id}
+                  sx={{ 
+                    overflow: 'visible'
+                  }}
+                >
+                  <TemplateCard 
+                    template={template}
+                    onClick={() => handleTemplateClick(template)}
+                    onDelete={handleDeleteTemplate}
+                  />
+                </Grid>
+              ))}
+          </Grid>
+        )}
       </TabPanel>
 
       <TabPanel value={tabValue} index={2}>
-        <Typography>Favorite templates will appear here</Typography>
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+            <CircularProgress />
+          </Box>
+        ) : filteredTemplates.filter(t => t.isFavorite).length === 0 ? (
+          <Box
+            sx={{
+              p: 4,
+              textAlign: 'center',
+              bgcolor: 'background.paper',
+              borderRadius: 1
+            }}
+          >
+            <Typography variant="h6" gutterBottom>
+              No favourites yet
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Click the heart icon on templates to add them to your favourites
+            </Typography>
+          </Box>
+        ) : (
+          <Grid 
+            container 
+            spacing={3} 
+            sx={{ 
+              position: 'relative',
+              mt: 1,
+              mb: 4,
+              '& .MuiGrid-item': {
+                paddingTop: 1,
+                paddingBottom: 1,
+              }
+            }}
+          >
+            {/* Show only favorite templates */}
+            {filteredTemplates
+              .filter(template => template.isFavorite)
+              .map((template) => (
+                <Grid 
+                  item 
+                  xs={12} 
+                  sm={6} 
+                  md={4} 
+                  key={template.id}
+                  sx={{ 
+                    overflow: 'visible'
+                  }}
+                >
+                  <TemplateCard 
+                    template={template}
+                    onClick={() => handleTemplateClick(template)}
+                    onDelete={handleDeleteTemplate}
+                  />
+                </Grid>
+              ))}
+          </Grid>
+        )}
       </TabPanel>
 
       {/* Template Detail Dialog */}
@@ -255,6 +443,12 @@ const TemplatesPage: React.FC = () => {
           template={selectedTemplate}
         />
       )}
+      
+      {/* Import Template Dialog */}
+      <ImportTemplateDialog
+        open={openImportDialog}
+        onClose={() => setOpenImportDialog(false)}
+      />
     </Box>
   );
 };
