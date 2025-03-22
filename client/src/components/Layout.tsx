@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { styled } from '@mui/material/styles';
 import { 
@@ -27,12 +27,15 @@ import {
   Movie as GenerateIcon,
   FileDownload as ExportIcon,
   AccountCircle as AccountIcon,
-  Logout as LogoutIcon
+  Logout as LogoutIcon,
+  Description as BriefIcon,
+  Business as BusinessIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
 import { logout } from '../store/slices/authSlice';
+import ClientSelector from './clients/ClientSelector';
 
 const drawerWidth = 240;
 
@@ -62,6 +65,7 @@ const Layout: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
+  const { selectedClientId } = useSelector((state: RootState) => state.clients);
 
   const handleDrawerToggle = () => {
     setDrawerOpen(!drawerOpen);
@@ -72,15 +76,21 @@ const Layout: React.FC = () => {
     navigate('/login');
   };
 
-  const menuItems = [
-    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
+  // Define navigation items that require client selection and those that don't
+  const clientRequiredItems = [
+    { text: 'Client Dashboard', icon: <BusinessIcon />, path: '/client-dashboard' },
+    { text: 'Generate', icon: <GenerateIcon />, path: '/generate' },
+    { text: 'Visual Matrix', icon: <ImageIcon />, path: '/matrix' },
     { text: 'Assets', icon: <ImageIcon />, path: '/assets' },
     { text: 'Templates', icon: <TemplateIcon />, path: '/templates' },
     { text: 'Campaigns', icon: <CampaignIcon />, path: '/campaigns' },
     { text: 'Create Campaign', icon: <AddIcon />, path: '/campaigns/new' },
-    { text: 'Generate', icon: <GenerateIcon />, path: '/generate' },
+    { text: 'Strategic Content', icon: <BriefIcon />, path: '/briefs' },
     { text: 'Exports', icon: <ExportIcon />, path: '/exports' },
   ];
+
+  // If no client is selected, only show the client selection option
+  const menuItems = selectedClientId ? clientRequiredItems : [];
 
   const drawer = (
     <>
@@ -91,6 +101,19 @@ const Layout: React.FC = () => {
       </Toolbar>
       <Divider />
       <List>
+        {!selectedClientId && (
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={() => {
+                navigate('/client-selection');
+                if (isMobile) setDrawerOpen(false);
+              }}
+            >
+              <ListItemIcon><BusinessIcon /></ListItemIcon>
+              <ListItemText primary="Select Client" />
+            </ListItemButton>
+          </ListItem>
+        )}
         {menuItems.map((item) => (
           <ListItem key={item.text} disablePadding>
             <ListItemButton
@@ -137,9 +160,14 @@ const Layout: React.FC = () => {
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 0 }}>
             Redbaez AIrWAVE
           </Typography>
+          
+          <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center' }}>
+            <ClientSelector />
+          </Box>
+          
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <Typography variant="body2" sx={{ mr: 1 }}>
               {user?.name || 'User'}
