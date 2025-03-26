@@ -34,3 +34,7 @@ Thumbs.db
 
 # Testing
 /coverage
+
+# Uploads - exclude media files
+server/uploads/
+server/dist/uploads/
