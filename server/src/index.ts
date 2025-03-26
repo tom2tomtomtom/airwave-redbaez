@@ -6,6 +6,16 @@ import http from 'http';
 import { initializeDatabase } from './db/supabaseClient';
 import WebSocketService from './services/websocket';
 
+// Import middleware
+import { errorHandler, ApiError, notFoundHandler } from './middleware/errorHandler';
+import { responseHandler, requestLogger } from './middleware/responseHandler';
+
+// Import route registry
+import { RouteRegistry } from './routes/RouteRegistry';
+
+// Import logger
+import { logger } from './utils/logger';
+
 // Routes
 import authRoutes from './routes/auth.routes';
 import assetRoutes from './routes/assetRoutes';
@@ -90,6 +100,10 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Apply our custom middleware
+app.use(responseHandler);
+app.use(requestLogger);
+
 // Static files (uploads)
 const uploadsDir = path.join(__dirname, '../uploads');
 app.use('/uploads', express.static(uploadsDir));
@@ -135,11 +149,10 @@ app.get('/', (req, res) => {
   });
 });
 
-// API Routes
+// Register routes - Legacy approach (to be migrated to route registry)
 app.use('/api/auth', authRoutes);
-app.use('/api/assets', assetRoutes);
 app.use('/api/templates', templateRoutes);
-app.use('/api/campaigns', campaignRoutes);
+// app.use('/api/campaigns', campaignRoutes); // Migrated to route registry pattern
 app.use('/api/creatomate', creatomateRoutes);
 app.use('/api/runway', runwayRoutes);
 app.use('/api/exports', exportsRoutes);
@@ -149,28 +162,61 @@ app.use('/api/signoff', signoffRoutes);
 app.use('/api/signoff-sessions', signoffSessionsRoutes);
 app.use('/api/matrix', matrixRoutes);
 app.use('/api/briefs', briefRoutes);
-app.use('/api/clients', clientRoutes);
 app.use('/api/mcp', mcpRoutes);
 
 // v2 API Routes - new slug-based design
 app.use('/api/v2', v2Routes);
 
+// Import router classes
+import { AssetRouter } from './routes/assets.routes';
+import { ClientRouter } from './routes/clients.routes';
+import { CampaignRouter } from './routes/campaigns.routes';
+import { V2AssetRouter } from './routes/v2/assets.routes';
+import { V2ClientRouter } from './routes/v2/clients.routes';
+
+// Register route handlers with the registry
+RouteRegistry.register(new AssetRouter());
+RouteRegistry.register(new ClientRouter());
+RouteRegistry.register(new CampaignRouter());
+RouteRegistry.register(new V2AssetRouter());
+RouteRegistry.register(new V2ClientRouter());
+
+// Initialize all registered routes
+RouteRegistry.initializeRoutes(app);
+
+// Apply error handling middleware (must be after all routes)
+app.use(notFoundHandler);
+app.use(errorHandler);
+
 // Start the server - make sure we listen on all interfaces
 server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Root URL: http://localhost:${PORT}/`);
-  console.log(`Health check: http://localhost:${PORT}/health`);
-  console.log(`WebSocket endpoint: ws://localhost:${PORT}/ws`);
-  console.log(`Auth endpoints: http://localhost:${PORT}/api/auth/login & /register`);
-  console.log(`Assets endpoint: http://localhost:${PORT}/api/assets`);
-  console.log(`Templates endpoint: http://localhost:${PORT}/api/templates`);
-  console.log(`Campaigns endpoint: http://localhost:${PORT}/api/campaigns`);
-  console.log(`Creatomate endpoint: http://localhost:${PORT}/api/creatomate`);
-  console.log(`Runway endpoint: http://localhost:${PORT}/api/runway`);
-  console.log(`Exports endpoint: http://localhost:${PORT}/api/exports`);
-  console.log(`LLM endpoint: http://localhost:${PORT}/api/llm`);
-  console.log(`Sign-off endpoint: http://localhost:${PORT}/api/signoff`);
-  console.log(`Matrix endpoint: http://localhost:${PORT}/api/matrix`);
-  console.log(`Clients endpoint: http://localhost:${PORT}/api/clients`);
-  console.log(`MCP endpoint: http://localhost:${PORT}/api/mcp`);
+  logger.info(`Server running on port ${PORT}`);
+  logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  logger.info(`Root URL: http://localhost:${PORT}/`);
+  logger.info(`Health check: http://localhost:${PORT}/health`);
+  logger.info(`WebSocket endpoint: ws://localhost:${PORT}/ws`);
+  
+  // Log route information
+  const routeInfo = [
+    { name: 'Auth', path: '/api/auth' },
+    { name: 'Assets', path: '/api/assets' },
+    { name: 'Templates', path: '/api/templates' },
+    { name: 'Campaigns', path: '/api/campaigns' },
+    { name: 'Creatomate', path: '/api/creatomate' },
+    { name: 'Runway', path: '/api/runway' },
+    { name: 'Exports', path: '/api/exports' },
+    { name: 'LLM', path: '/api/llm' },
+    { name: 'Sign-off', path: '/api/signoff' },
+    { name: 'Matrix', path: '/api/matrix' },
+    { name: 'Clients', path: '/api/clients' },
+    { name: 'MCP', path: '/api/mcp' },
+    { name: 'V2 API', path: '/api/v2' }
+  ];
+  
+  logger.info('Available API endpoints:');
+  routeInfo.forEach(route => {
+    logger.info(`- ${route.name}: http://localhost:${PORT}${route.path}`);
+  });
+  
+  logger.info('Server initialization complete');
 });
