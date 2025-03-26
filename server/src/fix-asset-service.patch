@@ -1,0 +1,20 @@
+--- src/services/assetService.ts
++++ src/services/assetService.ts
+@@ -750,10 +750,21 @@
+     }
+   }
+   
+-  // This is just a JSDoc comment for the above method, the actual implementation is earlier in the file
++  /**
++   * Get assets by client slug with optional filtering and pagination
++   * @param slug The client slug to get assets for
++   * @param options Optional filtering and pagination options
++   * @returns Object containing paginated assets and total count
++   */
++  async getAssetsByClientSlug(slug: string, options: any = {}): Promise<{assets: Asset[], total: number}> {
+     try {
+       console.log(`Getting assets for client slug: ${slug}`);
+       
+       // Default pagination values
+       const limit = options.limit || 20;
+       const offset = options.offset || 0;

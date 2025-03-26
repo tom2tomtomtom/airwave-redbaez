@@ -33,10 +33,13 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.WebSocketService = void 0;
 const ws_1 = __importStar(require("ws"));
 const creatomateService_1 = require("./creatomateService");
 class WebSocketService {
+    // Method to get the current connection count
+    getConnectionCount() {
+        return this.clients.size;
+    }
     constructor(server) {
         this.clients = new Map();
         this.wss = new ws_1.Server({ server, path: '/ws' });
@@ -126,5 +129,4 @@ class WebSocketService {
         return `client-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     }
 }
-exports.WebSocketService = WebSocketService;
 exports.default = WebSocketService;

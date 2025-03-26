@@ -100,55 +100,189 @@ class DocumentService {
         }
     }
     /**
-     * Extract brief data from document text using structure recognition
+     * Extract text from a document buffer directly (without saving to disk)
+     * @param buffer The file buffer
+     * @param fileExtension The file extension (pdf, docx, doc, txt)
+     */
+    async extractTextFromDocument(buffer, fileExtension) {
+        console.log(`Extracting text from ${fileExtension} document...`);
+        try {
+            let text = '';
+            if (fileExtension === 'pdf') {
+                const pdfData = await (0, pdf_parse_1.default)(buffer);
+                text = pdfData.text;
+            }
+            else if (fileExtension === 'docx' || fileExtension === 'doc') {
+                const result = await mammoth_1.default.extractRawText({ buffer });
+                text = result.value;
+            }
+            else if (fileExtension === 'txt') {
+                text = buffer.toString('utf8');
+            }
+            else {
+                throw new Error(`Unsupported file type: ${fileExtension}`);
+            }
+            return text;
+        }
+        catch (error) {
+            console.error(`Error extracting text from ${fileExtension} document:`, error);
+            throw error;
+        }
+    }
+    /**
+     * Extract brief data from document text using advanced pattern matching
+     * that handles complex brief formats with multi-paragraph sections
      */
     extractBriefDataFromText(text) {
+        console.log('Extracting brief data from text...');
         const briefData = {};
-        // Extract client name
-        const clientMatch = text.match(/client:?\s*([^\r\n]+)/i);
+        // Extract Client name - typically appears as "Client: Name"
+        const clientPattern = /\bClient:\s+([^\n\r]+)/i;
+        const clientMatch = text.match(clientPattern);
         if (clientMatch && clientMatch[1]) {
             briefData.clientName = clientMatch[1].trim();
         }
-        // Extract project name
-        const projectMatch = text.match(/project:?\s*([^\r\n]+)/i);
+        // Extract Project name - typically appears as "Project: Name"
+        const projectPattern = /\bProject:\s+([^\n\r]+)/i;
+        const projectMatch = text.match(projectPattern);
         if (projectMatch && projectMatch[1]) {
             briefData.projectName = projectMatch[1].trim();
         }
-        // Extract product description
-        const productMatch = text.match(/product:?\s*([^\r\n]+)|(product description:?\s*([^\r\n]+))/i);
-        if (productMatch && (productMatch[1] || productMatch[3])) {
-            briefData.productDescription = (productMatch[1] || productMatch[3]).trim();
+        // Function to extract sections with headings and content that may span multiple paragraphs
+        const extractSection = (sectionHeader, nextSectionHeaders) => {
+            // Create a regex pattern that searches for the section heading
+            const headerPattern = new RegExp(`\\b${sectionHeader}[\\s:]+(.*)`, 'i');
+            const match = text.match(headerPattern);
+            if (!match)
+                return null;
+            // Find the index of the section heading
+            const headerIndex = text.indexOf(match[0]);
+            let startIndex = headerIndex + match[0].length;
+            // If heading and content are on the same line, adjust start index
+            if (match[1] && match[1].trim()) {
+                startIndex = headerIndex + match[0].indexOf(match[1]);
+            }
+            // Find the next section heading to determine where this section ends
+            let endIndex = text.length;
+            for (const nextHeader of nextSectionHeaders) {
+                const nextPattern = new RegExp(`\\b${nextHeader}[\\s:]+`, 'i');
+                const nextMatch = text.substring(startIndex).match(nextPattern);
+                if (nextMatch && nextMatch.index !== undefined) {
+                    const candidateEndIndex = startIndex + nextMatch.index;
+                    if (candidateEndIndex < endIndex) {
+                        endIndex = candidateEndIndex;
+                    }
+                }
+            }
+            // Extract content between this heading and the next heading
+            const content = text.substring(startIndex, endIndex).trim();
+            return content;
+        };
+        // List of all possible section headers in briefs
+        const allSectionHeaders = [
+            'Client', 'Project', 'Background', 'The Problem', 'Human Insight',
+            'Proposition', 'Target Audience', 'Tone of Voice', 'Key Messages',
+            'Deliverables', 'Conclusion', 'Executions', 'Product Description',
+            'Competitive Context', 'Campaign Objectives', 'Mandatories'
+        ];
+        // Extract Product Description - may be part of Background or its own section
+        let productDesc = extractSection('Product Description', allSectionHeaders);
+        if (!productDesc) {
+            // If not found as a separate section, it might be in the Background
+            const backgroundContent = extractSection('Background', allSectionHeaders);
+            if (backgroundContent) {
+                // Try to extract product info from background (usually first paragraph)
+                const firstPara = backgroundContent.split('\n\n')[0];
+                if (firstPara && firstPara.length > 30) {
+                    productDesc = firstPara;
+                }
+            }
         }
-        // Extract target audience
-        const audienceMatch = text.match(/target audience:?\s*([^\r\n]+)/i);
-        if (audienceMatch && audienceMatch[1]) {
-            briefData.targetAudience = audienceMatch[1].trim();
+        if (productDesc) {
+            briefData.productDescription = productDesc;
         }
-        // Extract competitive context
-        const competitiveMatch = text.match(/competitive:?\s*([^\r\n]+)|(competition:?\s*([^\r\n]+))/i);
-        if (competitiveMatch && (competitiveMatch[1] || competitiveMatch[3])) {
-            briefData.competitiveContext = (competitiveMatch[1] || competitiveMatch[3]).trim();
+        // Extract Target Audience
+        const targetAudience = extractSection('Target Audience', allSectionHeaders);
+        if (targetAudience) {
+            briefData.targetAudience = targetAudience;
         }
-        // Extract campaign objectives
-        const objectivesMatch = text.match(/objectives:?\s*([^\r\n]+)|(goals:?\s*([^\r\n]+))/i);
-        if (objectivesMatch && (objectivesMatch[1] || objectivesMatch[3])) {
-            briefData.campaignObjectives = (objectivesMatch[1] || objectivesMatch[3]).trim();
+        // Extract Competitive Context - might be part of Background if not separate
+        let competitiveContext = extractSection('Competitive Context', allSectionHeaders);
+        if (!competitiveContext) {
+            // Try to find competitive information in the background
+            const backgroundContent = extractSection('Background', allSectionHeaders);
+            if (backgroundContent) {
+                const paragraphs = backgroundContent.split('\n\n');
+                // Look for paragraphs that mention competitors, market, industry
+                for (const para of paragraphs) {
+                    if (para.toLowerCase().includes('competitor') ||
+                        para.toLowerCase().includes('market') ||
+                        para.toLowerCase().includes('industry')) {
+                        competitiveContext = para;
+                        break;
+                    }
+                }
+            }
         }
-        // Extract key messages
-        const messagesMatch = text.match(/key messages:?\s*([^\r\n]+)/i);
-        if (messagesMatch && messagesMatch[1]) {
-            briefData.keyMessages = messagesMatch[1].trim();
+        if (competitiveContext) {
+            briefData.competitiveContext = competitiveContext;
         }
-        // Extract mandatories
-        const mandatoriesMatch = text.match(/mandatories:?\s*([^\r\n]+)|(requirements:?\s*([^\r\n]+))/i);
-        if (mandatoriesMatch && (mandatoriesMatch[1] || mandatoriesMatch[3])) {
-            briefData.mandatories = (mandatoriesMatch[1] || mandatoriesMatch[3]).trim();
+        // Extract Campaign Objectives - might be in Proposition if not separate
+        let campaignObjectives = extractSection('Campaign Objectives', allSectionHeaders);
+        if (!campaignObjectives) {
+            const proposition = extractSection('Proposition', allSectionHeaders);
+            if (proposition) {
+                campaignObjectives = proposition;
+            }
         }
-        // Extract tone preference
-        const toneMatch = text.match(/tone:?\s*([^\r\n]+)/i);
-        if (toneMatch && toneMatch[1]) {
-            briefData.tonePreference = toneMatch[1].trim();
+        if (campaignObjectives) {
+            briefData.campaignObjectives = campaignObjectives;
         }
+        // Extract Key Messages
+        const keyMessages = extractSection('Key Messages', allSectionHeaders);
+        if (keyMessages) {
+            // Format numbered points properly
+            briefData.keyMessages = keyMessages;
+        }
+        // Extract Mandatories - might be in Deliverables if not separate
+        let mandatories = extractSection('Mandatories', allSectionHeaders);
+        if (!mandatories) {
+            const deliverables = extractSection('Deliverables', allSectionHeaders);
+            if (deliverables) {
+                mandatories = deliverables;
+            }
+        }
+        if (mandatories) {
+            briefData.mandatories = mandatories;
+        }
+        // Extract Tone Preference
+        const tonePreference = extractSection('Tone of Voice', allSectionHeaders);
+        if (tonePreference) {
+            briefData.tonePreference = tonePreference;
+        }
+        // For Problem statement, check if it exists in 'The Problem' section or Key Messages
+        let problemStatement = extractSection('The Problem', allSectionHeaders);
+        if (!problemStatement && keyMessages) {
+            // Look for a problem statement in the key messages (often first point)
+            const keyMessageLines = keyMessages.split('\n');
+            for (const line of keyMessageLines) {
+                if (line.toLowerCase().includes('problem')) {
+                    problemStatement = line;
+                    break;
+                }
+            }
+        }
+        if (problemStatement) {
+            briefData.additionalInfo = `Problem Statement: ${problemStatement}`;
+        }
+        // Additional processing to format message points consistently
+        if (briefData.keyMessages) {
+            // Remove numbering if present to create a clean list
+            let formattedMessages = briefData.keyMessages;
+            formattedMessages = formattedMessages.replace(/^\d+\.\s+/gm, '');
+            briefData.keyMessages = formattedMessages;
+        }
+        console.log('Extracted brief data:', briefData);
         return briefData;
     }
 }

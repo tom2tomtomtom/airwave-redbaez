@@ -33,10 +33,17 @@ class WebSocketClient {
   private closeHandlers: CloseCallback[] = [];
   
   constructor(url?: string) {
-    // Default WebSocket URL, using server URL from environment variable
-    const serverUrl = process.env.REACT_APP_SERVER_URL || 'http://localhost:3001';
-    const wsUrl = serverUrl.replace(/^http/, 'ws');
-    this.url = url || `${wsUrl}/ws`;
+    // Use explicit WebSocket URL from environment if available
+    if (process.env.REACT_APP_WEBSOCKET_URL) {
+      this.url = url || process.env.REACT_APP_WEBSOCKET_URL;
+      console.log('Using explicit WebSocket URL:', this.url);
+    } else {
+      // Fall back to derived URL from server URL
+      const serverUrl = process.env.REACT_APP_SERVER_URL || 'http://localhost:3002';
+      const wsUrl = serverUrl.replace(/^http/, 'ws');
+      this.url = url || `${wsUrl}/ws`;
+      console.log('Using derived WebSocket URL:', this.url);
+    }
     
     // Automatically connect on initialization
     this.connect();

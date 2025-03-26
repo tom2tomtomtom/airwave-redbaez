@@ -16,14 +16,14 @@ import {
   Mic as MicIcon,
   Image as ImageIcon,
   Movie as MovieIcon,
-  Palette as PaletteIcon,
-  Psychology as StrategyIcon
+  Palette as PaletteIcon
 } from '@mui/icons-material';
 import { RootState, AppDispatch } from '../../store';
 import { fetchTemplates } from '../../store/slices/templatesSlice';
 import { fetchCampaigns } from '../../store/slices/campaignsSlice';
-import StrategyPage from './StrategyPage';
 import CopyGenerationPage from './CopyGenerationPage';
+import ImageGenerationPage from './ImageGenerationPage';
+import VideoGenerationPage from './VideoGenerationPage';
 import LoadingScreen from '../../components/common/LoadingScreen';
 
 interface TabPanelProps {
@@ -98,11 +98,10 @@ const GeneratePage: React.FC = () => {
           scrollButtons="auto"
           aria-label="generate content tabs"
         >
-          <Tab icon={<StrategyIcon />} label="Strategy" />  
           <Tab icon={<CreateIcon />} label="Copy" />
           <Tab icon={<MicIcon />} label="Voiceover" />
-          <Tab icon={<ImageIcon />} label="Images" disabled />  
-          <Tab icon={<MovieIcon />} label="Video" disabled /> 
+          <Tab icon={<ImageIcon />} label="Images" />  
+          <Tab icon={<MovieIcon />} label="Video" /> 
           <Tab icon={<PaletteIcon />} label="Background" disabled />
         </Tabs>
       </Paper>
@@ -118,33 +117,22 @@ const GeneratePage: React.FC = () => {
       ) : (
         <Box>
           <TabPanel value={tabValue} index={0}>
-            <StrategyPage />
-          </TabPanel>
-          <TabPanel value={tabValue} index={1}>
             <CopyGenerationPage />
           </TabPanel>
-          <TabPanel value={tabValue} index={2}>
+          <TabPanel value={tabValue} index={1}>
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
               <Typography variant="h6" color="text.secondary">
                 Voiceover generation is coming soon
               </Typography>
             </Box>
           </TabPanel>
+          <TabPanel value={tabValue} index={2}>
+            <ImageGenerationPage />
+          </TabPanel>
           <TabPanel value={tabValue} index={3}>
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-              <Typography variant="h6" color="text.secondary">
-                Image generation is coming soon
-              </Typography>
-            </Box>
+            <VideoGenerationPage />
           </TabPanel>
           <TabPanel value={tabValue} index={4}>
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-              <Typography variant="h6" color="text.secondary">
-                Video generation is coming soon
-              </Typography>
-            </Box>
-          </TabPanel>
-          <TabPanel value={tabValue} index={5}>
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
               <Typography variant="h6" color="text.secondary">
                 Background modifications are coming soon

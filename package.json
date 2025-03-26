@@ -7,7 +7,14 @@
     "server": "cd server && npm run dev",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "install:all": "npm install && cd client && npm install && cd ../server && npm install",
-    "build": "cd client && npm run build && cd ../server && npm run build"
+    "build": "cd client && npm run build && cd ../server && npm run build",
+    "start": "cd server && npm start",
+    "start:prod": "NODE_ENV=production npm run start",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up",
+    "docker:down": "docker-compose down",
+    "docker:prod": "docker-compose -f docker-compose.yml up -d",
+    "prepare:prod": "npm run install:all && npm run build"
   },
   "workspaces": [
     "client",

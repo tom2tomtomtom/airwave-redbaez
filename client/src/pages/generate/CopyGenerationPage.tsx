@@ -385,7 +385,7 @@ const CopyGenerationPage: React.FC = () => {
                           onClick={handleSendForSignOff}
                           disabled={!selectedCopyVariation}
                         >
-                          Send for Sign-Off
+                          {selectedCopyVariation ? 'Send Selected Copy for Sign-Off' : 'Select a Copy Variation First'}
                         </Button>
                       </Box>
                     </Box>
@@ -395,9 +395,15 @@ const CopyGenerationPage: React.FC = () => {
                         {copyVariations.map((variation, index) => (
                           <Tab 
                             key={variation.id} 
-                            label={`Variation ${index + 1}`} 
+                            label={
+                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                {variation.selected && <ThumbUpIcon fontSize="small" sx={{ mr: 0.5, color: 'success.main' }} />}
+                                {`Variation ${index + 1}`}
+                              </Box>
+                            } 
                             id={`copy-tab-${index}`}
                             aria-controls={`copy-tabpanel-${index}`}
+                            sx={variation.selected ? { color: 'success.main' } : {}}
                           />
                         ))}
                       </Tabs>
@@ -414,9 +420,17 @@ const CopyGenerationPage: React.FC = () => {
                       >
                         {tabValue === index && (
                           <Box>
-                            <Box sx={{ mb: 2 }}>
-                              <Chip label={`Tone: ${variation.tone}`} size="small" sx={{ mr: 1 }} />
+                            <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+                              <Chip label={`Tone: ${variation.tone}`} size="small" />
                               <Chip label={`Style: ${variation.style}`} size="small" />
+                              {variation.selected && 
+                                <Chip 
+                                  label="Selected for Matrix" 
+                                  color="success" 
+                                  size="small"
+                                  icon={<ThumbUpIcon fontSize="small" />}
+                                />
+                              }
                             </Box>
                             
                             <Typography variant="subtitle1" gutterBottom>
@@ -440,14 +454,19 @@ const CopyGenerationPage: React.FC = () => {
                               </Box>
                             )}
                             
-                            <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
+                            <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                            borderTop: '1px solid', borderColor: 'divider', pt: 2 }}>
+                              <Typography variant="body2" color={variation.selected ? "success.main" : "text.secondary"}>
+                                {variation.selected ? "✓ This variation will be stored in the matrix" : "Select this variation to store in the matrix"}
+                              </Typography>
                               <Button
                                 variant={variation.selected ? "contained" : "outlined"}
                                 color={variation.selected ? "success" : "primary"}
                                 onClick={() => handleSelectCopy(variation.id)}
                                 startIcon={variation.selected ? <ThumbUpIcon /> : null}
+                                sx={{ minWidth: '200px' }}
                               >
-                                {variation.selected ? "Selected" : "Select This Variation"}
+                                {variation.selected ? "Selected for Matrix" : "Select for Matrix"}
                               </Button>
                             </Box>
                           </Box>

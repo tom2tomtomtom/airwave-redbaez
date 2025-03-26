@@ -4,9 +4,12 @@ import getWebSocketClient from './utils/websocketClient';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import axios from 'axios';
+import { AuthProvider, useAuth } from './components/auth/AuthProvider';
+import ClientProvider from './components/ClientProvider';
 
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
+import ClientProtectedRoute from './components/ClientProtectedRoute';
 import LoadingScreen from './components/common/LoadingScreen';
 import ClientSignOffPortal from './components/signoff/ClientSignOffPortal';
 import TokenRefresher from './components/auth/TokenRefresher';
@@ -35,11 +38,13 @@ import BriefDetail from './pages/briefs/BriefDetail';
 // Redux
 import { RootState } from './store';
 import { checkAuth } from './store/slices/authSlice';
+import { fetchClients } from './store/slices/clientSlice';
 import { AppDispatch } from './store';
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { isAuthenticated, loading } = useSelector((state: RootState) => state.auth);
+  const { session, refreshSession } = useAuth();
 
   useEffect(() => {
     // Monitor WebSocket connections
@@ -50,6 +55,14 @@ const App: React.FC = () => {
     wsClient.onConnect(() => {
       console.log('WebSocket client connected successfully');
     });
+    
+    // Update authentication state if we have a session from AuthProvider
+    if (session && !isAuthenticated) {
+      dispatch(checkAuth());
+      
+      // Also fetch clients when authenticated to ensure they're available
+      dispatch(fetchClients());
+    }
     
     // Check if we have a stored token
     const storedToken = localStorage.getItem('airwave_auth_token');
@@ -125,37 +138,50 @@ const App: React.FC = () => {
           <Layout />
         </ProtectedRoute>
       }>
-        <Route index element={<Navigate to="/client-selection" replace />} />
+        <Route index element={<Navigate to="/client-dashboard" replace />} />
+        {/* This route doesn't require a client */}
         <Route path="client-selection" element={<ClientSelectionPage />} />
-        <Route path="client-dashboard" element={<ClientDashboardPage />} />
-        <Route path="assets" element={<AssetsPage />} />
-        <Route path="templates" element={<TemplatesPage />} />
+        
+        {/* All other routes require a client */}
+        <Route path="client-dashboard" element={<ClientProtectedRoute><ClientDashboardPage /></ClientProtectedRoute>} />
+        <Route path="assets" element={<ClientProtectedRoute><AssetsPage /></ClientProtectedRoute>} />
+        <Route path="templates" element={<ClientProtectedRoute><TemplatesPage /></ClientProtectedRoute>} />
         
         {/* Campaign routes */}
-        <Route path="campaigns" element={<CampaignsPage />} />
-        <Route path="campaigns/new" element={<CreateCampaignPage />} />
-        <Route path="campaigns/:id" element={<CampaignDetailPage />} />
+        <Route path="campaigns" element={<ClientProtectedRoute><CampaignsPage /></ClientProtectedRoute>} />
+        <Route path="campaigns/new" element={<ClientProtectedRoute><CreateCampaignPage /></ClientProtectedRoute>} />
+        <Route path="campaigns/:id" element={<ClientProtectedRoute><CampaignDetailPage /></ClientProtectedRoute>} />
         
         {/* Generate routes */}
-        <Route path="generate" element={<GeneratePage />} />
-        <Route path="generate/strategy" element={<StrategyPage />} />
-        <Route path="generate/copy" element={<CopyGenerationPage />} />
-        <Route path="matrix" element={<MatrixPage />} />
+        <Route path="generate" element={<ClientProtectedRoute><GeneratePage /></ClientProtectedRoute>} />
+        <Route path="generate/copy" element={<ClientProtectedRoute><CopyGenerationPage /></ClientProtectedRoute>} />
+        <Route path="matrix" element={<ClientProtectedRoute><MatrixPage /></ClientProtectedRoute>} />
         
-        {/* Strategic Content Development routes */}
-        <Route path="briefs" element={<BriefList />} />
-        <Route path="briefs/create" element={<BriefForm />} />
-        <Route path="briefs/:id" element={<BriefDetail />} />
-        <Route path="briefs/:id/edit" element={<BriefForm />} />
+        {/* Strategy Development routes */}
+        <Route path="briefs" element={<ClientProtectedRoute><BriefList /></ClientProtectedRoute>} />
+        <Route path="briefs/create" element={<ClientProtectedRoute><BriefForm /></ClientProtectedRoute>} />
+        <Route path="briefs/strategy-development" element={<ClientProtectedRoute><StrategyPage /></ClientProtectedRoute>} />
+        <Route path="briefs/:id" element={<ClientProtectedRoute><BriefDetail /></ClientProtectedRoute>} />
+        <Route path="briefs/:id/edit" element={<ClientProtectedRoute><BriefForm /></ClientProtectedRoute>} />
 
         {/* Export routes */}
-        <Route path="exports" element={<ExportsPage />} />
-        <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="exports" element={<ClientProtectedRoute><ExportsPage /></ClientProtectedRoute>} />
+        <Route path="analytics" element={<ClientProtectedRoute><AnalyticsPage /></ClientProtectedRoute>} />
       </Route>
       
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <ClientProvider>
+        <AppContent />
+      </ClientProvider>
+    </AuthProvider>
   );
 };
 

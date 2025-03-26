@@ -33,6 +33,7 @@ import { fetchTemplates, deleteTemplate } from '../../store/slices/templatesSlic
 import TemplateCard from '../../components/templates/TemplateCard';
 import TemplateDetailDialog from '../../components/templates/TemplateDetailDialog';
 import ImportTemplateDialog from '../../components/templates/ImportTemplateDialog';
+import ClientSelector from '../../components/clients/ClientSelector';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -79,6 +80,7 @@ const formatOptions = [
 const TemplatesPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { templates, loading, error } = useSelector((state: RootState) => state.templates);
+  const { selectedClientId } = useSelector((state: RootState) => state.clients);
   
   const [tabValue, setTabValue] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
@@ -142,7 +144,7 @@ const TemplatesPage: React.FC = () => {
     dispatch(deleteTemplate(templateId));
   };
 
-  // Filter templates based on search query, platform, and format
+  // Filter templates based on search query, platform, format, and client
   // Also filter out any invalid templates that might cause rendering issues
   const filteredTemplates = templates.filter(template => {
     // Skip invalid templates
@@ -164,7 +166,10 @@ const TemplatesPage: React.FC = () => {
       ));
     const matchesFormat = selectedFormat === 'all' || template.format === selectedFormat;
     
-    return matchesSearch && matchesPlatform && matchesFormat;
+    // Filter by client if one is selected
+    const matchesClient = !selectedClientId || template.client_id === selectedClientId;
+    
+    return matchesSearch && matchesPlatform && matchesFormat && matchesClient;
   });
 
   return (
@@ -205,6 +210,13 @@ const TemplatesPage: React.FC = () => {
           <Tab label="Recent" />
           <Tab label="Favorites" />
         </Tabs>
+
+        <Box sx={{ p: 2, mb: 2, borderBottom: '1px solid rgba(0, 0, 0, 0.12)' }}>
+          <Typography variant="subtitle2" gutterBottom>
+            Filter by Client
+          </Typography>
+          <ClientSelector />
+        </Box>
 
         <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
           <TextField

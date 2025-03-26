@@ -821,9 +821,12 @@ class AssetService {
       if (filters.sortBy) {
         // Convert camelCase sortBy to snake_case for database
         let dbSortField: string = filters.sortBy;
+        // Map client-side field names to actual database column names
         if (dbSortField === 'createdAt') dbSortField = 'created_at';
         if (dbSortField === 'updatedAt') dbSortField = 'updated_at';
+        if (dbSortField === 'date') dbSortField = 'created_at'; // Map 'date' to 'created_at'
         if (dbSortField === 'usageCount') dbSortField = 'meta->>usageCount';
+        if (dbSortField === 'name') dbSortField = 'name';
         
         const sortDirection = filters.sortDirection || 'desc';
         dataQuery = dataQuery.order(dbSortField, { ascending: sortDirection === 'asc' });

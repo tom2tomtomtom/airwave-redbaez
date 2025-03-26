@@ -11,9 +11,6 @@ declare global {
   }
 }
 
-// Environment check for prototype mode
-const PROTOTYPE_MODE = false; // Force disable prototype mode
-
 // Secret key for JWT
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-for-development-only';
 
@@ -21,10 +18,22 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-for-development-on
  * Middleware to authenticate JWT token and attach user to request
  */
 export const checkAuth = async (req: Request, res: Response, next: NextFunction) => {
-  // Skip authentication in prototype mode if enabled
-  if (PROTOTYPE_MODE) {
-    console.log('Warning: Running in PROTOTYPE_MODE. Authentication is simplified.');
-    req.user = { id: 'prototype-user', email: 'prototype@example.com', role: 'admin' };
+
+  // Check for development mode
+  const isDevelopment = process.env.NODE_ENV === 'development' || process.env.DEV_BYPASS_AUTH === 'true';
+  
+  // In development mode, bypass authentication entirely
+  if (isDevelopment) {
+    console.log('[DEV] Bypassing authentication check');
+    
+    // Set a mock user on the request
+    req.user = {
+      id: '00000000-0000-0000-0000-000000000000',
+      email: 'admin@airwave.dev',
+      role: 'admin',
+      name: 'Development Admin'
+    };
+    
     return next();
   }
 
@@ -37,14 +46,39 @@ export const checkAuth = async (req: Request, res: Response, next: NextFunction)
       return res.status(401).json({ message: 'No token provided' });
     }
 
-    // Verify the token
+    // First try to verify with our JWT
     jwt.verify(token, JWT_SECRET, async (err: any, decoded: any) => {
       if (err) {
-        return res.status(403).json({ message: 'Invalid or expired token' });
+        // If our JWT verification fails, try Supabase token
+        try {
+          // Verify with Supabase
+          const { data, error } = await supabase.auth.getUser(token);
+          
+          if (error || !data.user) {
+            return res.status(403).json({ message: 'Invalid or expired token' });
+          }
+          
+          // Get user role from Supabase
+          const { data: userData } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', data.user.id)
+            .single();
+            
+          req.user = {
+            id: data.user.id,
+            email: data.user.email,
+            role: userData?.role || 'user'
+          };
+          
+          return next();
+        } catch (supabaseError) {
+          console.error('Supabase auth error:', supabaseError);
+          return res.status(403).json({ message: 'Invalid or expired token' });
+        }
       }
 
-      // In this implementation, we trust the decoded JWT without additional DB lookup
-      // This is temporary until we implement proper user management in Supabase
+      // If JWT verification succeeds, use the decoded token
       req.user = decoded;
       next();
     });
@@ -61,9 +95,6 @@ export const authenticateToken = checkAuth;
  * Middleware to restrict access to admin users
  */
 export const checkAdmin = (req: Request, res: Response, next: NextFunction) => {
-  if (PROTOTYPE_MODE) {
-    return next();
-  }
 
   if (!req.user || req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Admin access required' });

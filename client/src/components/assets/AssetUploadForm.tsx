@@ -18,12 +18,15 @@ import {
   Close as CloseIcon
 } from '@mui/icons-material';
 import { useAssetUploadForm, assetTypes } from '../../hooks/useAssetUploadForm';
+import { textContent } from '../../utils/textContent';
 
 interface AssetUploadFormProps {
   onSubmit: (formData: FormData) => void;
+  clientId: string; // Required client ID for asset association
+  onCancel?: () => void; // Optional callback when cancel is clicked
 }
 
-const AssetUploadForm: React.FC<AssetUploadFormProps> = ({ onSubmit }) => {
+const AssetUploadForm: React.FC<AssetUploadFormProps> = ({ onSubmit, clientId }) => {
   // Use our custom hook to handle form state and logic
   const {
     formik, 
@@ -38,7 +41,7 @@ const AssetUploadForm: React.FC<AssetUploadFormProps> = ({ onSubmit }) => {
     handleAddTag,
     handleRemoveTag,
     handleTagKeyDown
-  } = useAssetUploadForm({ onSubmit });
+  } = useAssetUploadForm({ onSubmit, clientId });
 
   return (
     <form onSubmit={formik.handleSubmit}>
@@ -229,33 +232,33 @@ const AssetUploadForm: React.FC<AssetUploadFormProps> = ({ onSubmit }) => {
                 <>
                   <CloudUploadIcon color="primary" sx={{ fontSize: 60, mb: 2 }} />
                   <Typography variant="h6" gutterBottom align="center">
-                    Drag and drop your file here
+                    {textContent.labels.assets.dragDrop}
                   </Typography>
                   <Typography variant="body2" color="text.secondary" align="center" gutterBottom>
                     or
                   </Typography>
                   <Button
                     variant="contained"
-                    component="label"
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={(e) => {
+                      e.stopPropagation(); // Stop event from bubbling up to Paper
+                      fileInputRef.current?.click(); // Directly click the input
+                    }}
                   >
-                    Browse Files
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      hidden
-                      onChange={handleFileChange}
-                      accept={
-                        formik.values.type === 'image' ? 'image/*' :
-                        formik.values.type === 'video' ? 'video/*' :
-                        formik.values.type === 'audio' ? 'audio/*' : undefined
-                      }
-                    />
+                    {textContent.labels.assets.select}
                   </Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    style={{ display: 'none' }}
+                    onChange={handleFileChange}
+                    accept={
+                      formik.values.type === 'image' ? 'image/*' :
+                      formik.values.type === 'video' ? 'video/*' :
+                      formik.values.type === 'audio' ? 'audio/*' : undefined
+                    }
+                  />
                   <Typography variant="caption" color="text.secondary" align="center" sx={{ mt: 2, px: 2 }}>
-                    {formik.values.type === 'image' ? 'Supports: JPG, PNG, GIF, WebP (max 10MB)' :
-                    formik.values.type === 'video' ? 'Supports: MP4, WebM, MOV (max 200MB)' :
-                    formik.values.type === 'audio' ? 'Supports: MP3, WAV, AAC (max 50MB)' : ''}
+                    {textContent.tooltips.assets.types}
                   </Typography>
                 </>
               )}
@@ -277,7 +280,7 @@ const AssetUploadForm: React.FC<AssetUploadFormProps> = ({ onSubmit }) => {
           size="large"
           startIcon={<CloudUploadIcon />}
         >
-          Upload Asset
+          {textContent.labels.assets.upload}
         </Button>
       </Box>
     </form>

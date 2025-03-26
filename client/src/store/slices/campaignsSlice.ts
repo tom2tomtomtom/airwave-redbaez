@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { Campaign, CampaignFormData, CampaignFilters, Execution } from '../../types/campaigns';
+import { supabase } from '../../lib/supabase';
 
 interface CampaignsState {
   campaigns: Campaign[];
@@ -21,12 +22,29 @@ const initialState: CampaignsState = {
   },
 };
 
+// Helper function to get the current Supabase token
+const getAuthToken = async () => {
+  const { data } = await supabase.auth.getSession();
+  return data?.session?.access_token || localStorage.getItem('airwave_auth_token');
+};
+
 // Async thunks
-export const fetchCampaigns = createAsyncThunk(
+export const fetchCampaigns = createAsyncThunk<Campaign[], string | undefined>(
   'campaigns/fetchCampaigns',
-  async (_, { rejectWithValue }) => {
+  async (clientId, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/campaigns');
+      const token = await getAuthToken();
+      
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+      
+      const response = await axios.get('/api/campaigns', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        params: clientId ? { clientId } : undefined
+      });
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch campaigns');
@@ -38,7 +56,17 @@ export const fetchCampaignById = createAsyncThunk(
   'campaigns/fetchCampaignById',
   async (campaignId: string, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`/api/campaigns/${campaignId}`);
+      const token = await getAuthToken();
+      
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+      
+      const response = await axios.get(`/api/campaigns/${campaignId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch campaign');
@@ -50,7 +78,17 @@ export const createCampaign = createAsyncThunk(
   'campaigns/createCampaign',
   async (campaignData: CampaignFormData, { rejectWithValue }) => {
     try {
-      const response = await axios.post('/api/campaigns', campaignData);
+      const token = await getAuthToken();
+      
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+      
+      const response = await axios.post('/api/campaigns', campaignData, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to create campaign');
@@ -62,7 +100,17 @@ export const updateCampaign = createAsyncThunk(
   'campaigns/updateCampaign',
   async ({ id, data }: { id: string; data: Partial<CampaignFormData> }, { rejectWithValue }) => {
     try {
-      const response = await axios.put(`/api/campaigns/${id}`, data);
+      const token = await getAuthToken();
+      
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+      
+      const response = await axios.put(`/api/campaigns/${id}`, data, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update campaign');
@@ -74,7 +122,17 @@ export const deleteCampaign = createAsyncThunk(
   'campaigns/deleteCampaign',
   async (campaignId: string, { rejectWithValue }) => {
     try {
-      await axios.delete(`/api/campaigns/${campaignId}`);
+      const token = await getAuthToken();
+      
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+      
+      await axios.delete(`/api/campaigns/${campaignId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       return campaignId;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to delete campaign');
@@ -86,7 +144,17 @@ export const addExecutionToCampaign = createAsyncThunk(
   'campaigns/addExecution',
   async ({ campaignId, execution }: { campaignId: string; execution: Execution }, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`/api/campaigns/${campaignId}/executions`, execution);
+      const token = await getAuthToken();
+      
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+      
+      const response = await axios.post(`/api/campaigns/${campaignId}/executions`, execution, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       return { campaignId, execution: response.data };
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to add execution');
@@ -98,9 +166,19 @@ export const generateExecutionPreview = createAsyncThunk(
   'campaigns/generatePreview',
   async ({ campaignId, executionId }: { campaignId: string; executionId: string }, { rejectWithValue }) => {
     try {
+      const token = await getAuthToken();
+      
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+      
       const response = await axios.post(`/api/creatomate/preview`, {
         campaignId,
         executionId
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
       return { campaignId, executionId, preview: response.data };
     } catch (error: any) {
@@ -113,7 +191,17 @@ export const startCampaignRender = createAsyncThunk(
   'campaigns/startRender',
   async (campaignId: string, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`/api/campaigns/${campaignId}/render`);
+      const token = await getAuthToken();
+      
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+      
+      const response = await axios.post(`/api/campaigns/${campaignId}/render`, null, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       return { campaignId, renders: response.data };
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to start campaign render');

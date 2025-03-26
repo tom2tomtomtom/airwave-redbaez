@@ -2,9 +2,14 @@ import { Server as HttpServer } from 'http';
 import WebSocket, { Server as WebSocketServer } from 'ws';
 import { creatomateService } from './creatomateService';
 
-export class WebSocketService {
+class WebSocketService {
   private wss: WebSocketServer;
   private clients: Map<WebSocket, { id: string; userId?: string }> = new Map();
+  
+  // Method to get the current connection count
+  public getConnectionCount(): number {
+    return this.clients.size;
+  }
 
   constructor(server: HttpServer) {
     this.wss = new WebSocketServer({ server, path: '/ws' });

@@ -13,7 +13,11 @@
 
 # Environment variables
 [build.environment]
-  REACT_APP_API_URL = "https://api-airwave.redbaez.com"
+  REACT_APP_SERVER_URL = "https://api-airwave.redbaez.com"
+  REACT_APP_SUPABASE_URL = "https://vnlmumkhqupdmvywneuf.supabase.co"
+  REACT_APP_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZubG11bWtocXVwZG12eXduZXVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDExMzQ2MjEsImV4cCI6MjA1NjcxMDYyMX0.rGn9_Zkbb0FYXwjs-RLlWO6lpqoTbQRsNFwmvdn1pDQ"
+  REACT_APP_CREATOMATE_PUBLIC_TOKEN = "public-b66aek9a6jsq2sff011uytlh"
+  NODE_ENV = "production"
 
 # Production context
 [context.production]
@@ -37,4 +41,11 @@
   to = "https://api-airwave.redbaez.com/:splat"
   status = 200
   force = true
-  headers = {Access-Control-Allow-Origin = "*"}
+  headers = {Access-Control-Allow-Origin = "*", Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS", Access-Control-Allow-Headers = "Origin, X-Requested-With, Content-Type, Accept, Authorization"}
+
+# WebSocket handling
+[[redirects]]
+  from = "/ws/*"
+  to = "wss://api-airwave.redbaez.com/ws/:splat"
+  status = 101
+  force = true

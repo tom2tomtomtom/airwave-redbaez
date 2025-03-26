@@ -8,11 +8,22 @@ exports.initializeDatabase = initializeDatabase;
 const supabase_js_1 = require("@supabase/supabase-js");
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
+const isDevelopment = process.env.NODE_ENV !== 'production';
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
+// Determine which key to use based on environment
+// In development, prefer the service role key for unrestricted access
+let supabaseKey;
+if (isDevelopment && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.log('⚠️ Using Supabase service role key for development');
+    supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+}
+else {
+    supabaseKey = process.env.SUPABASE_KEY;
+}
 if (!supabaseUrl || !supabaseKey) {
     throw new Error('Missing Supabase credentials. Please check your .env file');
 }
+// Create client with appropriate key
 exports.supabase = (0, supabase_js_1.createClient)(supabaseUrl, supabaseKey);
 // For prototype mode, we'll use Supabase's built-in SQL execution
 // to create tables directly instead of using RPC calls
@@ -141,6 +152,78 @@ async function createSignoffResponsesTable() {
         throw error;
     }
 }
+/**
+ * Create clients table
+ */
+async function createClientsTable() {
+    try {
+        console.log('Checking clients table...');
+        // Check if the table is accessible
+        const { error } = await exports.supabase.from('clients').select('count').limit(1);
+        if (!error) {
+            console.log('clients table already exists');
+            return;
+        }
+        console.log('Creating clients table...');
+        // Create the table with SQL
+        const { error: createError } = await exports.supabase.rpc('exec_sql', {
+            sql_string: `
+        CREATE TABLE IF NOT EXISTS clients (
+          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+          name TEXT NOT NULL,
+          logo_url TEXT,
+          primary_color TEXT,
+          secondary_color TEXT,
+          description TEXT,
+          is_active BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+        );
+        
+        -- Add client_id column to assets table
+        ALTER TABLE "assets" 
+        ADD COLUMN IF NOT EXISTS "client_id" UUID REFERENCES "clients"("id") ON DELETE SET NULL;
+        
+        -- Add client_id column to templates table
+        ALTER TABLE "templates" 
+        ADD COLUMN IF NOT EXISTS "client_id" UUID REFERENCES "clients"("id") ON DELETE SET NULL;
+        
+        -- Add client_id column to campaigns table
+        ALTER TABLE "campaigns" 
+        ADD COLUMN IF NOT EXISTS "client_id" UUID REFERENCES "clients"("id") ON DELETE SET NULL;
+        
+        -- Create index for performance
+        CREATE INDEX IF NOT EXISTS "idx_assets_client_id" ON "assets"("client_id");
+        CREATE INDEX IF NOT EXISTS "idx_templates_client_id" ON "templates"("client_id");
+        CREATE INDEX IF NOT EXISTS "idx_campaigns_client_id" ON "campaigns"("client_id");
+        
+        -- Create trigger for clients table
+        CREATE OR REPLACE FUNCTION update_updated_at_column()
+        RETURNS TRIGGER AS $$
+        BEGIN
+           NEW.updated_at = now();
+           RETURN NEW;
+        END;
+        $$ language 'plpgsql';
+        
+        DROP TRIGGER IF EXISTS update_clients_updated_at ON clients;
+        CREATE TRIGGER update_clients_updated_at
+        BEFORE UPDATE ON clients
+        FOR EACH ROW
+        EXECUTE PROCEDURE update_updated_at_column();
+      `
+        });
+        if (createError) {
+            console.error('Error creating clients table:', createError);
+            throw createError;
+        }
+        console.log('clients table created successfully');
+    }
+    catch (error) {
+        console.error('Error in createClientsTable:', error);
+        throw error;
+    }
+}
 async function initializeDatabase() {
     try {
         console.log('Initializing database with real database connection.');
@@ -156,6 +239,8 @@ async function initializeDatabase() {
         await createExecutionsTable();
         // Create exports table
         await createExportsTable();
+        // Create clients table
+        await createClientsTable();
         // Create signoff sessions table
         await createSignoffSessionsTable();
         // Create signoff assets table

@@ -1,84 +1,94 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
 import { 
   Box, 
   Typography, 
-  Button, 
   Paper, 
   Tabs, 
   Tab, 
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  CircularProgress,
-  Alert
+  CircularProgress
 } from '@mui/material';
-import { 
-  Add as AddIcon,
-  CloudUpload as CloudUploadIcon
-} from '@mui/icons-material';
-import { useDispatch } from 'react-redux';
-import { AppDispatch } from '../../store';
+import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
+import { AppDispatch, RootState } from '../../store';
 import { uploadAsset } from '../../store/slices/assetsSlice';
-import AssetUploadForm from '../../components/assets/AssetUploadForm';
 import AssetList from '../../components/assets/AssetList';
-import { Asset, AssetType } from '../../types/assets';
+import DirectAssetDisplay from '../../components/assets/DirectAssetDisplay';
+import { Asset as ApiAsset } from '../../api/types/asset.types';
+import { Asset as AppAsset, AssetType } from '../../types/assets';
+import ClientSelector from '../../components/clients/ClientSelector';
+import TabPanel from '../../components/common/TabPanel';
+import DirectAssetLoader from '../../components/assets/DirectAssetLoader';
+import AssetUploadHandler from '../../components/assets/AssetUploadHandler';
+import { convertApiAssetToAppAsset } from '../../utils/asset-type-converters';
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
+// Fallback client ID only used when no client is selected
+const FALLBACK_CLIENT_ID = 'fe418478-806e-411a-ad0b-1b9a537a8081';
 
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`assets-tabpanel-${index}`}
-      aria-labelledby={`assets-tab-${index}`}
-      {...other}
-    >
-      {value === index && (
-        <Box sx={{ p: 3 }}>
-          {children}
-        </Box>
-      )}
-    </div>
-  );
-}
-
-
-
-const AssetsPage: React.FC = () => {
+const AssetsPage: React.FC<{}> = () => {
   const dispatch = useDispatch<AppDispatch>();
+  const navigate = useNavigate();
+  
+  // Reference to asset list component for refresh actions
+  const assetListRef = useRef<any>(null);
+  
+  // Get the selected client ID from Redux store
+  const { selectedClientId } = useSelector((state: RootState) => state.clients);
+  
+  // Direct assets state - this uses API types directly to avoid conversion issues
+  const [directAssets, setDirectAssets] = useState<ApiAsset[]>([]);
+  const [isDirectLoading, setIsDirectLoading] = useState(false);
   
   const [tabValue, setTabValue] = useState(0);
-  const [openUploadDialog, setOpenUploadDialog] = useState(false);
-  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  const [selectedAsset, setSelectedAsset] = useState<AppAsset | null>(null);
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 
-  const handleOpenUploadDialog = () => {
-    setOpenUploadDialog(true);
-  };
-
-  const handleCloseUploadDialog = () => {
-    setOpenUploadDialog(false);
-  };
-
-  const handleAssetUpload = (assetData: FormData) => {
-    dispatch(uploadAsset(assetData));
-    setOpenUploadDialog(false);
+  // This adapter handles converting between asset types
+  const handleAssetSelect = (asset: ApiAsset | null) => {
+    // Convert API asset to application asset before setting
+    setSelectedAsset(convertApiAssetToAppAsset(asset));
   };
   
-  const handleAssetSelect = (asset: Asset | null) => {
+  // Create a wrapper function for components that expect AppAsset
+  const handleAppAssetSelect = (asset: AppAsset | null) => {
     setSelectedAsset(asset);
   };
+
+  // Load assets directly using the API to bypass service chain issues
+  const loadAssetsDirectly = async () => {
+    setIsDirectLoading(true);
+    try {
+      // Use the selected client ID from Redux, or fallback if none selected
+      const clientIdToUse = selectedClientId || FALLBACK_CLIENT_ID;
+      console.log(`🔄 Loading assets for client ID: ${clientIdToUse}`);
+      
+      // Direct API call with the selected or fallback client ID
+      const response = await axios.get(`/api/assets?clientId=${clientIdToUse}`);
+      console.log('Direct API call result:', response.data);
+      
+      // Set the API assets directly without type conversion
+      // Ensure we're always setting an array to avoid "map is not a function" errors
+      const assetsData = response.data;
+      const assetsArray: ApiAsset[] = Array.isArray(assetsData) ? assetsData : 
+                         (assetsData && typeof assetsData === 'object' && 'data' in assetsData && Array.isArray(assetsData.data)) ? assetsData.data : [];
+      
+      console.log('Processed assets array:', assetsArray);
+      setDirectAssets(assetsArray);
+    } catch (error) {
+      console.error('Error loading assets directly:', error);
+    } finally {
+      setIsDirectLoading(false);
+    }
+  };
+
+  // Load assets when component mounts or when selected client changes
+  useEffect(() => {
+    console.log('💡 Loading assets - client ID changed or component mounted');
+    loadAssetsDirectly();
+  }, [selectedClientId]);
 
   return (
     <Box sx={{ p: 4 }}>
@@ -86,16 +96,14 @@ const AssetsPage: React.FC = () => {
         <Typography variant="h4" component="h1">
           Asset Management
         </Typography>
-        <Button 
-          variant="contained" 
-          color="primary" 
-          startIcon={<AddIcon />}
-          onClick={handleOpenUploadDialog}
-        >
-          Upload Asset
-        </Button>
       </Box>
 
+      {/* Asset upload handler */}
+      <AssetUploadHandler 
+        onAssetUploaded={loadAssetsDirectly}
+        clientId={selectedClientId || FALLBACK_CLIENT_ID}
+      />
+      
       <Paper sx={{ mb: 4 }}>
         <Tabs 
           value={tabValue} 
@@ -107,13 +115,41 @@ const AssetsPage: React.FC = () => {
           <Tab label="Recent" />
           <Tab label="Favourites" />
         </Tabs>
+        
+        <Box sx={{ p: 2, mb: 2, borderBottom: '1px solid rgba(0, 0, 0, 0.12)' }}>
+          <Typography variant="subtitle2" gutterBottom>
+            Filter by Client
+          </Typography>
+          <ClientSelector />
+        </Box>
       </Paper>
 
       <TabPanel value={tabValue} index={0}>
-        <AssetList 
-          initialType="all" 
-          onAssetSelect={handleAssetSelect} 
+        {/* Success message if assets loaded directly */}
+        {directAssets.length > 0 && (
+          <Box sx={{ mb: 2, p: 1, bgcolor: '#e8f5e9', borderRadius: 1 }}>
+            <Typography variant="body2" color="success.main">
+              ✅ Successfully loaded {directAssets.length} assets directly
+            </Typography>
+          </Box>
+        )}
+        
+        {/* Direct display of assets using the simplified component */}
+        <DirectAssetDisplay 
+          assets={directAssets} 
           selectedAssetId={selectedAsset?.id}
+          onAssetSelect={handleAssetSelect}
+        />
+        
+        {/* Original asset list component as fallback */}
+        <AssetList 
+          ref={assetListRef}
+          initialType="all" 
+          onAssetSelect={handleAppAssetSelect} 
+          selectedAssetId={selectedAsset?.id}
+          initialClientId={selectedClientId || FALLBACK_CLIENT_ID}
+          // @ts-ignore - Adding custom prop to pass direct assets
+          directlyLoadedAssets={directAssets}
         />
       </TabPanel>
 
@@ -123,8 +159,9 @@ const AssetsPage: React.FC = () => {
           showFilters={false}
           sortBy="date"
           sortDirection="desc"
-          onAssetSelect={handleAssetSelect}
+          onAssetSelect={handleAppAssetSelect}
           selectedAssetId={selectedAsset?.id}
+          initialClientId={selectedClientId || FALLBACK_CLIENT_ID}
         />
       </TabPanel>
 
@@ -133,21 +170,13 @@ const AssetsPage: React.FC = () => {
           initialType="all" 
           showFilters={false}
           initialFavourite={true}
-          onAssetSelect={handleAssetSelect}
+          onAssetSelect={handleAppAssetSelect}
           selectedAssetId={selectedAsset?.id}
+          initialClientId={selectedClientId || FALLBACK_CLIENT_ID}
         />
       </TabPanel>
 
-      {/* Upload Asset Dialog */}
-      <Dialog open={openUploadDialog} onClose={handleCloseUploadDialog} maxWidth="md" fullWidth>
-        <DialogTitle>Upload New Asset</DialogTitle>
-        <DialogContent>
-          <AssetUploadForm onSubmit={handleAssetUpload} />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseUploadDialog}>Cancel</Button>
-        </DialogActions>
-      </Dialog>
+
     </Box>
   );
 };

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Asset Tester</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
+    h1 { color: #333; }
+    .assets-container { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 20px; }
+    .asset-card { 
+      border: 1px solid #ddd; 
+      border-radius: 4px; 
+      padding: 10px; 
+      width: 200px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .asset-image {
+      width: 100%;
+      height: 150px;
+      object-fit: cover;
+      border-radius: 4px;
+      background-color: #f0f0f0;
+    }
+    .asset-name {
+      margin-top: 8px;
+      font-weight: bold;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .asset-info {
+      font-size: 12px;
+      color: #666;
+      margin-top: 4px;
+    }
+    .controls { margin: 20px 0; }
+    button { padding: 8px 16px; margin-right: 10px; cursor: pointer; }
+    .status { margin: 10px 0; padding: 10px; border-radius: 4px; }
+    .success { background-color: #d4edda; color: #155724; }
+    .error { background-color: #f8d7da; color: #721c24; }
+  </style>
+</head>
+<body>
+  <h1>Asset Tester</h1>
+  
+  <div class="controls">
+    <button id="fetch-bypass">Fetch Assets (Bypass Auth)</button>
+    <button id="fetch-direct">Fetch Assets (Direct API)</button>
+    <input type="text" id="client-id" value="fd790d19-6610-4cd5-b90f-214808e94a19" placeholder="Client ID" style="width: 300px;">
+  </div>
+  
+  <div id="status"></div>
+  
+  <div class="assets-container" id="assets-container"></div>
+  
+  <script>
+    // Configuration
+    const bypassServer = 'http://localhost:3099';
+    const mainServer = 'http://localhost:3002';
+    
+    // DOM Elements
+    const statusEl = document.getElementById('status');
+    const containerEl = document.getElementById('assets-container');
+    const clientIdInput = document.getElementById('client-id');
+    
+    // Set status message
+    function setStatus(message, isError = false) {
+      statusEl.className = isError ? 'status error' : 'status success';
+      statusEl.textContent = message;
+    }
+    
+    // Resolve asset URL
+    function resolveAssetUrl(url) {
+      if (url.startsWith('http')) {
+        return url;
+      }
+      
+      if (url.startsWith('/uploads/')) {
+        return `${mainServer}${url}`;
+      }
+      
+      return url;
+    }
+    
+    // Display assets
+    function displayAssets(assets) {
+      containerEl.innerHTML = '';
+      
+      if (!assets || assets.length === 0) {
+        setStatus('No assets found', true);
+        return;
+      }
+      
+      setStatus(`Found ${assets.length} assets`);
+      
+      assets.forEach(asset => {
+        const card = document.createElement('div');
+        card.className = 'asset-card';
+        
+        // Prepare image URL
+        const imageUrl = resolveAssetUrl(asset.url);
+        
+        // Create elements
+        const img = document.createElement('img');
+        img.className = 'asset-image';
+        img.src = imageUrl;
+        img.alt = asset.name;
+        img.onerror = () => {
+          img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiPkltYWdlIEVycm9yPC90ZXh0Pjwvc3ZnPg=='; // Placeholder
+          console.error(`Failed to load image: ${imageUrl}`);
+        };
+        
+        const name = document.createElement('div');
+        name.className = 'asset-name';
+        name.textContent = asset.name;
+        
+        const info = document.createElement('div');
+        info.className = 'asset-info';
+        info.textContent = `Type: ${asset.type} | ID: ${asset.id.substring(0, 8)}...`;
+        
+        // Add to card
+        card.appendChild(img);
+        card.appendChild(name);
+        card.appendChild(info);
+        
+        // Add to container
+        containerEl.appendChild(card);
+      });
+    }
+    
+    // Fetch assets from bypass server
+    async function fetchBypassAssets() {
+      try {
+        setStatus('Fetching assets from bypass server...');
+        const clientId = clientIdInput.value.trim();
+        
+        const response = await fetch(`${bypassServer}/bypass-auth-assets?clientId=${clientId}&type=image`);
+        
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.status}`);
+        }
+        
+        const assets = await response.json();
+        console.log('Assets from bypass server:', assets);
+        displayAssets(assets);
+      } catch (error) {
+        console.error('Error fetching assets:', error);
+        setStatus(`Error: ${error.message}`, true);
+      }
+    }
+    
+    // Fetch assets directly from main API
+    async function fetchDirectAssets() {
+      try {
+        setStatus('Fetching assets from main API...');
+        const clientId = clientIdInput.value.trim();
+        
+        // Try to get token from localStorage
+        const token = localStorage.getItem('airwave_auth_token');
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        
+        const response = await fetch(`${mainServer}/api/assets?clientId=${clientId}&type=image`, {
+          headers: headers
+        });
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            throw new Error('Authentication error - please log in first');
+          }
+          throw new Error(`Server error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Direct API response:', data);
+        
+        // Check if response follows the expected format with data.data.assets
+        const assets = data.data && data.data.assets ? data.data.assets : 
+                      (Array.isArray(data) ? data : []);
+        
+        displayAssets(assets);
+      } catch (error) {
+        console.error('Error fetching assets directly:', error);
+        setStatus(`Error: ${error.message}`, true);
+      }
+    }
+    
+    // Event listeners
+    document.getElementById('fetch-bypass').addEventListener('click', fetchBypassAssets);
+    document.getElementById('fetch-direct').addEventListener('click', fetchDirectAssets);
+    
+    // Initialize
+    setStatus('Ready to fetch assets');
+  </script>
+</body>
+</html>

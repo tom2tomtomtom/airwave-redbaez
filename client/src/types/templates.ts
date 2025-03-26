@@ -31,6 +31,7 @@ export interface Template {
   createdAt: string;
   updatedAt: string;
   isFavorite?: boolean;
+  client_id?: string; // Associated client ID
 }
 
 export interface TemplateFilters {
@@ -38,4 +39,5 @@ export interface TemplateFilters {
   format?: string;
   platform?: string;
   favorites?: boolean;
+  client_id?: string;
 }

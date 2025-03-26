@@ -7,14 +7,14 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3002:80"
-    volumes:
-      - ./client:/app
-      - /app/node_modules
     depends_on:
       - server
     environment:
       - REACT_APP_SERVER_URL=http://localhost:3001
-      - REACT_APP_WEBSOCKET_URL=ws://localhost:3001/ws
+      - REACT_APP_SUPABASE_URL=https://vnlmumkhqupdmvywneuf.supabase.co
+      - REACT_APP_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZubG11bWtocXVwZG12eXduZXVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDExMzQ2MjEsImV4cCI6MjA1NjcxMDYyMX0.rGn9_Zkbb0FYXwjs-RLlWO6lpqoTbQRsNFwmvdn1pDQ
+      - REACT_APP_CREATOMATE_PUBLIC_TOKEN=public-b66aek9a6jsq2sff011uytlh
+      - NODE_ENV=production
 
   server:
     build:
@@ -23,19 +23,25 @@ services:
     ports:
       - "3001:3001"
     volumes:
-      - ./server:/app
-      - /app/node_modules
       - ./server/uploads:/app/uploads
     environment:
       - PORT=3001
-      - NODE_ENV=development
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-      - CREATOMATE_API_KEY=${CREATOMATE_API_KEY}
-      - LLM_API_KEY=${LLM_API_KEY}
-      - JWT_SECRET=${JWT_SECRET}
-      - PROTOTYPE_MODE=true
+      - NODE_ENV=production
+      - SUPABASE_URL=https://vnlmumkhqupdmvywneuf.supabase.co
+      - SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZubG11bWtocXVwZG12eXduZXVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDExMzQ2MjEsImV4cCI6MjA1NjcxMDYyMX0.rGn9_Zkbb0FYXwjs-RLlWO6lpqoTbQRsNFwmvdn1pDQ
+      - SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZubG11bWtocXVwZG12eXduZXVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDExMzQ2MjEsImV4cCI6MjA1NjcxMDYyMX0.rGn9_Zkbb0FYXwjs-RLlWO6lpqoTbQRsNFwmvdn1pDQ
+      - CREATOMATE_API_KEY=5ab32660fef044e5b135a646a78cff8ec7e2503b79e201bad7e566f4b24ec111f2fa7e01a824eaa77904c1783e083efa
+      - CREATOMATE_PUBLIC_TOKEN=public-b66aek9a6jsq2sff011uytlh
+      - CREATOMATE_WEBHOOK_URL=https://wgksbjanrhwdfgfdjihf.functions.supabase.co/creatomatewebhook
+      - OPENAI_API_KEY=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
+      - LLM_API_URL=https://api.openai.com/v1/chat/completions
+      - LLM_API_KEY=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
+      - JWT_SECRET=k9Ol7gzpwmRMz8QJgROs5oUhvFvAFavYxYRe2DIm6Jf6PXtzzaMsIql7yvB3z+/5LEKh2KFUFDQvi8cShSd9ww==
+      - PROTOTYPE_MODE=false
+      - DEV_BYPASS_AUTH=false
       - CORS_ORIGIN=http://localhost:3002
+      - UPLOAD_DIR=uploads
+      - MAX_FILE_SIZE=104857600
 
 volumes:
   uploads:

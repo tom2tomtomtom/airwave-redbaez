@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { RootState } from '../../app/store';
-import { supabaseClient } from '../../utils/supabaseClient';
+import { RootState } from '../../store';
+import { supabase } from '../../supabaseClient';
 
 // Interface definitions
 export interface Brief {
@@ -15,6 +15,22 @@ export interface Brief {
   insights?: string[];
   createdAt: string;
   updatedAt: string;
+  
+  // Additional properties being used in the application
+  campaignObjectives?: string;
+  targetAudience?: string;
+  keyMessages?: string;
+  visualPreferences?: string;
+  
+  // Properties for snake_case API responses
+  campaign_objectives?: string;
+  target_audience?: string;
+  key_messages?: string;
+  visual_preferences?: string;
+  analysis_results?: {
+    key_themes: string[];
+    tone_recommendations: string[];
+  };
 }
 
 export interface BriefAnalysis {

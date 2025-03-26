@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction, SerializedError } from '@reduxjs/toolkit';
 import { apiClient } from '../../utils/api';
+import { saveToStorage, getFromStorage, STORAGE_KEYS } from '../../utils/storage';
 
 // Types for motivation and brief data
 export interface Motivation {
@@ -62,16 +63,29 @@ interface LLMState {
   copyVariations: CopyVariation[];
   selectedCopyVariation: CopyVariation | null;
   selectedMotivations: Motivation[];
+  selectedMotivationIds: string[]; // Added for useStrategyOperations
+  selectedVariationIds: string[]; // Added for useStrategyOperations
+  analysis: any; // Added for useStrategyOperations
+  status: string; // Added for useStrategyOperations
   loading: LoadingState;
   error: ErrorState;
 }
 
+// Get persisted data from localStorage if available
+const persistedBrief = getFromStorage<BriefData | null>(STORAGE_KEYS.BRIEF);
+const persistedMotivations = getFromStorage<Motivation[]>(STORAGE_KEYS.MOTIVATIONS) || [];
+const persistedSelectedMotivations = getFromStorage<Motivation[]>(STORAGE_KEYS.SELECTED_MOTIVATIONS) || [];
+
 const initialState: LLMState = {
-  brief: null,
-  motivations: [],
+  brief: persistedBrief,
+  motivations: persistedMotivations,
   copyVariations: [],
   selectedCopyVariation: null,
-  selectedMotivations: [],
+  selectedMotivations: persistedSelectedMotivations,
+  selectedMotivationIds: persistedSelectedMotivations.map(m => m.id), // Added for useStrategyOperations
+  selectedVariationIds: [], // Added for useStrategyOperations
+  analysis: null, // Added for useStrategyOperations
+  status: 'idle', // Added for useStrategyOperations
   loading: {
     processingBrief: false,
     regeneratingMotivations: false,
@@ -86,15 +100,28 @@ const initialState: LLMState = {
 
 /**
  * Process a client brief to generate motivations
+ * This now handles both direct data from document upload workflow 
+ * and traditional form input workflow
  */
 export const processBrief = createAsyncThunk<
   { brief: BriefData; motivations: Motivation[] },
-  BriefData,
+  BriefData | { briefData: BriefData; motivations: Motivation[] },
   { rejectValue: string }
 >(
   'llm/processBrief',
-  async (briefData, { rejectWithValue }) => {
+  async (payload, { rejectWithValue }) => {
     try {
+      // Check if this is already processed data from document upload workflow
+      if ('motivations' in payload) {
+        // Document upload already provided both brief data and motivations
+        return {
+          brief: payload.briefData,
+          motivations: payload.motivations
+        };
+      }
+      
+      // Traditional approach - call parseBrief endpoint
+      const briefData = payload as BriefData;
       const response = await apiClient.llm.parseBrief(briefData);
       return { 
         brief: briefData, 
@@ -181,6 +208,10 @@ const llmSlice = createSlice({
             m => m.id !== motivationId
           );
         }
+        
+        // Persist to localStorage
+        saveToStorage(STORAGE_KEYS.MOTIVATIONS, state.motivations);
+        saveToStorage(STORAGE_KEYS.SELECTED_MOTIVATIONS, state.selectedMotivations);
       }
     },
     
@@ -228,6 +259,11 @@ const llmSlice = createSlice({
         state.brief = payload.brief;
         state.motivations = payload.motivations;
         state.selectedMotivations = payload.motivations.filter(m => m.selected);
+        
+        // Persist to localStorage
+        saveToStorage(STORAGE_KEYS.BRIEF, payload.brief);
+        saveToStorage(STORAGE_KEYS.MOTIVATIONS, payload.motivations);
+        saveToStorage(STORAGE_KEYS.SELECTED_MOTIVATIONS, state.selectedMotivations);
       })
       .addCase(processBrief.rejected, (state, { payload }) => {
         state.loading.processingBrief = false;
@@ -243,6 +279,10 @@ const llmSlice = createSlice({
         state.loading.regeneratingMotivations = false;
         state.motivations = payload;
         state.selectedMotivations = payload.filter(m => m.selected);
+        
+        // Persist to localStorage
+        saveToStorage(STORAGE_KEYS.MOTIVATIONS, payload);
+        saveToStorage(STORAGE_KEYS.SELECTED_MOTIVATIONS, state.selectedMotivations);
       })
       .addCase(regenerateMotivations.rejected, (state, { payload }) => {
         state.loading.regeneratingMotivations = false;

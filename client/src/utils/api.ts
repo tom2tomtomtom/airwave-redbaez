@@ -1,8 +1,13 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
+import { supabase } from '../lib/supabase';
 
-// Get the API URL from environment variables, defaulting to localhost:3001
-const baseURL = process.env.REACT_APP_SERVER_URL || 'http://localhost:3001';
+// Get the API URL from environment variables, defaulting to localhost:3002
+const baseURL = process.env.REACT_APP_SERVER_URL || 'http://localhost:3002';
 const apiURL = `${baseURL}/api`;
+
+// Log server connection info for debugging
+console.log('API connecting to server at:', baseURL);
+console.log('Full API URL:', apiURL);
 
 const api = axios.create({
   baseURL: apiURL,
@@ -13,24 +18,48 @@ const api = axios.create({
   timeout: 60000, // 60 seconds
 });
 
+// We're simplifying our token refresh approach to avoid infinite loops
+// and authentication issues
+
 // Add a request interceptor to include auth token
 api.interceptors.request.use(
-  (config) => {
-    // Get token from localStorage
-    const token = localStorage.getItem('token');
+  async (config) => {
+    // Skip auth token for auth endpoints that don't need authentication
+    const publicEndpoints = ['/auth/login', '/auth/register', '/auth/dev-login'];
+    const isPublicEndpoint = config.url && publicEndpoints.some(endpoint => config.url?.includes(endpoint));
     
-    console.log(`Request to ${config.url}, token:`, token ? 'Found token' : 'No token');
+    if (isPublicEndpoint) {
+      console.log(`Request to public endpoint ${config.url}, skipping auth token`);
+      return config;
+    }
     
-    // If token exists, add it to the Authorization header
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-      console.log('Added Authorization header with token');
-    } else {
-      // Log warning only for authenticated endpoints (not login/register)
-      const isAuthEndpoint = config.url && !['/auth/login', '/auth/register'].includes(config.url);
+    try {
+      // Get the current Supabase session
+      const { data } = await supabase.auth.getSession();
       
-      if (isAuthEndpoint) {
-        console.warn(`No authentication token available for request to ${config.url}`);
+      if (data?.session?.access_token) {
+        console.log(`Request to ${config.url}, using Supabase session token`);
+        config.headers.Authorization = `Bearer ${data.session.access_token}`;
+        
+        // Keep token in localStorage for other uses
+        localStorage.setItem('airwave_auth_token', data.session.access_token);
+      } else {
+        // Fall back to stored token if available
+        const storedToken = localStorage.getItem('airwave_auth_token');
+        
+        if (storedToken) {
+          console.log(`Request to ${config.url}, using stored token`);
+          config.headers.Authorization = `Bearer ${storedToken}`;
+        } else {
+          console.warn(`No authentication available for request to ${config.url}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error in request interceptor:', error);
+      // Try to use stored token as fallback in case of error
+      const storedToken = localStorage.getItem('airwave_auth_token');
+      if (storedToken) {
+        config.headers.Authorization = `Bearer ${storedToken}`;
       }
     }
     
@@ -386,6 +415,9 @@ const apiClient: ApiClient = {
      * @param formData Form data containing the asset file and metadata
      */
     upload: (formData: FormData): Promise<AxiosResponse> => {
+      console.log('API Client: Initiating asset upload');
+      console.log('Form data keys:', Array.from(formData.keys()));
+      
       const config: AxiosRequestConfig = {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -393,7 +425,17 @@ const apiClient: ApiClient = {
         // Longer timeout for uploads
         timeout: 300000, // 5 minutes
       };
-      return api.post('/assets/upload', formData, config);
+      
+      // Log the request being made
+      console.log('Making POST request to /assets/upload with Content-Type: multipart/form-data');
+      
+      return api.post('/assets/upload', formData, config).then(response => {
+        console.log('Asset upload response:', response.data);
+        return response;
+      }).catch(error => {
+        console.error('Asset upload request failed:', error.response || error.message || error);
+        throw error;
+      });
     },
     
     /**
@@ -745,7 +787,7 @@ const apiClient: ApiClient = {
           'Content-Type': 'multipart/form-data',
         },
       };
-      return api.post('/strategy/process-brief', formData, config);
+      return api.post('/llm/process-brief-document', formData, config);
     },
 
     /**

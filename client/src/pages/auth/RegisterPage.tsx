@@ -35,7 +35,10 @@ const RegisterPage: React.FC = () => {
     validationSchema: Yup.object({
       name: Yup.string().required('Required'),
       email: Yup.string().email('Invalid email address').required('Required'),
-      password: Yup.string().min(6, 'Must be at least 6 characters').required('Required'),
+      password: Yup.string()
+        .min(6, 'Must be at least 6 characters')
+        .max(72, 'Must be 72 characters or less (bcrypt limitation)')
+        .required('Required'),
       confirmPassword: Yup.string()
         .oneOf([Yup.ref('password')], 'Passwords must match')
         .required('Required'),
@@ -48,6 +51,7 @@ const RegisterPage: React.FC = () => {
       }));
       
       if (register.fulfilled.match(resultAction)) {
+        // Navigate to dashboard upon successful registration
         navigate('/dashboard');
       }
     },
@@ -93,6 +97,7 @@ const RegisterPage: React.FC = () => {
               {error}
             </Alert>
           )}
+
           
           <Box component="form" onSubmit={formik.handleSubmit} sx={{ mt: 1 }}>
             <TextField

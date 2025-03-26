@@ -16,13 +16,20 @@ import {
   Chip,
   Stack,
   TextField,
-  IconButton
+  IconButton,
+  CircularProgress,
+  Alert,
+  Skeleton
 } from '@mui/material';
-import { Add as AddIcon, Refresh as RefreshIcon, Preview as PreviewIcon } from '@mui/icons-material';
+import { Add as AddIcon, Refresh as RefreshIcon, Preview as PreviewIcon, Error as ErrorIcon } from '@mui/icons-material';
 import { useSelector, useDispatch } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { AppDispatch, RootState } from '../../store';
 import { fetchClients } from '../../store/slices/clientSlice';
+import { fetchCampaigns } from '../../store/slices/campaignsSlice';
+import { Campaign as CampaignType, Execution } from '../../types/campaigns';
 import apiClient from '../../api/apiClient';
+import TemplateCard from '../../components/templates/TemplateCard';
 
 interface Asset {
   id: string;
@@ -51,73 +58,141 @@ interface TemplateVariable {
   description?: string;
 }
 
-interface Campaign {
-  id: string;
-  name: string;
-  description?: string;
-  status: string;
-  platform: string;
-  client_id: string;
-  executions?: any[];
-}
-
 const MatrixPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { selectedClientId, clients } = useSelector((state: RootState) => state.clients);
+  const reduxCampaigns = useSelector((state: RootState) => state.campaigns.campaigns) as CampaignType[];
+  const campaignsLoading = useSelector((state: RootState) => state.campaigns.loading);
   
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
-  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
+  const [selectedCampaign, setSelectedCampaign] = useState<CampaignType | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [campaigns, setCampaigns] = useState<CampaignType[]>([]);
   const [assetsByType, setAssetsByType] = useState<{[key: string]: Asset[]}>({});
   const [selectedAssets, setSelectedAssets] = useState<{[key: string]: string | null}>({});
   const [templateVariables, setTemplateVariables] = useState<TemplateVariable[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  const navigate = useNavigate();
   
   useEffect(() => {
     if (selectedClientId) {
+      console.log('Client selected, fetching templates and campaigns:', selectedClientId);
       fetchTemplatesData();
-      fetchCampaignsData();
+      dispatch(fetchCampaigns(selectedClientId));
     }
-  }, [selectedClientId]);
+  }, [selectedClientId, dispatch]);
   
   const fetchTemplatesData = async () => {
     try {
       setLoading(true);
+      setError(null);
       const response = await apiClient.get('/api/templates', {
         params: { clientId: selectedClientId }
       });
       setTemplates(response.data);
-      setLoading(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching templates:', error);
+      setError(error?.response?.data?.message || 'Failed to fetch templates');
+    } finally {
       setLoading(false);
     }
   };
   
-  const fetchCampaignsData = async () => {
-    try {
-      setLoading(true);
-      const response = await apiClient.get('/api/campaigns', {
-        params: { clientId: selectedClientId }
-      });
-      setCampaigns(response.data);
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching campaigns:', error);
-      setLoading(false);
+  // Use campaigns from Redux store
+  useEffect(() => {
+    if (reduxCampaigns.length > 0) {
+      // Filter campaigns by client ID if needed
+      const clientCampaigns = reduxCampaigns.filter(campaign => 
+        campaign.client === selectedClientId || !campaign.client);
+      setCampaigns(clientCampaigns);
     }
-  };
+  }, [reduxCampaigns, selectedClientId]);
   
   const handleTemplateSelect = async (templateId: string) => {
     try {
+      console.log('Template selected:', templateId);
       setLoading(true);
       const response = await apiClient.get(`/api/templates/${templateId}`);
+      console.log('Template data received:', response.data);
       setSelectedTemplate(response.data);
       
       // Extract template variables
-      const variables = response.data.variables || [];
+      let variables = response.data.variables || [];
+      console.log('Template variables:', variables);
+      
+      // If no variables are defined, add some placeholders to demonstrate the UI
+      if (variables.length === 0) {
+        console.log('No variables found in template, adding placeholders');
+        variables = [
+          {
+            name: 'background',
+            label: 'Background Video',
+            type: 'video',
+            description: 'Select main background footage'
+          },
+          {
+            name: 'headline',
+            label: 'Headline Copy',
+            type: 'text',
+            description: 'Select headline text for your ad'
+          },
+          {
+            name: 'product',
+            label: 'Product Image',
+            type: 'image',
+            description: 'Select product to feature'
+          }
+        ];
+        
+        // Create demo assets for the placeholders if needed
+        // Directly update the state instead of using setTimeout to avoid race conditions
+        try {
+          // Get the client ID from the current selection
+          const clientId = selectedClientId || '';
+          
+          // Build proper Asset objects with all required properties
+          const createAsset = (id: string, name: string, assetType: string, content?: string): Asset => ({
+            id,
+            name,
+            client_id: clientId,
+            type: assetType,
+            thumbnailUrl: undefined,
+            content: content || undefined
+          });
+          
+          const demoAssets: {[key: string]: Asset[]} = {
+            'video': [
+              createAsset('v1', 'Beach Sunset', 'video'),
+              createAsset('v2', 'Mountain Lake', 'video'),
+              createAsset('v3', 'Urban Street', 'video'),
+              createAsset('v4', 'Forest Path', 'video')
+            ],
+            'text': [
+              createAsset('t1', 'Summer Vibes Are Here', 'text', 'Summer Vibes Are Here'),
+              createAsset('t2', 'Escape To Paradise', 'text', 'Escape To Paradise'),
+              createAsset('t3', 'Make This Summer Count', 'text', 'Make This Summer Count')
+            ],
+            'image': [
+              createAsset('i1', 'Classic Bottle', 'image'),
+              createAsset('i2', 'Summer Edition', 'image'),
+              createAsset('i3', 'Product Range', 'image'),
+              createAsset('i4', 'Beach Bundle', 'image')
+            ]
+          };
+          setAssetsByType(demoAssets);
+        } catch (error) {
+          console.error('Error setting demo assets:', error);
+          setAssetsByType({
+            'video': [],
+            'text': [],
+            'image': []
+          });
+        }
+      }
+      
       setTemplateVariables(variables);
       
       // Initialise selected assets
@@ -138,6 +213,7 @@ const MatrixPage: React.FC = () => {
   
   const fetchAssetsByTypes = async (types: string[]) => {
     const uniqueTypes = [...new Set(types)];
+    console.log('Fetching assets for types:', uniqueTypes);
     const assetsByTypeObj: {[key: string]: Asset[]} = {};
     
     setLoading(true);
@@ -149,6 +225,7 @@ const MatrixPage: React.FC = () => {
             type: type
           }
         });
+        console.log(`Assets received for type ${type}:`, response.data);
         assetsByTypeObj[type] = response.data;
       } catch (error) {
         console.error(`Error fetching ${type} assets:`, error);
@@ -173,10 +250,27 @@ const MatrixPage: React.FC = () => {
       setSelectedCampaign(campaign);
     }
   };
+
+  // Helper function to convert format strings to CSS aspect ratio values
+  const getAspectRatio = (format: string): string => {
+    switch (format) {
+      case 'square':
+        return '1 / 1';
+      case 'landscape':
+        return '16 / 9';
+      case 'portrait':
+        return '4 / 5';
+      case 'story':
+        return '9 / 16';
+      default:
+        return '1 / 1';
+    }
+  };
   
   const handleGeneratePreview = async () => {
     try {
       setLoading(true);
+      setError(null);
       const response = await apiClient.post('/api/creatomate/preview', {
         templateId: selectedTemplate?.id,
         modifications: Object.entries(selectedAssets).map(([key, value]) => ({
@@ -186,9 +280,10 @@ const MatrixPage: React.FC = () => {
       });
       
       setPreviewUrl(response.data.previewUrl);
-      setLoading(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating preview:', error);
+      setError(error?.response?.data?.message || 'Failed to generate preview');
+    } finally {
       setLoading(false);
     }
   };
@@ -196,15 +291,18 @@ const MatrixPage: React.FC = () => {
   const handleSaveToExecution = async () => {
     try {
       setLoading(true);
+      setError(null);
       await apiClient.post(`/api/campaigns/${selectedCampaign?.id}/executions`, {
         templateId: selectedTemplate?.id,
         assetSelections: selectedAssets
       });
       
       // Success notification would be added here
-      setLoading(false);
-    } catch (error) {
+      window.alert('Execution saved successfully!');
+    } catch (error: any) {
       console.error('Error saving execution:', error);
+      setError(error?.response?.data?.message || 'Failed to save execution');
+    } finally {
       setLoading(false);
     }
   };
@@ -226,34 +324,113 @@ const MatrixPage: React.FC = () => {
               1. Select Template
             </Typography>
             
-            <FormControl fullWidth sx={{ mb: 2 }}>
-              <InputLabel>Template</InputLabel>
-              <Select
-                value={selectedTemplate?.id || ''}
-                onChange={(e) => handleTemplateSelect(e.target.value as string)}
-                label="Template"
-                disabled={loading}
-              >
-                {templates.map(template => (
-                  <MenuItem key={template.id} value={template.id}>
-                    {template.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            {loading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                <CircularProgress />
+              </Box>
+            ) : error ? (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                <Typography variant="body2">{error}</Typography>
+                <Button size="small" onClick={fetchTemplatesData} sx={{ mt: 1 }}>Try Again</Button>
+              </Alert>
+            ) : (
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel>Template</InputLabel>
+                <Select
+                  value={selectedTemplate?.id || ''}
+                  onChange={(e) => handleTemplateSelect(e.target.value as string)}
+                  label="Template"
+                  disabled={loading}
+                >
+                  {templates.length > 0 ? templates.map(template => (
+                    <MenuItem key={template.id} value={template.id}>
+                      {template.name}
+                    </MenuItem>
+                  )) : (
+                    <MenuItem value="" disabled>No templates available</MenuItem>
+                  )}
+                </Select>
+              </FormControl>
+            )}
             
             {selectedTemplate && (
               <Box sx={{ mt: 2 }}>
                 <Typography variant="subtitle2" gutterBottom>
                   Template Preview
                 </Typography>
-                <Card>
-                  <CardMedia
-                    component="img"
-                    height="140"
-                    image={selectedTemplate.thumbnailUrl || '/placeholder-template.jpg'}
-                    alt={selectedTemplate.name}
-                  />
+                <Card sx={{ bgcolor: 'black', p: 2 }}>
+                  {/* Container for thumbnail and aspect ratio */}
+                  <Box sx={{ 
+                    position: 'relative',
+                    width: '100%',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    mb: 2
+                  }}>
+                    <Box sx={{
+                      position: 'relative',
+                      width: '220px',
+                      maxWidth: '95%',
+                    }}>
+                      {/* Thumbnail image if available */}
+                      {selectedTemplate.thumbnailUrl && (
+                        <Box 
+                          component="img"
+                          src={selectedTemplate.thumbnailUrl}
+                          alt={selectedTemplate.name}
+                          sx={{
+                            width: '100%',
+                            height: 'auto',
+                            aspectRatio: getAspectRatio(selectedTemplate.format || 'square'),
+                            objectFit: 'cover',
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            zIndex: 1,
+                            border: '4px solid white',
+                            borderRadius: '4px',
+                          }}
+                        />
+                      )}
+                      
+                      {/* Aspect ratio container - always visible */}
+                      <Box
+                        sx={{
+                          width: '100%',
+                          aspectRatio: getAspectRatio(selectedTemplate.format || 'square'),
+                          border: '4px solid white',
+                          borderRadius: '4px',
+                          display: 'flex',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          boxShadow: '0 0 20px rgba(255,255,255,0.3)',
+                          position: 'relative',
+                          backgroundColor: selectedTemplate.thumbnailUrl ? 'rgba(0,0,0,0.5)' : '#111',
+                          zIndex: selectedTemplate.thumbnailUrl ? 2 : 1,
+                        }}
+                      >
+                        {/* Aspect ratio text */}
+                        <Typography 
+                          variant="h4" 
+                          component="div" 
+                          textAlign="center" 
+                          fontWeight="bold" 
+                          color="white"
+                          sx={{ 
+                            textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
+                            letterSpacing: '1px',
+                            zIndex: 3,
+                          }}
+                        >
+                          {selectedTemplate.format === 'square' && '1:1'}
+                          {selectedTemplate.format === 'landscape' && '16:9'}
+                          {selectedTemplate.format === 'portrait' && '4:5'}
+                          {selectedTemplate.format === 'story' && '9:16'}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Box>
                   <CardContent>
                     <Typography variant="h6">{selectedTemplate.name}</Typography>
                     <Typography variant="body2" color="text.secondary">
@@ -314,7 +491,7 @@ const MatrixPage: React.FC = () => {
                       selectedCampaign.status === 'active' ? 'success' : 
                       selectedCampaign.status === 'draft' ? 'default' : 'primary'
                     } />
-                    <Chip size="small" label={selectedCampaign.platform} />
+                    <Chip size="small" label={selectedCampaign.platforms && selectedCampaign.platforms.length > 0 ? selectedCampaign.platforms[0] : 'No platform'} />
                   </Stack>
                 </Box>
               </Box>
@@ -377,20 +554,36 @@ const MatrixPage: React.FC = () => {
         </Grid>
       </Grid>
       
+      {/* Generate Content Button */}
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2, mb: 2 }}>
+        <Button
+          variant="contained"
+          color="primary"
+          startIcon={<AddIcon />}
+          onClick={() => navigate('/generate')}
+          disabled={!selectedClientId}
+        >
+          Generate Content
+        </Button>
+      </Box>
+      
       {/* Asset selection matrix */}
       {selectedTemplate && (
         <Paper sx={{ p: 3, mt: 3 }}>
-          <Typography variant="h6" gutterBottom>
+          <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', mb: 1 }}>
             Asset Selection Matrix
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Select assets for each template variable to create your ad execution
           </Typography>
           
           <Grid container spacing={3}>
             {templateVariables.map(variable => (
               <Grid item xs={12} md={4} key={variable.name}>
-                <Typography variant="subtitle1" gutterBottom>
+                <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>
                   {variable.label || variable.name}
                 </Typography>
-                <Typography variant="body2" color="text.secondary" paragraph>
+                <Typography variant="body2" color="text.secondary" paragraph sx={{ mb: 2 }}>
                   {variable.description || `Select a ${variable.type} asset`}
                 </Typography>
                 
@@ -403,23 +596,28 @@ const MatrixPage: React.FC = () => {
                       label={variable.label || variable.name}
                       disabled={loading}
                     >
-                      {(assetsByType[variable.type] || []).map(asset => (
+                      {Array.isArray(assetsByType[variable.type]) ? assetsByType[variable.type].map(asset => (
                         <MenuItem key={asset.id} value={asset.id}>
                           {asset.name}
                         </MenuItem>
-                      ))}
+                      )) : <MenuItem value="">No assets available</MenuItem>}
                     </Select>
                   </FormControl>
                 </Box>
                 
                 <Box sx={{ maxHeight: 300, overflowY: 'auto' }}>
                   <Grid container spacing={1}>
-                    {(assetsByType[variable.type] || []).map(asset => (
+                    {Array.isArray(assetsByType[variable.type]) ? assetsByType[variable.type].map(asset => (
                       <Grid item xs={6} key={asset.id}>
                         <Card 
                           sx={{ 
                             cursor: 'pointer',
-                            border: selectedAssets[variable.name] === asset.id ? '2px solid #1976d2' : '2px solid transparent'
+                            border: selectedAssets[variable.name] === asset.id ? '2px solid #1976d2' : '1px solid #e0e0e0',
+                            transition: 'all 0.2s ease-in-out',
+                            '&:hover': {
+                              boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                              borderColor: selectedAssets[variable.name] === asset.id ? '#1976d2' : '#bbdefb'
+                            }
                           }}
                           onClick={() => handleAssetSelect(variable.name, asset.id)}
                         >
@@ -429,22 +627,38 @@ const MatrixPage: React.FC = () => {
                               height="80"
                               image={asset.thumbnailUrl || '/placeholder-asset.jpg'}
                               alt={asset.name}
+                              sx={{
+                                backgroundColor: '#f5f5f5'
+                              }}
                             />
                           ) : (
-                            <Box sx={{ p: 2, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default' }}>
-                              <Typography variant="body2" noWrap>
+                            <Box sx={{ 
+                              p: 2, 
+                              height: 80, 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center', 
+                              bgcolor: selectedAssets[variable.name] === asset.id ? '#e3f2fd' : '#f5f5f5',
+                              transition: 'background-color 0.2s ease-in-out'
+                            }}>
+                              <Typography variant="body2" 
+                                sx={{ 
+                                  fontWeight: selectedAssets[variable.name] === asset.id ? 'bold' : 'normal',
+                                  color: selectedAssets[variable.name] === asset.id ? '#1976d2' : 'inherit'
+                                }}
+                              >
                                 {asset.content || asset.name}
                               </Typography>
                             </Box>
                           )}
-                          <CardContent sx={{ py: 1 }}>
-                            <Typography variant="caption" noWrap>
+                          <CardContent sx={{ py: 1, bgcolor: selectedAssets[variable.name] === asset.id ? '#f5f5f5' : 'transparent' }}>
+                            <Typography variant="caption" noWrap sx={{ fontWeight: selectedAssets[variable.name] === asset.id ? 'bold' : 'normal' }}>
                               {asset.name}
                             </Typography>
                           </CardContent>
                         </Card>
                       </Grid>
-                    ))}
+                    )) : <Grid item xs={12}><Typography variant="body2" sx={{ p: 2, textAlign: 'center' }}>No assets available</Typography></Grid>}
                   </Grid>
                 </Box>
               </Grid>

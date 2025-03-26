@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { getAssetUrl } from '../../utils/assetUtils';
 import { 
   Card, 
   CardMedia, 
@@ -9,7 +10,10 @@ import {
   Menu, 
   MenuItem, 
   Chip, 
-  Box
+  Box,
+  CircularProgress,
+  LinearProgress,
+  Badge
 } from '@mui/material';
 import { 
   MoreVert as MoreVertIcon,
@@ -35,7 +39,8 @@ interface AssetCardProps {
 
 const AssetCard: React.FC<AssetCardProps> = ({ asset, onAssetChanged }) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [isFavourite, setIsFavourite] = useState(asset.isFavourite || false);
+  // Handle both UK and US spelling variants for favourite/favorite
+  const [isFavourite, setIsFavourite] = useState(asset.isFavourite || asset.isFavorite || false);
   const [isPlaying, setIsPlaying] = useState(false);
   
   // Use our custom hook for asset operations
@@ -105,7 +110,7 @@ const AssetCard: React.FC<AssetCardProps> = ({ asset, onAssetChanged }) => {
         <CardMedia
           component="img"
           height="140"
-          image={asset.url}
+          image={getAssetUrl(asset?.url || '')}
           alt={asset.name}
         />
       )}
@@ -115,24 +120,51 @@ const AssetCard: React.FC<AssetCardProps> = ({ asset, onAssetChanged }) => {
           <CardMedia
             component="img"
             height="140"
-            image={asset.thumbnailUrl || asset.url}
+            image={getAssetUrl(asset?.thumbnailUrl || asset?.url || '')}
             alt={asset.name}
           />
-          <IconButton 
-            sx={{ 
-              position: 'absolute', 
-              top: '50%', 
-              left: '50%', 
-              transform: 'translate(-50%, -50%)',
-              bgcolor: 'rgba(0, 0, 0, 0.5)',
-              '&:hover': {
-                bgcolor: 'rgba(0, 0, 0, 0.7)',
-              }
-            }}
-            onClick={handlePlayToggle}
-          >
-            {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-          </IconButton>
+          {asset.status === 'processing' ? (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0,0,0,0.6)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+              }}
+            >
+              <CircularProgress color="secondary" size={30} sx={{ mb: 1 }} />
+              <Typography variant="caption" align="center" sx={{ fontWeight: 'bold' }}>
+                Processing Video
+              </Typography>
+              <LinearProgress 
+                sx={{ width: '80%', mt: 1 }}
+                color="secondary"
+              />
+            </Box>
+          ) : (
+            <IconButton 
+              sx={{ 
+                position: 'absolute', 
+                top: '50%', 
+                left: '50%', 
+                transform: 'translate(-50%, -50%)',
+                bgcolor: 'rgba(0, 0, 0, 0.5)',
+                '&:hover': {
+                  bgcolor: 'rgba(0, 0, 0, 0.7)',
+                }
+              }}
+              onClick={handlePlayToggle}
+            >
+              {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
+            </IconButton>
+          )}
         </Box>
       )}
       
@@ -184,13 +216,24 @@ const AssetCard: React.FC<AssetCardProps> = ({ asset, onAssetChanged }) => {
           <Typography variant="h6" component="div" noWrap title={asset.name}>
             {asset.name}
           </Typography>
-          <IconButton 
-            size="small" 
-            onClick={handleFavouriteToggle}
-            disabled={loading}
-          >
-            {isFavourite ? <FavoriteIcon color="error" /> : <FavoriteBorderIcon />}
-          </IconButton>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            {asset.status === 'processing' && (
+              <Chip 
+                label="Processing" 
+                color="secondary" 
+                size="small"
+                icon={<CircularProgress size={10} color="inherit" />}
+                sx={{ height: 24 }}
+              />
+            )}
+            <IconButton 
+              size="small" 
+              onClick={handleFavouriteToggle}
+              disabled={loading}
+            >
+              {isFavourite ? <FavoriteIcon color="error" /> : <FavoriteBorderIcon />}
+            </IconButton>
+          </Box>
         </Box>
         
         <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>

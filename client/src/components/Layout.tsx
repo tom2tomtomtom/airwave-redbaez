@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { styled } from '@mui/material/styles';
+
 import { 
   AppBar, 
   Box, 
@@ -76,51 +77,78 @@ const Layout: React.FC = () => {
     navigate('/login');
   };
 
-  // Define navigation items that require client selection and those that don't
-  const clientRequiredItems = [
-    { text: 'Client Dashboard', icon: <BusinessIcon />, path: '/client-dashboard' },
-    { text: 'Generate', icon: <GenerateIcon />, path: '/generate' },
-    { text: 'Visual Matrix', icon: <ImageIcon />, path: '/matrix' },
+  // Define all navigation items - all require a client
+  const navItems = [
+    { text: 'Client', icon: <BusinessIcon />, path: '/client-dashboard' },
+    { text: 'Strategy', icon: <BriefIcon />, path: '/briefs/strategy-development' },
+    { text: 'Generate', icon: <GenerateIcon />, path: '/briefs/strategy-development' },
     { text: 'Assets', icon: <ImageIcon />, path: '/assets' },
     { text: 'Templates', icon: <TemplateIcon />, path: '/templates' },
     { text: 'Campaigns', icon: <CampaignIcon />, path: '/campaigns' },
-    { text: 'Create Campaign', icon: <AddIcon />, path: '/campaigns/new' },
-    { text: 'Strategic Content', icon: <BriefIcon />, path: '/briefs' },
+    { text: 'Matrix', icon: <DashboardIcon />, path: '/matrix' },
     { text: 'Exports', icon: <ExportIcon />, path: '/exports' },
   ];
 
-  // If no client is selected, only show the client selection option
-  const menuItems = selectedClientId ? clientRequiredItems : [];
+  // Show all items if a client is selected, otherwise show none
+  const menuItems = selectedClientId ? navItems : [];
+  
+  // Add a special item for client selection when no client is selected
+  if (!selectedClientId) {
+    menuItems.push({ text: 'Select Client', icon: <BusinessIcon />, path: '/client-selection' });
+  }
 
   const drawer = (
     <>
-      <Toolbar sx={{ justifyContent: 'center' }}>
-        <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 'bold' }}>
-          AIrWAVE
-        </Typography>
+      <Toolbar sx={{ justifyContent: 'center', py: 2 }}>
+        <Box 
+          onClick={() => {
+            console.log('Logo clicked in drawer - navigating to client selection');
+            window.location.href = '/client-selection';
+            if (isMobile) setDrawerOpen(false);
+          }}
+          sx={{ 
+            cursor: 'pointer',
+            display: 'flex',
+            justifyContent: 'center',
+            width: '100%'
+          }}
+        >
+          <Box
+            component="img"
+            src="https://res.cloudinary.com/dkl8kiemy/image/upload/v1742859138/Digital_Video_Camera_Logo_erpcdq.png"
+            alt="AIrWAVE Logo"
+            sx={{ 
+              height: 240,
+              width: 'auto',
+              objectFit: 'contain',
+              maxWidth: '100%'
+            }}
+          />
+        </Box>
       </Toolbar>
       <Divider />
       <List>
-        {!selectedClientId && (
-          <ListItem disablePadding>
-            <ListItemButton
-              onClick={() => {
-                navigate('/client-selection');
-                if (isMobile) setDrawerOpen(false);
-              }}
-            >
-              <ListItemIcon><BusinessIcon /></ListItemIcon>
-              <ListItemText primary="Select Client" />
-            </ListItemButton>
-          </ListItem>
-        )}
+
         {menuItems.map((item) => (
           <ListItem key={item.text} disablePadding>
             <ListItemButton
               onClick={() => {
+                console.log(`Navigating to: ${item.path}`);
+                
+                // All pages require a client except for the client selection page
+                if (!selectedClientId && item.path !== '/client-selection') {
+                  console.log('No client selected, redirecting to client selection');
+                  navigate('/client-selection');
+                  return;
+                }
+                
+                // Use the path as defined in the navigation item
                 navigate(item.path);
+                console.log(`Navigated to: ${item.path}`);
+                
                 if (isMobile) setDrawerOpen(false);
               }}
+              selected={window.location.pathname === item.path}
             >
               <ListItemIcon>{item.icon}</ListItemIcon>
               <ListItemText primary={item.text} />
@@ -160,13 +188,33 @@ const Layout: React.FC = () => {
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 0 }}>
-            Redbaez AIrWAVE
-          </Typography>
-          
-          <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center' }}>
-            <ClientSelector />
+          <Box 
+            onClick={() => {
+              console.log('Header logo clicked - navigating to client selection');
+              window.location.href = '/client-selection';
+            }}
+            sx={{ 
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center'
+            }}
+          >
+            <Box
+              component="img"
+              src="https://res.cloudinary.com/dkl8kiemy/image/upload/v1742859138/Digital_Video_Camera_Logo_erpcdq.png"
+              alt="AIrWAVE Logo"
+              sx={{ 
+                height: 280, 
+                mr: 2,
+                objectFit: 'contain',
+                flexGrow: 0,
+                display: 'block',
+                maxHeight: '80px'
+              }}
+            />
           </Box>
+          
+          <Box sx={{ flexGrow: 1 }}></Box>
           
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <Typography variant="body2" sx={{ mr: 1 }}>

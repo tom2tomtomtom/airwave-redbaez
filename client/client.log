@@ -1,0 +1,29 @@
+
+> airwave-client@0.1.0 start
+> react-scripts start
+
+(node:77645) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:77645) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+Starting the development server...
+
+Compiled successfully!
+
+You can now view airwave-client in the browser.
+
+  Local:            http://localhost:3000
+  On Your Network:  http://192.168.68.104:3000
+
+Note that the development build is not optimized.
+To create a production build, use npm run build.
+
+webpack compiled successfully
+No issues found.
+The build failed because the process exited too early. This probably means the system ran out of memory or someone called `kill -9` on the process.
+npm error Lifecycle script `start` failed with error:
+npm error code 1
+npm error path /Users/thomasdowuona-hyde/cc180325AW/airwave-redbaez/client
+npm error workspace airwave-client@0.1.0
+npm error location /Users/thomasdowuona-hyde/cc180325AW/airwave-redbaez/client
+npm error command failed
+npm error command sh -c react-scripts start

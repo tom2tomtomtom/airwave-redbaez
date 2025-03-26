@@ -18,6 +18,7 @@ import {
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { textContent } from '../../utils/textContent';
 
 interface CampaignInfoFormProps {
   campaignInfo: {
@@ -105,7 +106,7 @@ const CampaignInfoForm: React.FC<CampaignInfoFormProps> = ({
         <Grid item xs={12} md={6}>
           <TextField
             fullWidth
-            label="Campaign Name"
+            label={textContent.labels.campaigns.name}
             name="name"
             value={campaignInfo.name}
             onChange={handleInputChange}

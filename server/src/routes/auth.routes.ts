@@ -1,141 +1,243 @@
 import express from 'express';
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
-import { authenticateToken as checkAuth, generateToken } from '../middleware/auth';
+import { authenticateToken as checkAuth, AUTH_MODE } from '../middleware/auth';
+import bcrypt from 'bcrypt';
 
 const router = express.Router();
 
 import { supabase } from '../db/supabaseClient';
 
-// We'll now use the Supabase users table instead of in-memory storage
+// We'll use Supabase for both authentication and user data storage
 
-// POST - Login
-router.post('/login', async (req, res) => {
+// Add the register-complete endpoint
+router.post('/register-complete', async (req, res) => {
   try {
-    const { email, password } = req.body;
-
-    // Validate inputs
-    if (!email || !password) {
+    const { user } = req.body;
+    
+    if (!user || !user.id || !user.email) {
       return res.status(400).json({
         success: false,
-        message: 'Email and password are required'
+        message: 'User data is required'
       });
     }
 
-    // Use Supabase Auth for authentication
-    console.log(`Attempting to sign in user with email: ${email}`);
-    const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
+    console.log(`Completing registration for user: ${user.id} (${user.email})`);
     
-    if (signInError || !authData.user) {
-      console.error('Login error:', signInError?.message || 'Authentication failed');
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid credentials'
+    // Check if we're in prototype mode
+    if (process.env.PROTOTYPE_MODE === 'true') {
+      console.log('PROTOTYPE MODE: Bypassing database registration completion');
+      return res.status(201).json({
+        success: true,
+        message: 'Registration completed successfully in prototype mode'
       });
     }
     
-    // Get user metadata from Supabase Auth user
-    const user = {
-      id: authData.user.id,
-      email: authData.user.email,
-      name: authData.user.user_metadata.name || 'User',
-      role: authData.user.user_metadata.role || 'user'
-    };
-
-    // Use the centralized token generation function
-    console.log('Generating token for user:', { id: user.id, email: user.email, role: user.role });
-    const token = generateToken(user);
-
-    // Return user and token
-    res.json({
-      success: true,
-      message: 'Login successful',
-      data: {
-        token,
-        user: {
+    // Normal database registration flow
+    // Check if user already exists in our table
+    const { data: existingUser, error: checkError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+      
+    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is the 'not found' error code
+      console.error('Error checking user:', checkError);
+    }
+    
+    // If user doesn't exist in our table, create it
+    if (!existingUser) {
+      // Insert user data into our users table
+      const { error: insertError } = await supabase
+        .from('users')
+        .insert({
           id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role
-        }
+          email: user.email || '',
+          name: user.user_metadata?.name || 'User',
+          role: user.user_metadata?.role || 'user'
+        });
+      
+      if (insertError) {
+        console.error('Error inserting user into database:', insertError.message);
+        return res.status(500).json({
+          success: false,
+          message: 'Error creating user in database'
+        });
       }
+      
+      console.log('User record created in database');
+    } else {
+      console.log('User already exists in database');
+    }
+
+    // Return success
+    res.status(201).json({
+      success: true,
+      message: 'Registration completed successfully'
     });
   } catch (error: any) {
+    console.error('Registration completion error:', error);
     res.status(500).json({
       success: false,
-      message: 'Login failed',
+      message: 'Registration completion failed',
       error: error.message
     });
   }
 });
 
-// GET - Get current user info
-router.get('/me', checkAuth, async (req, res) => {
-  console.log('GET /me - User from token:', req.user);
+
+
+// POST - Session sync
+// This endpoint is called after client-side Supabase login to sync with our server
+router.post('/session', async (req, res) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({
+    const { session, user } = req.body;
+
+    if (!session || !user) {
+      return res.status(400).json({
         success: false,
-        message: 'User not authenticated'
+        message: 'Session and user data are required'
       });
     }
 
-    // Get current Supabase Auth user
-    const { data: authUser, error: authError } = await supabase.auth.getUser();
+    console.log(`Session sync for user: ${user.id} (${user.email})`);
     
-    if (authError || !authUser.user) {
-      console.error('Error fetching Supabase auth user:', authError?.message || 'User not found');
-      
-      // Fall back to token information if no active Supabase session
-      const user = {
-        id: req.user.id,
-        email: req.user.email,
-        name: req.user.name,
-        role: req.user.role,
-        avatar_url: null,
-        settings: {}
-      };
-      
+    // Check if we're in prototype mode
+    if (process.env.PROTOTYPE_MODE === 'true') {
+      console.log('PROTOTYPE MODE: Bypassing database session sync');
       return res.json({
         success: true,
-        data: user
+        message: 'Session synchronized successfully in prototype mode'
       });
     }
     
-    // Construct user object from Supabase Auth data
-    const user = {
-      id: authUser.user.id,
-      email: authUser.user.email,
-      name: authUser.user.user_metadata?.name || req.user.name || 'User',
-      role: authUser.user.user_metadata?.role || req.user.role || 'user',
-      avatar_url: authUser.user.user_metadata?.avatar_url || null,
-      settings: authUser.user.user_metadata?.settings || {}
-    };
+    // Normal database flow
+    // Check if user exists in our users table, create if not
+    const { data: existingUser, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+      
+    if (userError && userError.code !== 'PGRST116') { // PGRST116 is the 'not found' error code
+      console.error('Error checking user:', userError);
+    }
+    
+    // Create user if doesn't exist
+    if (!existingUser) {
+      console.log('Creating user record in database for:', user.id);
+      const { error: insertError } = await supabase
+        .from('users')
+        .insert({
+          id: user.id,
+          email: user.email,
+          name: user.user_metadata?.name || 'User',
+          role: user.user_metadata?.role || 'user'
+        });
+        
+      if (insertError) {
+        console.error('Error creating user record:', insertError);
+      }
+    }
 
-    // Return user info (excluding password)
+    // Return success
     res.json({
       success: true,
-      data: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role
-      }
+      message: 'Session synchronized successfully'
     });
   } catch (error: any) {
+    console.error('Session sync error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to retrieve user info',
+      message: 'Session synchronization failed',
       error: error.message
     });
   }
 });
 
-// POST - Register new user (admin only in production)
-router.post('/register', async (req, res) => {
+
+// GET - Get current user info
+router.get('/me', async (req, res) => {
+  try {
+    // Check if we're in prototype or development mode with auth bypass
+    if ((AUTH_MODE.CURRENT === 'prototype' || AUTH_MODE.CURRENT === 'development') && AUTH_MODE.BYPASS_AUTH) {
+      console.log('PROTOTYPE MODE with auth bypass: Returning mock user data');
+      return res.json({
+        success: true,
+        data: {
+          id: '00000000-0000-0000-0000-000000000000',
+          email: 'prototype@example.com',
+          name: 'Prototype User',
+          role: 'admin',
+          avatar_url: null,
+          settings: {}
+        }
+      });
+    }
+    
+    // Normal auth flow
+    // Get the authorization header
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    // Extract the token
+    const token = authHeader.split(' ')[1];
+    
+    // Verify the token with Supabase
+    const { data: tokenData, error: tokenError } = await supabase.auth.getUser(token);
+    
+    if (tokenError || !tokenData.user) {
+      console.error('Invalid Supabase token:', tokenError?.message || 'User not found');
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired token'
+      });
+    }
+    
+    const authUser = tokenData.user;
+    console.log('GET /me - User from Supabase token:', authUser.id);
+
+    // Get additional user data from our database
+    const { data: dbUser, error: dbError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', authUser.id)
+      .single();
+    
+    if (dbError && dbError.code !== 'PGRST116') { // PGRST116 is 'not found'
+      console.error('Error fetching user from database:', dbError.message);
+    }
+    
+    // Combine data from Auth and database
+    const user = {
+      id: authUser.id,
+      email: authUser.email || '',
+      name: dbUser?.name || authUser.user_metadata?.name || 'User',
+      role: dbUser?.role || authUser.user_metadata?.role || 'user',
+      avatar_url: authUser.user_metadata?.avatar_url || null,
+      settings: dbUser?.settings || {}
+    };
+    
+    res.json({
+      success: true,
+      data: user,
+    });
+  } catch (error: any) {
+    console.error('Error fetching user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching user information',
+      error: error.message
+    });
+  }
+});
+
+// This is now just a server-side admin endpoint for creating users
+// Normal users will register through the client using Supabase directly
+router.post('/register', checkAuth, async (req, res) => {
   try {
     const { email, password, name, role = 'user' } = req.body;
 
@@ -146,16 +248,47 @@ router.post('/register', async (req, res) => {
         message: 'Email, password, and name are required'
       });
     }
+    
+    // Check if requesting user is admin (only admins can create users)
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    const { data: tokenData, error: tokenError } = await supabase.auth.getUser(token);
+    
+    if (tokenError || !tokenData.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired token'
+      });
+    }
+    
+    // Check admin role
+    const { data: adminCheck, error: adminError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', tokenData.user.id)
+      .single();
+    
+    if (adminError || !adminCheck || adminCheck.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin privileges required'
+      });
+    }
 
-    // Use Supabase Auth to create the user
-    const { data: authData, error: signUpError } = await supabase.auth.signUp({
+    // Use Supabase Admin API to create the user
+    const { data: authData, error: signUpError } = await supabase.auth.admin.createUser({
       email,
       password,
-      options: {
-        data: {
-          name,
-          role
-        }
+      user_metadata: {
+        name,
+        role
       }
     });
     
@@ -174,29 +307,30 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Create user record in our users table with a reference to the auth user
-    const newUser = {
-      id: authData.user.id,  // Use the Supabase Auth user ID
-      email: authData.user.email,
-      name,
-      role
-    };
+    // Create user record in our users table
+    const { error: insertError } = await supabase
+      .from('users')
+      .insert({
+        id: authData.user.id,
+        email: authData.user.email || '',
+        name,
+        role
+      });
+      
+    if (insertError) {
+      console.error('Error creating user record in database:', insertError);
+    }
 
-    // Generate JWT token for our own authentication system
-    console.log('Generating token for new user:', { id: newUser.id, email: newUser.email, role: newUser.role });
-    const token = generateToken(newUser);
-
-    // Return user and token
+    // Return success with user data
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
       data: {
-        token,
         user: {
-          id: newUser.id,
-          email: newUser.email,
-          name: newUser.name,
-          role: newUser.role
+          id: authData.user.id,
+          email: authData.user.email,
+          name,
+          role
         }
       }
     });
@@ -469,6 +603,175 @@ router.post('/debug-create-user', async (req, res) => {
       success: false,
       message: 'Failed to create test user',
       error: err.message
+    });
+  }
+});
+
+// Development login endpoint - only available when USE_DEV_LOGIN is true
+router.post('/dev-login', async (req, res) => {
+  // Allow in development and prototype modes
+  // In prototype mode, we want to bypass auth completely
+  if ((AUTH_MODE.CURRENT !== 'development' && AUTH_MODE.CURRENT !== 'prototype') || 
+      (!process.env.USE_DEV_LOGIN && !AUTH_MODE.BYPASS_AUTH)) {
+    return res.status(403).json({
+      success: false,
+      message: 'This endpoint is only available in development/prototype mode with USE_DEV_LOGIN=true or DEV_BYPASS_AUTH=true'
+    });
+  }
+
+  try {
+    console.log('Development login - using Supabase directly...');
+    
+    // Use Supabase to sign in with a development user
+    // First, see if we already have a development user
+    const devEmail = 'dev@example.com';
+    const devPassword = 'devPassword123!';
+    
+    // Try to sign in with the development credentials
+    let { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+      email: devEmail,
+      password: devPassword
+    });
+    
+    // If the user doesn't exist, create it
+    if (signInError && signInError.message.includes('Invalid login credentials')) {
+      console.log('Development user does not exist, creating...');
+      
+      // Create a new development user
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: devEmail,
+        password: devPassword,
+        options: {
+          data: {
+            name: 'Development User',
+            role: 'admin'
+          }
+        }
+      });
+      
+      if (signUpError) {
+        console.error('Error creating development user:', signUpError);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to create development user',
+          error: signUpError.message
+        });
+      }
+      
+      // Now sign in with the newly created user
+      ({ data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: devEmail,
+        password: devPassword
+      }));
+    }
+    
+    // Check for any sign-in errors
+    if (signInError) {
+      console.error('Error signing in development user:', signInError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to sign in development user',
+        error: signInError.message
+      });
+    }
+    
+    // Ensure we have valid session data
+    if (!signInData || !signInData.session) {
+      console.error('No session data returned from Supabase');
+      return res.status(500).json({
+        success: false,
+        message: 'No session data returned from authentication provider'
+      });
+    }
+    
+    console.log('Development login successful, returning valid Supabase tokens');
+    
+    // Add user to our database if not already there
+    const user = signInData.user;
+    const { data: existingUser, error: checkError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', user.id)
+      .single();
+    
+    if (!existingUser && (!checkError || checkError.code === 'PGRST116')) {
+      // Insert user into our database
+      await supabase.from('users').insert({
+        id: user.id,
+        email: user.email,
+        name: user.user_metadata?.name || 'Development User',
+        role: user.user_metadata?.role || 'admin'
+      });
+    }
+    
+    // Return user data with valid Supabase tokens
+    return res.status(200).json({
+      success: true,
+      message: 'Development login successful',
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.user_metadata?.name || 'Development User',
+          role: user.user_metadata?.role || 'admin'
+        },
+        session: signInData.session
+      }
+    });
+  } catch (err: any) {
+    console.error('Error in dev-login:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Development login failed',
+      error: err.message
+    });
+  }
+});
+
+// Status check endpoint for health monitoring
+router.get('/check', async (req, res) => {
+  try {
+    // Simple database query to verify connection
+    const { data, error } = await supabase
+      .from('assets')
+      .select('count')
+      .limit(1);
+      
+    if (error) {
+      return res.status(500).json({
+        connected: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    return res.status(200).json({
+      connected: true,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      connected: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Supabase status check endpoint
+router.get('/supabase-status', async (req, res) => {
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    
+    return res.status(200).json({
+      connected: !error,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      connected: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
     });
   }
 });

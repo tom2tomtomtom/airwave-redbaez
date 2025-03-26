@@ -17,12 +17,31 @@ router.post('/generate', checkAuth, async (req, res) => {
       });
     }
 
-    // Generate the video
-    const renderJob = await creatomateService.generateVideo({
-      templateId,
-      outputFormat,
-      modifications
-    });
+    console.log(`Generating content with template: ${templateId}, format: ${outputFormat}`);
+    console.log('Modifications:', JSON.stringify(modifications));
+
+    // Check if we're generating an image or a video based on the outputFormat
+    let renderJob;
+    
+    if (outputFormat === 'jpg' || outputFormat === 'png') {
+      console.log('Generating an image');
+      // We're generating an image
+      renderJob = await creatomateService.generateImage({
+        templateId,
+        outputFormat,
+        modifications
+      });
+    } else {
+      console.log('Generating a video');
+      // We're generating a video
+      renderJob = await creatomateService.generateVideo({
+        templateId,
+        outputFormat,
+        modifications
+      });
+    }
+
+    console.log(`Generated job with ID: ${renderJob.id}`);
 
     // If we have an execution ID, update the execution in the database
     if (executionId) {
@@ -103,15 +122,27 @@ router.get('/render/:jobId', checkAuth, async (req, res) => {
   try {
     const { jobId } = req.params;
 
-    if (!jobId) {
+    if (!jobId || jobId === 'undefined') {
+      console.error('Invalid jobId provided to /render endpoint:', jobId);
       return res.status(400).json({
         success: false,
-        message: 'Job ID is required'
+        message: 'Valid job ID is required'
       });
     }
 
+    console.log(`Checking render status for job: ${jobId}`);
     const job = await creatomateService.checkRenderStatus(jobId);
 
+    // Ensure we return a valid job object
+    if (!job) {
+      console.error(`Job ${jobId} not found`);
+      return res.status(404).json({
+        success: false,
+        message: `Job with ID ${jobId} not found`
+      });
+    }
+
+    console.log(`Job ${jobId} status: ${job.status}`);
     res.json({
       success: true,
       data: {
@@ -384,6 +415,26 @@ router.post('/webhook', async (req, res) => {
       success: false,
       message: 'Failed to process webhook',
       error: error.message
+    });
+  }
+});
+
+// Status check endpoint for API health monitoring
+router.get('/status', async (req, res) => {
+  try {
+    // Check Creatomate connection
+    const isConnected = creatomateService.isConnected();
+    
+    return res.status(200).json({
+      connected: isConnected,
+      apiKey: process.env.CREATOMATE_API_KEY ? 'configured' : 'missing',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      connected: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
     });
   }
 });

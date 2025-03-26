@@ -1,0 +1,185 @@
+Stopping any running server and client processes...
+Setting PROTOTYPE_MODE=true in the server .env file...
+Ensuring server is set to run on port 3002...
+Updating client to connect to server on port 3002...
+Ensuring uploads directory exists...
+Setting directory permissions...
+Building server...
+
+> airwave-server@0.1.0 build
+> tsc
+
+src/services/assetService.ts(410,43): error TS18046: 'dbError' is of type 'unknown'.
+src/services/assetService.ts(768,44): error TS2367: This comparison appears to be unintentional because the types '"updatedAt" | "usageCount"' and '"date"' have no overlap.
+npm error Lifecycle script `build` failed with error:
+npm error code 2
+npm error path /Users/thomasdowuona-hyde/cc180325AW/airwave-redbaez/server
+npm error workspace airwave-server@0.1.0
+npm error location /Users/thomasdowuona-hyde/cc180325AW/airwave-redbaez/server
+npm error command failed
+npm error command sh -c tsc
+Starting server with prototype mode enabled...
+Waiting for server to start...
+npm error Lifecycle script `start:dev` failed with error:
+npm error workspace airwave-server@0.1.0
+npm error location /Users/thomasdowuona-hyde/cc180325AW/airwave-redbaez/server
+npm error Missing script: "start:dev"
+npm error
+npm error To see a list of scripts, run:
+npm error   npm run --workspace=airwave-server@0.1.0
+Starting client...
+==========================
+Prototype mode is enabled!
+Server running on port 3002 (PID: 16357)
+Client should connect to http://localhost:3002
+==========================
+To stop both processes, run: kill 16357 16366
+or press Ctrl+C if you're running this in the foreground
+
+> airwave-client@0.1.0 start
+> react-scripts start
+
+(node:16384) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:16384) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+Starting the development server...
+
+Compiled successfully!
+
+You can now view airwave-client in the browser.
+
+  Local:            http://localhost:3005
+  On Your Network:  http://172.20.10.2:3005
+
+Note that the development build is not optimized.
+To create a production build, use npm run build.
+
+webpack compiled successfully
+Files successfully emitted, waiting for typecheck results...
+Issues checking in progress...
+No issues found.
+Compiling...
+Compiled with warnings.
+
+[eslint] 
+src/pages/auth/LoginPage.tsx
+  Line 24:10:  'apiClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+Search for the keywords to learn more about each warning.
+To ignore, add // eslint-disable-next-line to the line before.
+
+WARNING in [eslint] 
+src/pages/auth/LoginPage.tsx
+  Line 24:10:  'apiClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+webpack compiled with 1 warning
+Compiling...
+No issues found.
+Compiled successfully!
+webpack compiled successfully
+No issues found.
+Compiling...
+Compiled with warnings.
+
+[eslint] 
+src/pages/auth/LoginPage.tsx
+  Line 24:10:  'apiClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+Search for the keywords to learn more about each warning.
+To ignore, add // eslint-disable-next-line to the line before.
+
+WARNING in [eslint] 
+src/pages/auth/LoginPage.tsx
+  Line 24:10:  'apiClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+webpack compiled with 1 warning
+Files successfully emitted, waiting for typecheck results...
+Issues checking in progress...
+No issues found.
+Compiling...
+Compiled with warnings.
+
+[eslint] 
+src/pages/auth/LoginPage.tsx
+  Line 24:10:  'apiClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+Search for the keywords to learn more about each warning.
+To ignore, add // eslint-disable-next-line to the line before.
+
+WARNING in [eslint] 
+src/pages/auth/LoginPage.tsx
+  Line 24:10:  'apiClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+webpack compiled with 1 warning
+No issues found.
+Compiling...
+Compiled with warnings.
+
+[eslint] 
+src/pages/auth/LoginPage.tsx
+  Line 24:10:  'apiClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+Search for the keywords to learn more about each warning.
+To ignore, add // eslint-disable-next-line to the line before.
+
+WARNING in [eslint] 
+src/pages/auth/LoginPage.tsx
+  Line 24:10:  'apiClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+webpack compiled with 1 warning
+ERROR in src/App.tsx:60:7
+TS2304: Cannot find name 'axios'.
+    58 |       // Try to reach the dev-login endpoint directly
+    59 |       const serverUrl = process.env.REACT_APP_SERVER_URL || 'http://localhost:3002';
+  > 60 |       axios.post(`${serverUrl}/api/auth/dev-login`)
+       |       ^^^^^
+    61 |         .then(response => {
+    62 |           if (response.data?.success && response.data?.data?.session?.access_token) {
+    63 |             console.log('Auto dev login successful');
+
+ERROR in src/App.tsx:61:15
+TS7006: Parameter 'response' implicitly has an 'any' type.
+    59 |       const serverUrl = process.env.REACT_APP_SERVER_URL || 'http://localhost:3002';
+    60 |       axios.post(`${serverUrl}/api/auth/dev-login`)
+  > 61 |         .then(response => {
+       |               ^^^^^^^^
+    62 |           if (response.data?.success && response.data?.data?.session?.access_token) {
+    63 |             console.log('Auto dev login successful');
+    64 |             // Store the token and dispatch set credentials
+
+ERROR in src/App.tsx:69:13
+TS2304: Cannot find name 'axios'.
+    67 |             
+    68 |             // Update axios defaults
+  > 69 |             axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+       |             ^^^^^
+    70 |             
+    71 |             // Update Redux store
+    72 |             dispatch({
+
+ERROR in src/App.tsx:84:16
+TS7006: Parameter 'error' implicitly has an 'any' type.
+    82 |           }
+    83 |         })
+  > 84 |         .catch(error => {
+       |                ^^^^^
+    85 |           console.log('Auto dev login failed, falling back to auth check:', error.message);
+    86 |           dispatch(checkAuth());
+    87 |         });
+
+Compiling...
+Compiled with warnings.
+
+[eslint] 
+src/pages/auth/LoginPage.tsx
+  Line 24:10:  'apiClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+Search for the keywords to learn more about each warning.
+To ignore, add // eslint-disable-next-line to the line before.
+
+WARNING in [eslint] 
+src/pages/auth/LoginPage.tsx
+  Line 24:10:  'apiClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+webpack compiled with 1 warning
+No issues found.

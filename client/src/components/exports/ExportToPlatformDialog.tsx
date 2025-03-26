@@ -31,6 +31,7 @@ import TagIcon from '@mui/icons-material/Tag';
 import { useDispatch } from 'react-redux';
 import { AppDispatch } from '../../store';
 import axios from 'axios';
+import { supabase } from '../../lib/supabase';
 
 interface Platform {
   id: string;
@@ -136,6 +137,14 @@ const ExportToPlatformDialog: React.FC<ExportToPlatformProps> = ({
         throw new Error(`No export found for ${selectedPlatform} in ${selectedFormat} format`);
       }
       
+      // Get the current Supabase token
+      const { data } = await supabase.auth.getSession();
+      const token = data?.session?.access_token || localStorage.getItem('airwave_auth_token');
+      
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+      
       // Make API call to schedule the export
       const response = await axios.post(`/api/exports/campaign/${campaignId}/schedule`, {
         platform: selectedPlatform,
@@ -146,6 +155,10 @@ const ExportToPlatformDialog: React.FC<ExportToPlatformProps> = ({
         caption,
         hashtags,
         exportId: exportItem.id
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
       
       if (response.data.success) {

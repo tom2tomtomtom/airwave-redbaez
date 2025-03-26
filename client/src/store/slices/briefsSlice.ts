@@ -14,6 +14,17 @@ export interface Brief {
   insights?: string[];
   createdAt: string;
   updatedAt: string;
+  
+  // Additional fields used in forms
+  campaignObjectives?: string;
+  targetAudience?: string;
+  keyMessages?: string;
+  visualPreferences?: string;
+  
+  // Analysis results used in lists
+  analysis_results?: {
+    key_themes?: string[];
+  };
 }
 
 export interface BriefAnalysis {
@@ -30,6 +41,7 @@ export interface BriefFilters {
   status?: string[];
   tags?: string[];
   organisationId?: string;
+  clientId?: string;
   sortBy?: 'title' | 'createdAt' | 'updatedAt';
   sortDirection?: 'asc' | 'desc';
   limit?: number;
@@ -74,6 +86,7 @@ export const fetchBriefs = createAsyncThunk(
         ...(filters.searchTerm && { searchTerm: filters.searchTerm }),
         ...(filters.status && { status: filters.status.join(',') }),
         ...(filters.organisationId && { organisationId: filters.organisationId }),
+        ...(filters.clientId && { clientId: filters.clientId }),
         ...(filters.sortBy && { sortBy: filters.sortBy }),
         ...(filters.sortDirection && { sortDirection: filters.sortDirection }),
         ...(filters.limit && { limit: filters.limit.toString() }),
@@ -252,7 +265,7 @@ export const generateContent = createAsyncThunk(
 );
 
 // Create slice
-const briefsSlice = createSlice({
+export const briefsSlice = createSlice({
   name: 'briefs',
   initialState,
   reducers: {
@@ -270,59 +283,58 @@ const briefsSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Fetch briefs
-      .addCase(fetchBriefs.pending, (state) => {
+      // Fetch Briefs (All)
+      .addCase(fetchBriefs.pending, (state: BriefsState) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(fetchBriefs.fulfilled, (state, action: PayloadAction<{ briefs: Brief[]; total: number }>) => {
+      .addCase(fetchBriefs.fulfilled, (state: BriefsState, action: PayloadAction<Brief[]>) => {
         state.loading = false;
-        state.briefs = action.payload.briefs;
-        state.totalCount = action.payload.total;
+        state.briefs = action.payload;
       })
-      .addCase(fetchBriefs.rejected, (state, action) => {
+      .addCase(fetchBriefs.rejected, (state: BriefsState, action: PayloadAction<unknown>) => {
         state.loading = false;
         state.error = action.payload as string;
       })
-      
-      // Fetch brief by id
-      .addCase(fetchBriefById.pending, (state) => {
+
+      // Fetch Brief by ID
+      .addCase(fetchBriefById.pending, (state: BriefsState) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(fetchBriefById.fulfilled, (state, action: PayloadAction<Brief>) => {
+      .addCase(fetchBriefById.fulfilled, (state: BriefsState, action: PayloadAction<Brief>) => {
         state.loading = false;
         state.currentBrief = action.payload;
       })
-      .addCase(fetchBriefById.rejected, (state, action) => {
+      .addCase(fetchBriefById.rejected, (state: BriefsState, action: PayloadAction<unknown>) => {
         state.loading = false;
         state.error = action.payload as string;
       })
       
-      // Create brief
-      .addCase(createBrief.pending, (state) => {
+      // Create Brief
+      .addCase(createBrief.pending, (state: BriefsState) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(createBrief.fulfilled, (state, action: PayloadAction<Brief>) => {
+      .addCase(createBrief.fulfilled, (state: BriefsState, action: PayloadAction<Brief>) => {
         state.loading = false;
         state.briefs.unshift(action.payload);
         state.totalCount += 1;
         state.currentBrief = action.payload;
       })
-      .addCase(createBrief.rejected, (state, action) => {
+      .addCase(createBrief.rejected, (state: BriefsState, action: PayloadAction<unknown>) => {
         state.loading = false;
         state.error = action.payload as string;
       })
       
-      // Update brief
-      .addCase(updateBrief.pending, (state) => {
+      // Update Brief
+      .addCase(updateBrief.pending, (state: BriefsState) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(updateBrief.fulfilled, (state, action: PayloadAction<Brief>) => {
+      .addCase(updateBrief.fulfilled, (state: BriefsState, action: PayloadAction<Brief>) => {
         state.loading = false;
-        const index = state.briefs.findIndex(brief => brief.id === action.payload.id);
+        const index = state.briefs.findIndex((brief: Brief) => brief.id === action.payload.id);
         if (index !== -1) {
           state.briefs[index] = action.payload;
         }
@@ -330,38 +342,38 @@ const briefsSlice = createSlice({
           state.currentBrief = action.payload;
         }
       })
-      .addCase(updateBrief.rejected, (state, action) => {
+      .addCase(updateBrief.rejected, (state: BriefsState, action: PayloadAction<unknown>) => {
         state.loading = false;
         state.error = action.payload as string;
       })
       
-      // Delete brief
-      .addCase(deleteBrief.pending, (state) => {
+      // Delete Brief
+      .addCase(deleteBrief.pending, (state: BriefsState) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(deleteBrief.fulfilled, (state, action: PayloadAction<string>) => {
+      .addCase(deleteBrief.fulfilled, (state: BriefsState, action: PayloadAction<string>) => {
         state.loading = false;
-        state.briefs = state.briefs.filter(brief => brief.id !== action.payload);
+        state.briefs = state.briefs.filter((brief: Brief) => brief.id !== action.payload);
         state.totalCount -= 1;
         if (state.currentBrief?.id === action.payload) {
           state.currentBrief = null;
         }
       })
-      .addCase(deleteBrief.rejected, (state, action) => {
+      .addCase(deleteBrief.rejected, (state: BriefsState, action: PayloadAction<unknown>) => {
         state.loading = false;
         state.error = action.payload as string;
       })
       
-      // Analyze brief
-      .addCase(analyzeBrief.pending, (state) => {
+      // Analyze Brief
+      .addCase(analyzeBrief.pending, (state: BriefsState) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(analyzeBrief.fulfilled, (state, action: PayloadAction<{ id: string; analysis: BriefAnalysis }>) => {
+      .addCase(analyzeBrief.fulfilled, (state: BriefsState, action: PayloadAction<{ id: string; analysis: BriefAnalysis }>) => {
         state.loading = false;
         // Update in list
-        const index = state.briefs.findIndex(brief => brief.id === action.payload.id);
+        const index = state.briefs.findIndex((brief: Brief) => brief.id === action.payload.id);
         if (index !== -1) {
           state.briefs[index].analysis = action.payload.analysis;
         }
@@ -370,22 +382,22 @@ const briefsSlice = createSlice({
           state.currentBrief.analysis = action.payload.analysis;
         }
       })
-      .addCase(analyzeBrief.rejected, (state, action) => {
+      .addCase(analyzeBrief.rejected, (state: BriefsState, action: PayloadAction<unknown>) => {
         state.loading = false;
         state.error = action.payload as string;
       })
       
-      // Generate content
-      .addCase(generateContent.pending, (state) => {
+      // Generate Content
+      .addCase(generateContent.pending, (state: BriefsState) => {
         state.generatedContent.loading = true;
         state.generatedContent.error = null;
       })
-      .addCase(generateContent.fulfilled, (state, action: PayloadAction<{ content: string[]; contentType: string }>) => {
+      .addCase(generateContent.fulfilled, (state: BriefsState, action: PayloadAction<{ content: string[]; contentType: string }>) => {
         state.generatedContent.loading = false;
         state.generatedContent.content = action.payload.content;
         state.generatedContent.contentType = action.payload.contentType;
       })
-      .addCase(generateContent.rejected, (state, action) => {
+      .addCase(generateContent.rejected, (state: BriefsState, action: PayloadAction<unknown>) => {
         state.generatedContent.loading = false;
         state.generatedContent.error = action.payload as string;
       });
