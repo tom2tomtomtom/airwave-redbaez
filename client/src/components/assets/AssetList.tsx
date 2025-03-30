@@ -1,4 +1,4 @@
-import React, { useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { 
   Grid, 
   Typography, 
@@ -13,224 +13,262 @@ import {
   TextField,
   InputAdornment,
   IconButton,
-  Chip
+  Chip,
+  Pagination,
+  Skeleton,
+  SelectChangeEvent
 } from '@mui/material';
 import {
   Search as SearchIcon,
   Clear as ClearIcon
 } from '@mui/icons-material';
-import { Asset, AssetType } from '../../types/assets';
 import AssetCard from './AssetCard';
-import { useAssetSelectionState } from '../../hooks/useAssetSelectionState';
+import { Asset, AssetType } from '../../api/types/asset.types';
+import { Client } from '../../types/client';
+import { AssetFilters as AssetFilterType } from '../../api/types/asset.types';
 
 interface AssetListProps {
+  assets: Asset[];
+  isLoading: boolean;
   initialType?: AssetType | 'all';
   showFilters?: boolean;
   onAssetSelect?: (asset: Asset | null) => void;
   selectedAssetId?: string;
   initialFavourite?: boolean;
-  sortBy?: string;
+  sortBy?: keyof Asset;
   sortDirection?: 'asc' | 'desc';
 }
 
-/**
- * Component for displaying and filtering a list of assets using the useAssetSelectionState hook.
- */
-const AssetList = forwardRef<{ loadAssets: () => void }, AssetListProps>((props, ref) => {
-  const { 
-    initialType = 'all', 
-    showFilters = true,
-    onAssetSelect,
-    selectedAssetId,
-    initialFavourite = false,
-    sortBy = 'date',
-    sortDirection = 'desc',
-  } = props;
+export interface AssetListHandles {
+  loadAssets: () => void;
+}
 
-  const {
-    assets,
-    loading,
-    error,
-    filters,
-    updateFilters,
-    loadAssets,
-    handleAssetChanged,
-    selectAsset,
-    showFilters: displayFilters
-  } = useAssetSelectionState(
-    initialType,
-    initialFavourite,
-    sortBy,
-    sortDirection,
-    showFilters
-  );
-  
-  useEffect(() => {
-    if (selectedAssetId !== undefined) {
-      selectAsset(selectedAssetId);
+const AssetList = forwardRef<AssetListHandles, AssetListProps>(({
+  assets,
+  isLoading,
+  initialType = 'all',
+  showFilters = true,
+  onAssetSelect,
+  selectedAssetId,
+  initialFavourite = false,
+  sortBy = 'date',
+  sortDirection = 'desc',
+}, ref) => {
+  const [filters, setFilters] = useState<AssetFilterType>({
+    type: initialType,
+    favourite: initialFavourite,
+    search: '',
+    sortBy: sortBy as keyof Asset,
+    sortDirection: sortDirection,
+    page: 1,
+    limit: 12,
+  });
+
+  useImperativeHandle(ref, () => ({ 
+    loadAssets: () => {
+      console.warn('loadAssets called via ref - should be handled by RTK Query now');
     }
-  }, [selectedAssetId, selectAsset]);
-  
+  }));
+
+  const filteredAssets = useMemo(() => {
+    let result = [...assets];
+    if (filters.type && filters.type !== 'all') {
+      result = result.filter(asset => asset.type === filters.type);
+    }
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      result = result.filter(asset => 
+        asset.name.toLowerCase().includes(searchLower) ||
+        (asset.description && asset.description.toLowerCase().includes(searchLower)) ||
+        (asset.metadata?.tags && asset.metadata.tags.some(tag => tag.toLowerCase().includes(searchLower)))
+      );
+    }
+    if (filters.favourite) {
+      result = result.filter(asset => asset.favourite);
+    }
+    if (filters.sortBy) {
+      result.sort((a, b) => {
+        const key = filters.sortBy as keyof Asset;
+        if (!key || a[key] === undefined || b[key] === undefined) {
+          return 0; 
+        }
+        if (a[key] < b[key]) {
+          return filters.sortDirection === 'asc' ? -1 : 1;
+        }
+        if (a[key] > b[key]) {
+          return filters.sortDirection === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    const limit = filters.limit || 12; 
+    const page = filters.page || 1; 
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    return result.slice(startIndex, endIndex);
+  }, [assets, filters]);
+
+  const totalPages = useMemo(() => {
+    let countResult = [...assets];
+    if (filters.type && filters.type !== 'all') {
+      countResult = countResult.filter(asset => asset.type === filters.type);
+    }
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      countResult = countResult.filter(asset => 
+        asset.name.toLowerCase().includes(searchLower) ||
+        (asset.description && asset.description.toLowerCase().includes(searchLower)) ||
+        (asset.metadata?.tags && asset.metadata.tags.some(tag => tag.toLowerCase().includes(searchLower)))
+      );
+    }
+    if (filters.favourite) {
+      countResult = countResult.filter(asset => asset.favourite);
+    }
+    const limit = filters.limit || 12; 
+    return Math.ceil(countResult.length / limit);
+  }, [assets, filters.type, filters.search, filters.favourite, filters.limit]);
+
+  const handleFilterChange = (newFilters: Partial<AssetFilterType>) => {
+    const resetPage = Object.keys(newFilters).some(key => key !== 'page');
+    setFilters((prev: AssetFilterType) => ({
+      ...prev, 
+      ...newFilters, 
+      page: resetPage ? 1 : prev.page
+    }));
+  };
+
+  const handlePageChange = (event: React.ChangeEvent<unknown>, value: number) => {
+    setFilters((prev: AssetFilterType) => ({ ...prev, page: value }));
+  };
+
   const handleAssetClick = (asset: Asset) => {
     if (onAssetSelect) {
       if (selectedAssetId === asset.id) {
         onAssetSelect(null);
-        selectAsset(null);
       } else {
         onAssetSelect(asset);
-        selectAsset(asset.id);
       }
     }
   };
-  
+
   const handleClearSearch = () => {
-    updateFilters({ search: '' });
+    handleFilterChange({ search: '' });
   };
-  
-  useImperativeHandle(ref, () => ({
-    loadAssets: loadAssets,
-  }));
-  
-  const displayAssets = assets;
-  const isLoading = loading;
-  const displayError = error;
-  
+
   return (
     <Box sx={{ width: '100%' }}>
-      {displayFilters && (
+      {showFilters && (
         <Paper sx={{ p: 2, mb: 3 }}>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={4}>
-              <TextField
-                fullWidth
-                label="Search assets"
-                value={filters.search || ''}
-                onChange={(e) => updateFilters({ search: e.target.value })}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon />
-                    </InputAdornment>
-                  ),
-                  endAdornment: filters.search ? (
-                    <InputAdornment position="end">
-                      <IconButton onClick={handleClearSearch} edge="end" size="small">
-                        <ClearIcon />
-                      </IconButton>
-                    </InputAdornment>
-                  ) : null
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth
+              label="Search assets"
+              value={filters.search}
+              onChange={(e) => handleFilterChange({ search: e.target.value })}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+                endAdornment: filters.search ? (
+                  <InputAdornment position="end">
+                    <IconButton onClick={handleClearSearch} edge="end" size="small">
+                      <ClearIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ) : null
+              }}
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <FormControl fullWidth>
+              <InputLabel id="asset-type-label">Asset Type</InputLabel>
+              <Select
+                labelId="asset-type-label"
+                id="asset-type-select"
+                value={filters.type}
+                label="Asset Type"
+                onChange={(e) => handleFilterChange({ type: e.target.value as AssetType | 'all' })}
+              >
+                <MenuItem value="all">All Types</MenuItem>
+                <MenuItem value="image">Images</MenuItem>
+                <MenuItem value="video">Videos</MenuItem>
+                <MenuItem value="audio">Voice Overs</MenuItem>
+                <MenuItem value="text">Copy Texts</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <FormControl fullWidth>
+              <InputLabel id="asset-favourite-label">Favourites</InputLabel>
+              <Select
+                labelId="asset-favourite-label"
+                id="asset-favourite-select"
+                value={filters.favourite ? 'true' : 'false'}
+                label="Favourites"
+                onChange={(e) => handleFilterChange({ favourite: e.target.value === 'true' })}
+              >
+                <MenuItem value="false">All Assets</MenuItem>
+                <MenuItem value="true">Favourites Only</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <FormControl fullWidth>
+              <InputLabel id="asset-sort-label">Sort By</InputLabel>
+              <Select
+                labelId="asset-sort-label"
+                id="asset-sort-select"
+                value={`${filters.sortBy}-${filters.sortDirection}`}
+                label="Sort By"
+                onChange={(e: SelectChangeEvent<string>) => {
+                  const [sortBy, sortDirection] = e.target.value.split('-');
+                  handleFilterChange({ 
+                    sortBy: sortBy as keyof Asset,
+                    sortDirection: sortDirection as 'asc' | 'desc'
+                  });
                 }}
+              >
+                <MenuItem value="date-desc">Newest First</MenuItem>
+                <MenuItem value="date-asc">Oldest First</MenuItem>
+                <MenuItem value="name-asc">Name (A-Z)</MenuItem>
+                <MenuItem value="name-desc">Name (Z-A)</MenuItem>
+                <MenuItem value="type-asc">Type (A-Z)</MenuItem>
+                <MenuItem value="type-desc">Type (Z-A)</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          {filters.type !== 'all' && (
+            <Grid item xs={12}>
+              <Chip 
+                label={`Type: ${filters.type}`}
+                onDelete={() => handleFilterChange({ type: 'all' })}
+                sx={{ mr: 1 }}
               />
             </Grid>
-            <Grid item xs={12} md={4}>
-              <FormControl fullWidth>
-                <InputLabel id="asset-type-label">Asset Type</InputLabel>
-                <Select
-                  labelId="asset-type-label"
-                  id="asset-type-select"
-                  value={filters.type || 'all'}
-                  label="Asset Type"
-                  onChange={(e) => updateFilters({ type: e.target.value as AssetType | 'all' })}
-                >
-                  <MenuItem value="all">All Types</MenuItem>
-                  <MenuItem value="image">Images</MenuItem>
-                  <MenuItem value="video">Videos</MenuItem>
-                  <MenuItem value="audio">Voice Overs</MenuItem>
-                  <MenuItem value="text">Copy Texts</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <FormControl fullWidth>
-                <InputLabel id="asset-favourite-label">Favourites</InputLabel>
-                <Select
-                  labelId="asset-favourite-label"
-                  id="asset-favourite-select"
-                  value={filters.favourite ? 'true' : 'false'}
-                  label="Favourites"
-                  onChange={(e) => updateFilters({ favourite: e.target.value === 'true' })}
-                >
-                  <MenuItem value="false">All Assets</MenuItem>
-                  <MenuItem value="true">Favourites Only</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <FormControl fullWidth>
-                <InputLabel id="asset-sort-label">Sort By</InputLabel>
-                <Select
-                  labelId="asset-sort-label"
-                  id="asset-sort-select"
-                  value={`${filters.sortBy || 'date'}-${filters.sortDirection || 'desc'}`}
-                  label="Sort By"
-                  onChange={(e) => {
-                    const [sortBy, sortDirection] = e.target.value.split('-');
-                    updateFilters({ 
-                      sortBy: sortBy as string,
-                      sortDirection: sortDirection as 'asc' | 'desc'
-                    });
-                  }}
-                >
-                  <MenuItem value="date-desc">Newest First</MenuItem>
-                  <MenuItem value="date-asc">Oldest First</MenuItem>
-                  <MenuItem value="name-asc">Name (A-Z)</MenuItem>
-                  <MenuItem value="name-desc">Name (Z-A)</MenuItem>
-                  <MenuItem value="type-asc">Type (A-Z)</MenuItem>
-                  <MenuItem value="type-desc">Type (Z-A)</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            {filters.type !== 'all' && (
-              <Grid item xs={12}>
-                <Chip 
-                  label={`Type: ${filters.type}`}
-                  onDelete={() => updateFilters({ type: 'all' })}
-                  sx={{ mr: 1 }}
-                />
-              </Grid>
-            )}
-          </Grid>
-        </Paper>
-      )}
-      
-      {displayError && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {displayError}
-        </Alert>
+          )}
+        </Grid>
+      </Paper>
       )}
       
       {isLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
           <CircularProgress />
         </Box>
-      ) : displayAssets.length === 0 ? (
-        <Box sx={{ py: 6, textAlign: 'center' }}>
-          <Typography variant="h6" color="text.secondary">
-            No assets found
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            {filters.search || filters.type !== 'all' 
-              ? 'Try adjusting your filters'
-              : 'Please upload a brief to generate assets'}
-          </Typography>
-        </Box>
       ) : (
-        <>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="body2" color="text.secondary">
-              Showing {displayAssets.length} assets{displayAssets.length >= 48 ? " (more may be available)" : ""}
-            </Typography>
-            {displayAssets.some(asset => asset.status === 'processing') && (
-              <Typography variant="body2" color="secondary" sx={{ display: 'flex', alignItems: 'center' }}>
-                <CircularProgress size={12} color="secondary" sx={{ mr: 1 }} />
-                Some assets are still processing
-              </Typography>
-            )}
-          </Box>
-          
-          <Grid container spacing={2}>
-            {displayAssets.map((asset) => (
-              <Grid item xs={6} sm={4} md={3} lg={2} xl={2} key={asset.id}>
+        <Grid container spacing={2}>
+          {isLoading 
+            ? Array.from(new Array(filters.limit || 12)).map((_, index) => (
+                <Grid item xs={12} sm={6} md={4} lg={3} key={index}>
+                  <Skeleton variant="rectangular" width="100%" height={180} />
+                  <Skeleton width="60%" />
+                  <Skeleton width="80%" />
+                </Grid>
+              ))
+            : filteredAssets.map(asset => (
+              <Grid item xs={12} sm={6} md={4} lg={3} key={asset.id}>
                 <Box
                   onClick={() => handleAssetClick(asset)}
                   sx={{ 
@@ -244,14 +282,21 @@ const AssetList = forwardRef<{ loadAssets: () => void }, AssetListProps>((props,
                   }}
                 >
                   <AssetCard 
-                    asset={asset} 
-                    onAssetChanged={handleAssetChanged} 
+                    asset={asset as any} 
                   />
                 </Box>
               </Grid>
             ))}
-          </Grid>
-        </>
+        </Grid>
+      )}
+      {!isLoading && totalPages > 1 && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+          <Pagination 
+            count={totalPages} 
+            page={filters.page} 
+            onChange={handlePageChange} 
+          />
+        </Box>
       )}
     </Box>
   );

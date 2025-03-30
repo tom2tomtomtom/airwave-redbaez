@@ -1,20 +1,19 @@
 import React, { useState } from 'react';
-import { useDispatch } from 'react-redux';
 import { 
   Box, 
   Button, 
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Alert
 } from '@mui/material';
-import { AppDispatch } from '../../store';
-import { uploadAsset } from '../../store/slices/assetsSlice';
 import AssetUploadForm from './AssetUploadForm';
 import BulkAssetUpload from './BulkAssetUpload';
+import { useUploadAssetMutation } from '../../store/api/assetsApi';
 
 interface AssetUploadHandlerProps {
-  onAssetUploaded: () => void;
+  onAssetUploaded?: () => void;
   clientId: string;
 }
 
@@ -25,9 +24,10 @@ export const AssetUploadHandler: React.FC<AssetUploadHandlerProps> = ({
   onAssetUploaded,
   clientId
 }) => {
-  const dispatch = useDispatch<AppDispatch>();
   const [openUploadDialog, setOpenUploadDialog] = useState(false);
   const [uploadType, setUploadType] = useState<'single' | 'bulk'>('single');
+
+  const [uploadAssetMutation, { isLoading: isUploading, error: uploadError }] = useUploadAssetMutation();
 
   const handleOpenUploadDialog = (type: 'single' | 'bulk') => {
     setUploadType(type);
@@ -39,42 +39,45 @@ export const AssetUploadHandler: React.FC<AssetUploadHandlerProps> = ({
   };
 
   const handleAssetUpload = (formData: FormData) => {
-    // Create a new FormData instance for the asset
     const assetData = new FormData();
     
-    // Get client ID from the provided prop - this ensures we use the correct client ID
     assetData.append('clientId', clientId);
     console.log('Using client ID for upload:', clientId);
     
-    // Append all fields from the form
-    formData.forEach((value, key) => {
-      if (value instanceof File) {
-        console.log(`Form data ${key}:`, value.name);
-        assetData.append(key, value);
-      } else {
-        console.log(`Form data ${key}:`, value);
-      }
-    });
+    const file = formData.get('file');
+    if (file instanceof File) {
+      assetData.append('file', file, file.name); 
+    } else {
+      console.error('No file found in form data for single upload!');
+      alert('Upload failed: No file provided.');
+      return; // Stop if no file
+    }
+
+    if (formData.has('name')) assetData.append('name', formData.get('name')!);
+    if (formData.has('description')) assetData.append('description', formData.get('description')!);
     
-    dispatch(uploadAsset(assetData))
+    uploadAssetMutation(assetData)
       .unwrap()
       .then(response => {
         console.log('Asset upload successful:', response);
         
-        // Close the dialog first
         setOpenUploadDialog(false);
         
-        // Wait a short delay before refreshing assets to ensure server has processed the upload
-        setTimeout(() => {
-          // Call the callback to refresh assets
+        if (onAssetUploaded) {
           onAssetUploaded();
-        }, 500); // Small delay to ensure server has processed the upload
+        }
       })
       .catch(error => {
         console.error('Asset upload failed:', error);
-        alert(`Upload failed: ${error}`);
-        // Keep dialog open to let user retry
+        alert(`Upload failed: ${error.data?.message || error.message || 'Unknown error'}`);
       });
+  };
+
+  const handleBulkUploadComplete = () => {
+    setOpenUploadDialog(false); 
+    if (onAssetUploaded) {
+      onAssetUploaded(); 
+    }
   };
 
   return (
@@ -85,14 +88,14 @@ export const AssetUploadHandler: React.FC<AssetUploadHandlerProps> = ({
           color="primary"
           onClick={() => handleOpenUploadDialog('single')}
         >
-          Upload Asset
+          Upload Single Asset
         </Button>
         <Button 
           variant="outlined" 
           color="primary"
           onClick={() => handleOpenUploadDialog('bulk')}
         >
-          Bulk Upload
+          Bulk Upload Assets
         </Button>
       </Box>
 
@@ -102,26 +105,25 @@ export const AssetUploadHandler: React.FC<AssetUploadHandlerProps> = ({
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>
-          {uploadType === 'single' ? 'Upload Asset' : 'Bulk Upload Assets'}
-        </DialogTitle>
+        <DialogTitle>{uploadType === 'single' ? 'Upload Single Asset' : 'Bulk Upload Assets'}</DialogTitle>
         <DialogContent>
           {uploadType === 'single' ? (
             <AssetUploadForm 
-              onSubmit={handleAssetUpload}
-              clientId={clientId}
+              onSubmit={handleAssetUpload} 
+              isUploading={isUploading} 
+              clientId={clientId} 
             />
           ) : (
             <BulkAssetUpload 
-              onUploadsComplete={() => {
-                setOpenUploadDialog(false);
-                // Trigger refresh after successful upload
-                setTimeout(onAssetUploaded, 500);
-              }}
-              clientId={clientId}
+              clientId={clientId} 
+              onComplete={handleBulkUploadComplete} 
             />
           )}
+          {uploadError && <Alert severity="error">Upload failed: {JSON.stringify(uploadError)}</Alert>}
         </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseUploadDialog}>Cancel</Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );

@@ -1,5 +1,7 @@
 import { PostgrestError } from '@supabase/supabase-js';
 import { ErrorCategory, ErrorCode, ErrorMessages, statusCodeToErrorCategory, isTransientError } from './errorTypes';
+import { isRejectedWithValue, SerializedError } from '@reduxjs/toolkit';
+import { FetchBaseQueryError } from '@reduxjs/toolkit/query';
 
 interface ErrorDetails {
   message: string;
@@ -188,6 +190,53 @@ export const handleApiError = (error: any): AppError => {
     context: { originalError: error },
   });
 };
+
+// Helper function to extract a user-friendly error message
+export function getErrorMessage(error: unknown): string {
+  if (!error) {
+    return 'An unknown error occurred';
+  }
+
+  // Check for RTK Query FetchBaseQueryError
+  if (typeof error === 'object' && error !== null && 'status' in error && 'data' in error) {
+    const fetchError = error as FetchBaseQueryError;
+    if (typeof fetchError.data === 'string') {
+      return fetchError.data;
+    } 
+    if (typeof fetchError.data === 'object' && fetchError.data !== null && 'message' in fetchError.data && typeof fetchError.data.message === 'string') {
+      return fetchError.data.message;
+    }
+    if ('error' in fetchError && typeof fetchError.error === 'string') {
+      return fetchError.error;
+    }
+    return `Error ${fetchError.status}`; // Fallback for FetchBaseQueryError
+  }
+
+  // Check for RTK Query SerializedError
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const serializedError = error as SerializedError;
+    if (serializedError.message) {
+      return serializedError.message;
+    }
+  }
+  
+  // Check for standard Error object
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  // Check for our custom AppError
+  if (error instanceof AppError) {
+    return error.userMessage || error.message;
+  }
+
+  // Fallback for unknown error types
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return 'An unknown error occurred';
+  }
+}
 
 // Error logging service
 export const errorLogger = {

@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, createContext, useContext } from 'react';
 import { 
   Snackbar, 
   Alert, 
   AlertTitle, 
   Button, 
   Slide,
-  SlideProps 
+  SlideProps,
+  Collapse 
 } from '@mui/material';
 import { AppError } from '../../utils/errorHandling';
 import { ErrorCategory } from '../../utils/errorTypes';
@@ -101,7 +102,6 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
 };
 
 // Context and Provider for global error notifications
-import { createContext, useContext } from 'react';
 
 interface ErrorNotificationContextValue {
   showError: (error: Error | AppError | string) => void;

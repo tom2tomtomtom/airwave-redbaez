@@ -22,10 +22,17 @@ describe('Strategic Content Development - Brief Form', () => {
     },
     preloadedState: {
       auth: {
+        isAuthenticated: true,
         user: {
           id: 'test-user-id',
           organisationId: 'test-org-id',
+          email: 'test@example.com',
+          name: 'Test User',
+          role: 'user'
         },
+        token: 'mock-jwt-token',
+        loading: false,
+        error: null
       },
     },
   });
@@ -71,14 +78,16 @@ describe('Strategic Content Development - Brief Form', () => {
     const submitButton = screen.getByText(/save as draft/i);
     fireEvent.click(submitButton);
 
-    await waitFor(() => {
-      expect(screen.getByText(/please enter a brief title/i)).toBeInTheDocument();
-      expect(screen.getByText(/please provide brief content/i)).toBeInTheDocument();
-      expect(screen.getByText(/please specify campaign objectives/i)).toBeInTheDocument();
-      expect(screen.getByText(/please specify target audience/i)).toBeInTheDocument();
-      expect(screen.getByText(/please specify key messages/i)).toBeInTheDocument();
-      expect(screen.getByText(/please add at least one tag/i)).toBeInTheDocument();
-    });
+    // Wait for the first validation message to appear
+    await screen.findByText(/please enter a brief title/i);
+
+    // Now assert that all other expected validation messages are present
+    expect(screen.getByText(/please enter a brief title/i)).toBeInTheDocument();
+    expect(screen.getByText(/please provide brief content/i)).toBeInTheDocument();
+    expect(screen.getByText(/please specify campaign objectives/i)).toBeInTheDocument();
+    expect(screen.getByText(/please specify target audience/i)).toBeInTheDocument();
+    expect(screen.getByText(/please specify key messages/i)).toBeInTheDocument();
+    expect(screen.getByText(/please add at least one tag/i)).toBeInTheDocument();
   });
 
   it('handles tag addition and deletion', async () => {

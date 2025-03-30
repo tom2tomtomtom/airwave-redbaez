@@ -44,6 +44,27 @@ export const assetsApi = createApi({
           : [{ type: 'Asset', id: 'LIST' }],
     }),
 
+    // Endpoint to get assets by client ID, supporting filters
+    getAssetsByClientId: builder.query<Asset[], { clientId: string; filters?: Omit<AssetFilters, 'clientSlug' | 'clientId'> }>({      
+      query: ({ clientId, filters }) => ({
+        url: 'assets', // Use the base /assets endpoint with query param
+        params: { ...filters, clientId, _timestamp: new Date().getTime() }, 
+      }),
+      // Transform the response if the API wraps assets in an object like { assets: [...] }
+      transformResponse: (response: { assets: Asset[] }, meta, arg) => response.assets || [],
+      providesTags: (result, error, { clientId }) => 
+        result
+          ? [
+              // Tag each asset individually
+              ...result.map(({ id }) => ({ type: 'Asset' as const, id })),
+              // Tag the list associated with this specific client ID
+              { type: 'Asset', id: `LIST-${clientId}` }, 
+              // Also tag the general list in case mutations affect all lists
+              { type: 'Asset', id: 'LIST' }, 
+            ]
+          : [{ type: 'Asset', id: `LIST-${clientId}` }, { type: 'Asset', id: 'LIST' }],
+    }),
+
     // Endpoint to upload an asset (expects FormData)
     uploadAsset: builder.mutation<Asset, FormData>({
       // Note: fetchBaseQuery might need adjustment for FormData. 
@@ -85,6 +106,7 @@ export const assetsApi = createApi({
 // auto-generated based on the defined endpoints
 export const {
   useGetAssetsByClientSlugQuery,
+  useGetAssetsByClientIdQuery,
   useUploadAssetMutation,
   useUpdateAssetMutation,
   useDeleteAssetMutation,

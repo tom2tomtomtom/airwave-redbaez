@@ -1,6 +1,6 @@
 import { configureStore } from '@reduxjs/toolkit';
 import authReducer from './slices/authSlice';
-import assetsReducer from './slices/assetsSlice';
+// import assetsReducer from './slices/assetsSlice'; // Removed old assets reducer
 import templatesReducer from './slices/templatesSlice';
 import campaignsReducer from './slices/campaignsSlice';
 import exportsReducer from './slices/exportsSlice';
@@ -13,7 +13,7 @@ import { assetsApi } from './api/assetsApi';
 export const store = configureStore({
   reducer: {
     auth: authReducer,
-    assets: assetsReducer,
+    // assets: assetsReducer, // Removed old assets reducer
     templates: templatesReducer,
     campaigns: campaignsReducer,
     exports: exportsReducer,
@@ -26,7 +26,8 @@ export const store = configureStore({
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: {
-        ignoredActions: ['assets/uploadAsset/fulfilled', 'assetsApi/executeQuery/fulfilled'],
+        // Removed 'assets/uploadAsset/fulfilled' from ignoredActions
+        ignoredActions: ['assetsApi/executeQuery/fulfilled'], 
       },
     }).concat(assetsApi.middleware),
 });

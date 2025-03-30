@@ -12,7 +12,8 @@ import {
   Tabs,
   Tab,
   CircularProgress,
-  Chip
+  Chip,
+  Alert
 } from '@mui/material';
 import { 
   Business as BusinessIcon, 
@@ -24,10 +25,9 @@ import {
   Upload as UploadIcon
 } from '@mui/icons-material';
 import { useSelector, useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { RootState, AppDispatch } from '../../store';
 import { fetchClients } from '../../store/slices/clientSlice';
-import { selectAllAssets, fetchAssets } from '../../store/slices/assetsSlice';
 import { fetchTemplates, selectAllTemplates } from '../../store/slices/templatesSlice';
 import ClientSelector from '../../components/clients/ClientSelector';
 import ClientDialog from '../../components/clients/ClientDialog';
@@ -37,6 +37,8 @@ import { Client as ReduxClient } from '../../types/client';
 import { Asset } from '../../api/types/asset.types';
 import { Template } from '../../types/templates';
 import DirectAssetDisplay from '../../components/assets/DirectAssetDisplay';
+import AssetList from '../../components/assets/AssetList';
+import { useGetAssetsByClientSlugQuery } from '../../store/api/assetsApi';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -67,12 +69,19 @@ const TabPanel = (props: TabPanelProps) => {
 const ClientDashboardPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
+  const { clientSlug } = useParams<{ clientSlug: string }>();
   const [tabValue, setTabValue] = useState(0);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   
+  const {
+    data: clientAssets,
+    isLoading: assetsLoading,
+    error: assetsError,
+  } = useGetAssetsByClientSlugQuery({ slug: clientSlug || '' }, {
+    skip: !clientSlug,
+  });
+
   const { clients, selectedClientId, loading: clientsLoading } = useSelector((state: RootState) => state.clients);
-  const { loading: assetsLoading } = useSelector((state: RootState) => state.assets);
-  const assets = useSelector(selectAllAssets);
   const templates = useSelector(selectAllTemplates);
   const { loading: templatesLoading } = useSelector((state: RootState) => state.templates);
   
@@ -98,215 +107,28 @@ const ClientDashboardPage: React.FC = () => {
     } : null
   );
   
-  // Filter assets and templates by selected client
   console.log('=== CLIENT DASHBOARD DEBUG ===');
+  console.log('Client Slug from URL:', clientSlug);
   console.log('Selected client ID from Redux store:', selectedClientId);
   console.log('Number of clients available:', clients.length);
   console.log('Client IDs available:', clients.map(c => c.id));
   console.log('Client slugs available:', clients.map(c => c.slug));
   console.log('Selected client object found:', selectedClient);
-  console.log('Total assets loaded:', assets.length);
-  console.log('First few assets:', assets.slice(0, 3));
-  console.log('First few asset client IDs:', assets.slice(0, 5).map(asset => asset.clientId));
+  console.log('Total assets fetched via RTK Query:', clientAssets?.length);
+  console.log('First few assets fetched:', clientAssets?.slice(0, 3));
   
-  // ==== MULTIPLE FILTERING APPROACHES ====
-  
-  // 1. Standard approach with strict string comparison
-  const clientAssetsStrict = useMemo(() => selectedClientId 
-    ? assets.filter(asset => {
-        // Convert both to strings for strict comparison
-        const assetClientIdStr = String(asset.clientId || "");
-        const selectedClientIdStr = String(selectedClientId || "");
-        return assetClientIdStr === selectedClientIdStr;
-      })
-    : [], [assets, selectedClientId]);
-  
-  // 2. UUID format normalization approach
-  const normalizeUuid = (id: string | null | undefined): string => {
-    if (!id) return '';
-    // Remove any whitespace, dashes and convert to lowercase
-    return id.toString().replace(/[\s-]/g, '').toLowerCase();
-  };
-  
-  const clientAssetsNormalized = useMemo(() => selectedClientId 
-    ? assets.filter(asset => {
-        const normalizedAssetId = normalizeUuid(asset.clientId);
-        const normalizedSelectedId = normalizeUuid(selectedClientId);
-        const matches = normalizedAssetId === normalizedSelectedId;
-        
-        if (assets.indexOf(asset) < 3) {
-          console.log(`[Normalized] Asset ${asset.id} - normalized: [${normalizedAssetId}], selected: [${normalizedSelectedId}], match: ${matches}`);
-        }
-        
-        return matches;
-      })
-    : [], [assets, selectedClientId]);
-    
-  // 3. Partial matching approach - match just the start of the UUID
-  const clientAssetsPartial = useMemo(() => selectedClientId && selectedClientId.length > 8
-    ? assets.filter(asset => {
-        // Match first 8 characters of the UUID
-        const partialMatch = asset.clientId?.toString().substring(0, 8) === selectedClientId.toString().substring(0, 8);
-        
-        if (assets.indexOf(asset) < 3) {
-          console.log(`[Partial] Asset ${asset.id} - partial match: ${partialMatch} - [${asset.clientId?.substring(0, 8)}] vs [${selectedClientId.toString().substring(0, 8)}]`);
-        }
-        
-        return partialMatch;
-      })
-    : [], [assets, selectedClientId]);
-    
-  // 4. Hard-coded Juniper client ID approach (primary approach for Juniper)
-  const JUNIPER_CLIENT_ID = 'fd790d19-6610-4cd5-b90f-214808e94a19';
-  const clientAssetsHardcoded = useMemo(() => selectedClient?.name === 'Juniper'
-    ? assets.filter(asset => {
-        // Check against the Juniper client ID directly
-        const hardcodedMatch = asset.clientId === JUNIPER_CLIENT_ID;
-        // Also check if clientId includes the Juniper ID (handles potential format issues)
-        const includesMatch = asset.clientId && asset.clientId.includes('fd790d19');
-        // Check if clientId has any value when we're looking for Juniper assets
-        // This is a fallback to catch improperly tagged assets
-        const hasAnyClientId = asset.clientId && asset.clientId.length > 0;
-        const match = hardcodedMatch || includesMatch || (selectedClient?.name === 'Juniper' && hasAnyClientId);
-        
-        if (assets.indexOf(asset) < 5) {
-          console.log(`[Juniper] Asset ${asset.id} - clientId: [${asset.clientId}], match: ${match}`);
-        }
-        
-        return match;
-      })
-    : [], [assets, selectedClient]);
-  
-  // 5. Direct database ID comparison - this is the most reliable approach overall
-  const clientAssetsDirect = useMemo(() => selectedClientId
-    ? assets.filter(asset => {
-        // This handles the case where the client ID in the asset might be stored in different formats
-        const directMatch = asset.clientId && (
-          asset.clientId === selectedClientId || // Exact match
-          asset.clientId.toString() === selectedClientId.toString() || // String match
-          asset.clientId.toString().includes(selectedClientId.toString()) || // Includes check
-          normalizeUuid(asset.clientId) === normalizeUuid(selectedClientId) // Normalized match
-        );
-        
-        if (assets.indexOf(asset) < 3) {
-          console.log(`[Direct] Asset ${asset.id} - clientId: [${asset.clientId}], selectedId: [${selectedClientId}], match: ${!!directMatch}`);
-        }
-        
-        return directMatch;
-      })
-    : [], [assets, selectedClientId]);
-
-  // Direct asset loading approach
-  // This code uses the DirectAssetDisplay component which makes direct API calls
-  // and reliably loads assets with the working client ID
-  
-  // We'll track client assets count for the UI, but the actual loading will be done by DirectAssetDisplay
-  const [clientAssetsCount, setClientAssetsCount] = useState<number>(0);
-  
-  // Asset count handler
-  const handleAssetsLoaded = (loadedAssets: Asset[]) => {
-    setClientAssetsCount(loadedAssets.length);
-    console.log(`✅ Successfully loaded ${loadedAssets.length} assets for client ${selectedClientId || 'unknown'}`);
-  };
-  
-  // Create a render function for the asset cards
-  const renderAssetCard = (asset: Asset) => (
-    <Card sx={{ 
-      height: '100%', 
-      display: 'flex', 
-      flexDirection: 'column',
-      transition: 'transform 0.2s',
-      '&:hover': {
-        transform: 'translateY(-4px)',
-        boxShadow: 3
-      }
-    }}>
-      <Box sx={{ position: 'relative', paddingTop: '56.25%', bgcolor: 'rgba(0,0,0,0.04)' }}>
-        {asset.thumbnailUrl ? (
-          <CardMedia
-            component="img"
-            sx={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain'
-            }}
-            image={asset.thumbnailUrl}
-            alt={asset.name}
-          />
-        ) : (
-          <Box sx={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            <VideoIcon sx={{ fontSize: 40, color: 'text.disabled' }} />
-          </Box>
-        )}
-        <Box 
-          sx={{ 
-            position: 'absolute', 
-            top: 8, 
-            right: 8, 
-            bgcolor: 'background.paper', 
-            borderRadius: 1,
-            px: 1,
-            py: 0.5,
-            fontSize: '0.75rem',
-            fontWeight: 'medium',
-            textTransform: 'uppercase',
-            color: 'text.secondary',
-            boxShadow: 1
-          }}
-        >
-          {asset.type}
-        </Box>
-      </Box>
-      <CardContent sx={{ flexGrow: 1 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 'medium', mb: 0.5 }} noWrap>
-          {asset.name}
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }} noWrap>
-          {asset.description || 'No description'}
-        </Typography>
-        {asset.metadata?.tags && asset.metadata.tags.length > 0 && (
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
-            {asset.metadata.tags.slice(0, 3).map(tag => (
-              <Chip 
-                key={tag} 
-                label={tag}
-                size="small"
-                variant="outlined"
-              />
-            ))}
-          </Box>
-        )}
-      </CardContent>
-    </Card>
-  );
-    
-  const clientTemplates = selectedClientId 
+  const clientTemplates = useMemo(() => selectedClientId 
     ? templates.filter((template: Template) => template.client_id === selectedClientId)
-    : templates;
+    : templates, [templates, selectedClientId]);
   
   useEffect(() => {
-    // Fetch clients data
-    dispatch(fetchClients());
-    
-    // Fetch assets and templates without client filter initially
-    dispatch(fetchAssets());
-    dispatch(fetchTemplates());
-  }, [dispatch]);
-  
-  // We no longer need to re-fetch assets when client selection changes
-  // as DirectAssetDisplay handles this automatically
+    if (clients.length === 0 && !clientsLoading) {
+      dispatch(fetchClients());
+    }
+    if (templates.length === 0 && !templatesLoading) { 
+      dispatch(fetchTemplates());
+    }
+  }, [dispatch, clients.length, clientsLoading, templates.length, templatesLoading]);
   
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -324,8 +146,23 @@ const ClientDashboardPage: React.FC = () => {
     navigate('/campaigns');
   };
   
-  const isLoading = clientsLoading || assetsLoading || templatesLoading;
+  const isLoading = clientsLoading || templatesLoading;
   
+  const handleOpenEditDialog = () => {
+    setEditDialogOpen(true);
+  };
+
+  const handleCloseEditDialog = () => {
+    setEditDialogOpen(false);
+    // Optionally refetch client data after potential update
+  };
+  
+  // Placeholder for asset selection handling
+  const handleAssetSelect = (asset: Asset | null) => {
+    console.log('Asset selected:', asset);
+    // Implement navigation or display logic here if needed
+  };
+
   if (isLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -394,7 +231,7 @@ const ClientDashboardPage: React.FC = () => {
                     variant="outlined"
                     startIcon={<EditIcon />}
                     size="small"
-                    onClick={() => setEditDialogOpen(true)}
+                    onClick={handleOpenEditDialog}
                   >
                     Edit Client
                   </Button>
@@ -463,7 +300,7 @@ const ClientDashboardPage: React.FC = () => {
                         <Typography variant="h6">Assets</Typography>
                       </Box>
                       <Typography variant="h4" component="div">
-                        {clientAssetsCount}
+                        {clientAssets?.length}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
                         Total assets associated with this client
@@ -526,66 +363,21 @@ const ClientDashboardPage: React.FC = () => {
             
             {/* Assets Tab */}
             <TabPanel value={tabValue} index={1}>
-              <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="h6">
-                  Client Assets ({clientAssetsCount})
-                </Typography>
-                <Box>
-                  <Button 
-                    variant="outlined" 
-                    onClick={() => navigate('/assets?upload=true')}
-                    startIcon={<UploadIcon />}
-                    sx={{ mr: 1 }}
-                  >
-                    Upload
-                  </Button>
-                  <Button 
-                    variant="contained" 
-                    onClick={handleViewAssets}
-                    startIcon={<VideoIcon />}
-                  >
-                    All Assets
-                  </Button>
-                </Box>
-              </Box>
-              
-              {/* Use the DirectAssetDisplay component that reliably loads assets */}
-              <DirectAssetDisplay
-                clientId={selectedClientId || undefined}
-                renderAsset={renderAssetCard}
-                noAssetsMessage="No assets found for this client"
-                layout="grid"
-                limit={6}
+              <Typography variant="h6" gutterBottom>Assets</Typography>
+              {assetsLoading && <CircularProgress />}
+              {assetsError && <Alert severity="error">Error loading assets: {JSON.stringify(assetsError)}</Alert>}
+              <AssetList 
+                assets={clientAssets || []} 
+                isLoading={assetsLoading} 
+                onAssetSelect={handleAssetSelect}
+                initialType="all"
               />
-              
-              {clientAssetsCount > 6 && (
-                <Box sx={{ mt: 3, textAlign: 'center' }}>
-                  <Button 
-                    variant="outlined"
-                    onClick={handleViewAssets}
-                    sx={{ px: 3, py: 1 }}
-                  >
-                    View All {clientAssetsCount} Assets
-                  </Button>
-                </Box>
-              )}
             </TabPanel>
             
             {/* Templates Tab */}
             <TabPanel value={tabValue} index={2}>
-              <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="h6">
-                  Client Templates ({clientTemplates.length})
-                </Typography>
-                <Button 
-                  variant="contained" 
-                  onClick={handleViewTemplates}
-                  startIcon={<TemplateIcon />}
-                >
-                  All Templates
-                </Button>
-              </Box>
-              
+              <Typography variant="h6" gutterBottom>Templates</Typography>
+              {templatesLoading && <CircularProgress />}
               {clientTemplates.length === 0 ? (
                 <Typography variant="body1" color="text.secondary">
                   No templates found for this client. Create templates to get started.
@@ -614,34 +406,11 @@ const ClientDashboardPage: React.FC = () => {
                   ))}
                 </Grid>
               )}
-              
-              {clientTemplates.length > 6 && (
-                <Box sx={{ mt: 2, textAlign: 'center' }}>
-                  <Button 
-                    variant="outlined"
-                    onClick={handleViewTemplates}
-                  >
-                    View All {clientTemplates.length} Templates
-                  </Button>
-                </Box>
-              )}
             </TabPanel>
             
             {/* Campaigns Tab */}
             <TabPanel value={tabValue} index={3}>
-              <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="h6">
-                  Client Campaigns
-                </Typography>
-                <Button 
-                  variant="contained" 
-                  onClick={handleViewCampaigns}
-                  startIcon={<CampaignIcon />}
-                >
-                  All Campaigns
-                </Button>
-              </Box>
-              
+              <Typography variant="h6" gutterBottom>Campaigns</Typography>
               <Typography variant="body1" color="text.secondary">
                 No campaigns found for this client. Create campaigns to get started.
               </Typography>

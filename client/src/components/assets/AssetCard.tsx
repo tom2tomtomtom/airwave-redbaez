@@ -13,7 +13,8 @@ import {
   Box,
   CircularProgress,
   LinearProgress,
-  Badge
+  Badge,
+  Divider
 } from '@mui/material';
 import { 
   MoreVert as MoreVertIcon,
@@ -29,7 +30,7 @@ import {
   Videocam as VideocamIcon,
   AudioFile as AudioFileIcon
 } from '@mui/icons-material';
-import { Asset } from '../../types/assets';
+import { Asset } from '../../api/types/asset.types';
 import { useAssetOperations } from '../../hooks/useAssetOperations';
 
 interface AssetCardProps {
@@ -39,8 +40,8 @@ interface AssetCardProps {
 
 const AssetCard: React.FC<AssetCardProps> = ({ asset, onAssetChanged }) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  // Handle both UK and US spelling variants for favourite/favorite
-  const [isFavourite, setIsFavourite] = useState(asset.isFavourite || asset.isFavorite || false);
+  const open = Boolean(anchorEl);
+  const [isFavourite, setIsFavourite] = useState(asset.favourite ?? false);
   const [isPlaying, setIsPlaying] = useState(false);
   
   // Use our custom hook for asset operations
@@ -206,7 +207,8 @@ const AssetCard: React.FC<AssetCardProps> = ({ asset, onAssetChanged }) => {
               WebkitBoxOrient: 'vertical',
             }}
           >
-            {asset.content}
+            {asset.description?.substring(0, 100) || 'No description'}
+            {asset.description && asset.description.length > 100 ? '...' : ''}
           </Typography>
         </Box>
       )}
@@ -231,7 +233,7 @@ const AssetCard: React.FC<AssetCardProps> = ({ asset, onAssetChanged }) => {
               onClick={handleFavouriteToggle}
               disabled={loading}
             >
-              {isFavourite ? <FavoriteIcon color="error" /> : <FavoriteBorderIcon />}
+              {asset.favourite ? <FavoriteIcon color="error" /> : <FavoriteBorderIcon />}
             </IconButton>
           </Box>
         </Box>
@@ -243,7 +245,7 @@ const AssetCard: React.FC<AssetCardProps> = ({ asset, onAssetChanged }) => {
             size="small" 
             variant="outlined"
           />
-          {asset.tags?.map((tag, index) => (
+          {asset.metadata?.tags?.map((tag, index) => (
             <Chip key={index} label={tag} size="small" />
           ))}
         </Box>
@@ -255,9 +257,44 @@ const AssetCard: React.FC<AssetCardProps> = ({ asset, onAssetChanged }) => {
         </IconButton>
         <Menu
           anchorEl={anchorEl}
-          open={Boolean(anchorEl)}
+          open={open}
           onClose={handleMenuClose}
+          MenuListProps={{ 'aria-labelledby': 'asset-options-button' }}
+          PaperProps={{
+            elevation: 3,
+            sx: {
+              overflow: 'visible',
+              filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.15))',
+              mt: 1.5,
+              '& .MuiAvatar-root': {
+                width: 32,
+                height: 32,
+                ml: -0.5,
+                mr: 1,
+              },
+              '&:before': {
+                content: '""',
+                display: 'block',
+                position: 'absolute',
+                top: 0,
+                right: 14,
+                width: 10,
+                height: 10,
+                bgcolor: 'background.paper',
+                transform: 'translateY(-50%) rotate(45deg)',
+                zIndex: 0,
+              },
+            },
+          }}
+          transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+          anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
         >
+          <MenuItem 
+            onClick={handleFavouriteToggle} 
+            disabled={loading}
+          >
+            <FavoriteBorderIcon sx={{ mr: 1 }} /> Favourite
+          </MenuItem>
           <MenuItem onClick={handleEdit}>
             <EditIcon fontSize="small" sx={{ mr: 1 }} />
             Edit
@@ -266,7 +303,11 @@ const AssetCard: React.FC<AssetCardProps> = ({ asset, onAssetChanged }) => {
             <CloudDownloadIcon fontSize="small" sx={{ mr: 1 }} />
             Download
           </MenuItem>
-          <MenuItem onClick={handleDelete}>
+          <Divider sx={{ my: 0.5 }} />
+          <MenuItem 
+            onClick={handleDelete} 
+            disabled={loading}
+          >
             <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
             Delete
           </MenuItem>

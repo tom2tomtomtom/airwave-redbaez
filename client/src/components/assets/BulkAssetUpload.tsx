@@ -41,7 +41,7 @@ import {
 } from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../store';
-import { uploadAsset } from '../../store/slices/assetsSlice';
+import { useUploadAssetMutation } from '../../store/api/assetsApi';
 import { useDropzone } from 'react-dropzone';
 import { styled } from '@mui/material/styles';
 import { v4 as uuidv4 } from 'uuid';
@@ -169,13 +169,15 @@ const generateTagsFromFile = (file: AssetFile): string[] => {
 };
 
 interface BulkAssetUploadProps {
-  onUploadsComplete: () => void;
-  clientId?: string;
+  clientId: string;
+  onComplete: () => void;
 }
 
-const BulkAssetUpload: React.FC<BulkAssetUploadProps> = ({ onUploadsComplete, clientId }) => {
+const BulkAssetUpload: React.FC<BulkAssetUploadProps> = ({
+  clientId,
+  onComplete,
+}) => {
   const dispatch = useDispatch<AppDispatch>();
-  const { selectedClientId } = useSelector((state: RootState) => state.clients);
   const [assetCategories, setAssetCategories] = useState<AssetCategory[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadedCount, setUploadedCount] = useState(0);
@@ -336,8 +338,10 @@ const BulkAssetUpload: React.FC<BulkAssetUploadProps> = ({ onUploadsComplete, cl
   };
   
   // Upload all assets
+  const [uploadAsset, { isLoading: isAssetUploading }] = useUploadAssetMutation();
+  
   const uploadAllAssets = async () => {
-    if (!selectedClientId) {
+    if (!clientId) {
       setUploadError('Please select a client before uploading assets');
       return;
     }
@@ -393,10 +397,10 @@ const BulkAssetUpload: React.FC<BulkAssetUploadProps> = ({ onUploadsComplete, cl
             formData.append('tags', JSON.stringify(file.tags));
           }
           if (file.category) formData.append('category', file.category);
-          if (selectedClientId) formData.append('clientId', selectedClientId);
+          formData.append('clientId', clientId);
           
           // Dispatch upload action
-          const result = await dispatch(uploadAsset(formData)).unwrap();
+          const result = await uploadAsset(formData).unwrap();
           
           // Update status to uploaded
           setAssetCategories(prev => {
@@ -434,7 +438,7 @@ const BulkAssetUpload: React.FC<BulkAssetUploadProps> = ({ onUploadsComplete, cl
     setUploading(false);
     
     // Notify parent component that uploads are complete
-    onUploadsComplete();
+    onComplete();
   };
   
   // Check if all files have been processed
@@ -557,7 +561,7 @@ const BulkAssetUpload: React.FC<BulkAssetUploadProps> = ({ onUploadsComplete, cl
                 color="primary"
                 startIcon={<UploadIcon />}
                 onClick={uploadAllAssets}
-                disabled={uploading || !selectedClientId}
+                disabled={uploading}
               >
                 Upload All Assets
               </Button>
@@ -577,7 +581,7 @@ const BulkAssetUpload: React.FC<BulkAssetUploadProps> = ({ onUploadsComplete, cl
             </Grid>
           )}
           
-          {!selectedClientId && assetCategories.length > 0 && (
+          {!clientId && assetCategories.length > 0 && (
             <Grid item xs={12}>
               <Alert severity="warning" sx={{ mt: 2 }}>
                 Please select a client before uploading assets

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SelectChangeEvent } from '@mui/material';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -39,8 +39,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import { AppDispatch, RootState } from '../../store';
-import { fetchAssets } from '../../store/slices/assetsSlice';
+import { RootState } from '../../store';
 import apiClient from '../../api/apiClient';
 import AssetImage from '../../components/AssetImage';
 
@@ -96,7 +95,6 @@ interface GeneratedVideo {
 
 const VideoGenerationPage: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch<AppDispatch>();
   const { selectedClientId } = useSelector((state: RootState) => state.clients);
   // Removed tabs - now only using image-to-video
   
@@ -122,8 +120,6 @@ const VideoGenerationPage: React.FC = () => {
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [transition, setTransition] = useState<string>('Fade');
   const [imagePerFrame, setImagePerFrame] = useState<number>(3);
-  const [assets, setAssets] = useState<any[]>([]);
-  const [loadingAssets, setLoadingAssets] = useState<boolean>(false);
 
   // Updated prompt handling for image-to-video only
   const handlePromptChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -346,11 +342,6 @@ const VideoGenerationPage: React.FC = () => {
         vid.id === video.id ? { ...vid, saved: true } : vid
       ));
 
-      // Refresh assets in store - handle nullable clientId
-      dispatch(fetchAssets({ 
-        clientId: selectedClientId || undefined // Convert null to undefined
-      }));
-      
       // Show success message
       setSuccessMessage('Video saved to asset library successfully!');
       setTimeout(() => setSuccessMessage(null), 3000); // Clear after 3 seconds
@@ -440,67 +431,6 @@ const VideoGenerationPage: React.FC = () => {
   // Handle transition selection
   const handleTransitionChange = (e: SelectChangeEvent<string>) => {
     setTransition(e.target.value);
-  };
-
-  // Fetch assets for the selected client
-  useEffect(() => {
-    if (selectedClientId) {
-      const fetchAssets = async () => {
-        setLoadingAssets(true);
-        try {
-          console.log('Fetching assets for client ID:', selectedClientId);
-          // Debugging to ensure we're actually making a request with the correct client ID
-          console.log('Request URL:', `/api/assets?clientId=${selectedClientId}&type=image`);
-          
-          // Expanded debug logging for request
-          console.log('API Client base URL:', apiClient.defaults.baseURL);
-          console.log('Headers:', apiClient.defaults.headers);
-          
-          const response = await apiClient.get(`/api/assets?clientId=${selectedClientId}&type=image`);
-          
-          if (response.data) {
-            console.log(`Retrieved ${response.data.length} assets for client ${selectedClientId}`);
-            
-            // Log first few assets to check structure
-            if (response.data.length > 0) {
-              console.log('First asset:', response.data[0]);
-              
-              // Check URL format of first asset
-              const firstAsset = response.data[0];
-              if (firstAsset.url && firstAsset.url.startsWith('/uploads/')) {
-                console.log('Asset has relative URL that needs resolving');
-                // The AssetImage component will handle this
-              }
-            } else {
-              console.warn('No assets returned from API. Please check:');
-              console.warn('1. Assets exist in the database with this client ID');
-              console.warn('2. Assets have type="image"');
-              console.warn('3. API is correctly filtering assets');
-            }
-            
-            setAssets(response.data);
-          }
-        } catch (err: any) {
-          console.error('Error fetching assets:', err);
-          if (err.response) {
-            console.error('Error status:', err.response.status);
-            console.error('Error data:', err.response.data);
-          }
-        } finally {
-          setLoadingAssets(false);
-        }
-      };
-      fetchAssets();
-    }
-  }, [selectedClientId]);
-
-  // Toggle asset selection
-  const handleToggleAsset = (assetId: string) => {
-    if (selectedAssetImages.includes(assetId)) {
-      setSelectedAssetImages(selectedAssetImages.filter(id => id !== assetId));
-    } else {
-      setSelectedAssetImages([...selectedAssetImages, assetId]);
-    }
   };
 
   // Generate video from images using Creatomate API
@@ -665,146 +595,6 @@ const VideoGenerationPage: React.FC = () => {
         Create videos by animating your images using AI technology
       </Alert>
 
-      {/* Image-to-Video is now the only option */}
-      {false && (
-      <Paper sx={{ p: 3, mb: 4 }}>
-        <Box component="form" noValidate autoComplete="off">
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Prompt"
-                multiline
-                rows={3}
-                value={prompt}
-                onChange={handlePromptChange}
-                placeholder="Describe the video you want to generate in detail..."
-                helperText="Be specific about the scenes, actions, and mood you want in your video"
-              />
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <FormControl fullWidth>
-                <InputLabel>Style</InputLabel>
-                <Select
-                  value={style}
-                  label="Style"
-                  onChange={handleStyleChange}
-                >
-                  {styleOptions.map((option) => (
-                    <MenuItem key={option} value={option}>
-                      {option}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <FormControl fullWidth>
-                <InputLabel>Aspect Ratio</InputLabel>
-                <Select
-                  value={aspectRatio}
-                  label="Aspect Ratio"
-                  onChange={handleAspectRatioChange}
-                >
-                  {aspectRatioOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <FormControl fullWidth>
-                <InputLabel>Duration</InputLabel>
-                <Select
-                  value={duration.toString()}
-                  label="Duration"
-                  onChange={handleDurationChange}
-                >
-                  {durationOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid item xs={12}>
-              <Typography id="quality-slider" gutterBottom>
-                Quality: {quality}%
-              </Typography>
-              <Slider
-                value={quality}
-                onChange={handleQualityChange}
-                aria-labelledby="quality-slider"
-                valueLabelDisplay="auto"
-                step={5}
-                marks
-                min={25}
-                max={100}
-              />
-            </Grid>
-
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Negative Prompt (Optional)"
-                multiline
-                rows={2}
-                value={negativePrompt}
-                onChange={handleNegativePromptChange}
-                placeholder="Describe elements you want to exclude from the video..."
-                helperText="Elements to avoid in the generated video"
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={withLogo}
-                    onChange={handleToggleLogo}
-                  />
-                }
-                label="Include Client Logo"
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={withMusic}
-                    onChange={handleToggleMusic}
-                  />
-                }
-                label="Include Background Music"
-              />
-            </Grid>
-
-            {/* API key is now managed by the server */}
-
-            <Grid item xs={12}>
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={handleGenerateVideo}
-                disabled={loading || !prompt}
-                startIcon={loading ? <CircularProgress size={20} /> : null}
-              >
-                {loading ? 'Generating...' : 'Generate Video'}
-              </Button>
-            </Grid>
-          </Grid>
-        </Box>
-      </Paper>
-      )}
-      
       {/* Image-to-Video is now the default */}
       {(
         <Paper sx={{ p: 3, mb: 4 }}>
@@ -893,44 +683,9 @@ const VideoGenerationPage: React.FC = () => {
                 <Typography variant="h6" gutterBottom>
                   Select from Existing Assets
                 </Typography>
-                {loadingAssets ? (
-                  <CircularProgress size={24} sx={{ my: 2 }} />
-                ) : assets.length > 0 ? (
-                  <Box sx={{ maxHeight: 400, overflowY: 'auto' }}>
-                    <Grid container spacing={1}>
-                      {assets.map((asset) => (
-                        <Grid item xs={6} sm={4} key={asset.id}>
-                          <Card 
-                            sx={{ 
-                              cursor: 'pointer',
-                              border: selectedAssetImages.includes(asset.id) ? '2px solid #1976d2' : 'none',
-                              opacity: selectedAssetImages.includes(asset.id) ? 1 : 0.7,
-                              transition: 'all 0.2s'
-                            }}
-                            onClick={() => handleToggleAsset(asset.id)}
-                          >
-                            <Box sx={{ height: 80 }}>
-                              <AssetImage
-                                src={asset.url}
-                                alt={asset.name}
-                                height="80"
-                              />
-                            </Box>
-                            <Box sx={{ p: 0.5 }}>
-                              <Typography variant="caption" noWrap>
-                                {asset.name}
-                              </Typography>
-                            </Box>
-                          </Card>
-                        </Grid>
-                      ))}
-                    </Grid>
-                  </Box>
-                ) : (
-                  <Alert severity="info">
-                    No image assets found for the selected client
-                  </Alert>
-                )}
+                <Alert severity="info">
+                  No image assets found for the selected client
+                </Alert>
               </Grid>
               
               <Grid item xs={12} md={4}>

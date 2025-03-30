@@ -180,11 +180,15 @@ describe('AIrWAVE Security Tests', () => {
         .eq('table_name', 'assets');
 
       expect(logs).not.toBeNull();
-      if (logs) {
-        expect(logs.length).toBeGreaterThan(0);
-        expect(logs[0].action).toBe('INSERT');
-        expect(logs[0].organisation_id).toBe(testOrgs.org1.id);
-      }
+      // If logs is null, the test fails above. Assert array properties directly.
+      expect(Array.isArray(logs)).toBe(true);
+      expect(logs?.length).toBeGreaterThan(0);
+      
+      // Check logs[0] exists before accessing properties
+      const firstLog = logs?.[0];
+      expect(firstLog).toBeDefined();
+      expect(firstLog?.action).toBe('INSERT');
+      expect(firstLog?.organisation_id).toBe(testOrgs.org1.id);
     });
   });
 });

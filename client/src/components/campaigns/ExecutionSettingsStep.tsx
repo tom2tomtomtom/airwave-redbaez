@@ -39,9 +39,10 @@ import {
 } from '@mui/icons-material';
 import { RootState, AppDispatch } from '../../store';
 import { Template } from '../../types/templates';
-import { Asset } from '../../types/assets';
-import { selectAllAssets } from '../../store/slices/assetsSlice';
+import { Asset as ApiAsset } from '../../api/types/asset.types';
 import { selectAllTemplates, fetchTemplates } from '../../store/slices/templatesSlice';
+import { selectSelectedClient } from '../../store/slices/clientSlice';
+import { useGetAssetsByClientIdQuery } from '../../store/api/assetsApi';
 
 interface ExecutionSettingsStepProps {
   executions: any[];
@@ -78,7 +79,16 @@ const ExecutionSettingsStep: React.FC<ExecutionSettingsStepProps> = ({
   const templateEntities = useSelector(selectAllTemplates);
   const templatesLoading = useSelector((state: RootState) => state.templates.loading);
   const templatesError = useSelector((state: RootState) => state.templates.error);
-  const allAssets = useSelector(selectAllAssets);
+  const selectedClient = useSelector(selectSelectedClient);
+  const { 
+    data: assetsData, 
+    isLoading: assetsLoading, 
+    error: assetsError 
+  } = useGetAssetsByClientIdQuery(
+    { clientId: selectedClient?.id || '' },
+    { skip: !selectedClient?.id } // Skip query if no client ID
+  );
+  const allAssets: ApiAsset[] = assetsData || []; // Use fetched data, default to empty array
   
   const [localExecutions, setLocalExecutions] = useState<Execution[]>([]);
   const [openDialog, setOpenDialog] = useState(false);

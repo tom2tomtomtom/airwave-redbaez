@@ -77,9 +77,7 @@ describe('Asset RLS Policy Tests', () => {
           });
 
         expect(error).toBeTruthy();
-        if (error) {
-          expect(error.message).toContain('Invalid file type');
-        }
+        expect(error?.message).toContain('Invalid file type');
       }
     });
 
@@ -94,9 +92,7 @@ describe('Asset RLS Policy Tests', () => {
         });
 
       expect(error).toBeTruthy();
-      if (error) {
-        expect(error.message).toContain('exceeds maximum limit');
-      }
+      expect(error?.message).toContain('exceeds maximum limit');
     });
   });
 
@@ -115,9 +111,7 @@ describe('Asset RLS Policy Tests', () => {
         .insert(uploads);
 
       expect(error).toBeTruthy();
-      if (error) {
-        expect(error.message).toContain('Rate limit exceeded');
-      }
+      expect(error?.message).toContain('Rate limit exceeded');
     });
   });
 

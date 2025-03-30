@@ -10,7 +10,8 @@ import {
   Paper,
   Chip,
   IconButton,
-  FormHelperText
+  FormHelperText,
+  CircularProgress
 } from '@mui/material';
 import { 
   CloudUpload as CloudUploadIcon, 
@@ -24,9 +25,10 @@ interface AssetUploadFormProps {
   onSubmit: (formData: FormData) => void;
   clientId: string; // Required client ID for asset association
   onCancel?: () => void; // Optional callback when cancel is clicked
+  isUploading?: boolean; // Add the optional isUploading prop
 }
 
-const AssetUploadForm: React.FC<AssetUploadFormProps> = ({ onSubmit, clientId }) => {
+const AssetUploadForm: React.FC<AssetUploadFormProps> = ({ onSubmit, clientId, isUploading = false }) => {
   // Use our custom hook to handle form state and logic
   const {
     formik, 
@@ -279,8 +281,9 @@ const AssetUploadForm: React.FC<AssetUploadFormProps> = ({ onSubmit, clientId })
           color="primary" 
           size="large"
           startIcon={<CloudUploadIcon />}
+          disabled={isUploading} // Disable button when uploading
         >
-          {textContent.labels.assets.upload}
+          {isUploading ? <CircularProgress size={24} /> : textContent.labels.assets.upload}
         </Button>
       </Box>
     </form>

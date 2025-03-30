@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SelectChangeEvent } from '@mui/material';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux'; 
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -31,8 +31,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import SaveIcon from '@mui/icons-material/Save';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DownloadIcon from '@mui/icons-material/Download';
-import { AppDispatch, RootState } from '../../store';
-import { fetchAssets } from '../../store/slices/assetsSlice';
+import { RootState } from '../../store';
 import apiClient from '../../api/apiClient';
 
 // Image aspect ratio options
@@ -66,7 +65,6 @@ interface GeneratedImage {
 
 const ImageGenerationPage: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch<AppDispatch>();
   const { selectedClientId } = useSelector((state: RootState) => state.clients);
   
   // Local state
@@ -311,11 +309,8 @@ const ImageGenerationPage: React.FC = () => {
         img.id === image.id ? { ...img, saved: true } : img
       ));
 
-      // Refresh assets in store - handle nullable clientId
-      dispatch(fetchAssets({ 
-        clientId: selectedClientId || undefined // Convert null to undefined
-      }));
-      
+      // No longer needed - RTK Query cache invalidation handles this
+       
     } catch (err: any) {
       console.error('Error saving image as asset:', err);
       setError(err.response?.data?.message || 'Failed to save image');
