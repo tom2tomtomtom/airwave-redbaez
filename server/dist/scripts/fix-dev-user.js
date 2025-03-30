@@ -21,7 +21,7 @@ async function createDevUser() {
             // Note: This might fail without service role key
             try {
                 const { data: newAuthUser, error: createError } = await supabaseClient_1.supabase.auth.admin.createUser({
-                    uuid: DEV_USER_ID,
+                    id: DEV_USER_ID, // Changed from uuid to id
                     email: 'dev@example.com',
                     email_confirm: true,
                     user_metadata: {

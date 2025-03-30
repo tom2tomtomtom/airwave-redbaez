@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import http from 'http';
 import { initializeDatabase } from './db/supabaseClient';
-import WebSocketService from './services/websocket';
+import { webSocketService } from './services/WebSocketService';
 
 // Import middleware
 import { errorHandler, ApiError, notFoundHandler } from './middleware/errorHandler';
@@ -46,14 +46,14 @@ const PORT = process.env.PORT || 3002;
 // Create HTTP server
 const server = http.createServer(app);
 
-// Initialize WebSocket service
-const wsService = new WebSocketService(server);
+// Initialize WebSocket service using the singleton instance
+webSocketService.initialize(server);
 
 // Import runwayService after WebSocketService initialization
 import { runwayService } from './services/runwayService';
 
 // Register runwayService with the WebSocketService instance
-runwayService.setWebSocketService(wsService);
+runwayService.setWebSocketService(webSocketService); // Use the singleton instance
 
 // Initialize database
 initializeDatabase().catch(error => {
@@ -122,7 +122,6 @@ app.get('/health', (req, res) => {
 app.get('/websocket-status', (req, res) => {
   res.status(200).json({
     running: true,
-    connections: wsService.getConnectionCount(),
     timestamp: new Date().toISOString()
   });
 });
@@ -194,7 +193,7 @@ server.listen(PORT, () => {
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
   logger.info(`Root URL: http://localhost:${PORT}/`);
   logger.info(`Health check: http://localhost:${PORT}/health`);
-  logger.info(`WebSocket endpoint: ws://localhost:${PORT}/ws`);
+  logger.info(`WebSocket Initialized (listening for connections)`);
   
   // Log route information
   const routeInfo = [

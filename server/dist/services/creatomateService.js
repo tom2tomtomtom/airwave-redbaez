@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.creatomateService = void 0;
 const axios_1 = __importDefault(require("axios"));
+const websocket_types_1 = require("../types/websocket.types");
 // Initialize Creatomate API client
 const CREATOMATE_API_KEY = process.env.CREATOMATE_API_KEY || '';
 const CREATOMATE_API_URL = 'https://api.creatomate.com/v1';
@@ -188,7 +189,17 @@ class CreatomateService {
             this.activeJobs.set(jobId, job);
             // Notify clients if status has changed and WebSocket service is available
             if (this.wsService) {
-                this.wsService.broadcastToAll('renderStatus', { jobId, status: job.status, url: job.url });
+                const payload = {
+                    jobId: job.id,
+                    service: 'creatomate',
+                    status: job.status === 'completed' ? 'succeeded' : job.status,
+                    progress: job.status === 'completed' ? 100 : (job.status === 'failed' ? undefined : 0),
+                    clientId: job.clientId ?? '', // Add fallback for potentially undefined ID
+                    userId: job.userId ?? '', // Add fallback for potentially undefined ID
+                    resultUrl: job.url,
+                    error: job.status === 'failed' ? 'Render failed' : undefined, // Add error if failed
+                };
+                this.wsService.broadcast(websocket_types_1.WebSocketEvent.JOB_PROGRESS, payload);
             }
             return job;
         }
@@ -264,12 +275,17 @@ class CreatomateService {
             this.activeJobs.set(jobId, updatedJob);
             // Notify clients if WebSocket service is available
             if (this.wsService) {
-                this.wsService.broadcastToAll('renderStatus', {
-                    jobId,
-                    status: updatedJob.status,
-                    url: updatedJob.url,
-                    thumbnailUrl: updatedJob.thumbnailUrl
-                });
+                const payload = {
+                    jobId: updatedJob.id,
+                    service: 'creatomate',
+                    status: updatedJob.status === 'completed' ? 'succeeded' : updatedJob.status,
+                    progress: updatedJob.status === 'completed' ? 100 : (updatedJob.status === 'failed' ? undefined : 0),
+                    clientId: updatedJob.clientId ?? '', // Add fallback
+                    userId: updatedJob.userId ?? '', // Add fallback
+                    resultUrl: updatedJob.url,
+                    error: updatedJob.error,
+                };
+                this.wsService.broadcast(websocket_types_1.WebSocketEvent.JOB_PROGRESS, payload);
             }
             index++;
             if (index < statuses.length) {
@@ -325,12 +341,17 @@ class CreatomateService {
         this.activeJobs.set(jobId, job);
         // Notify clients
         if (this.wsService) {
-            this.wsService.broadcastToAll('renderStatus', {
-                jobId,
-                status: job.status,
-                url: job.url,
-                thumbnailUrl: job.thumbnailUrl
-            });
+            const payload = {
+                jobId: job.id,
+                service: 'creatomate',
+                status: job.status === 'completed' ? 'succeeded' : job.status,
+                progress: job.status === 'completed' ? 100 : (job.status === 'failed' ? undefined : 0),
+                clientId: job.clientId ?? '', // Add fallback
+                userId: job.userId ?? '', // Add fallback
+                resultUrl: job.url,
+                error: job.error,
+            };
+            this.wsService.broadcast(websocket_types_1.WebSocketEvent.JOB_PROGRESS, payload);
         }
         return job;
     }

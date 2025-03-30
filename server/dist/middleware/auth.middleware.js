@@ -3,72 +3,137 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generateToken = exports.requireAdmin = exports.checkAdmin = exports.authenticateToken = exports.checkAuth = void 0;
-const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+exports.generateToken = exports.requireAdmin = exports.checkAdmin = exports.authenticateToken = exports.checkAuth = exports.AUTH_MODE = void 0;
+const TokenService_1 = require("../services/TokenService");
 const supabaseClient_1 = require("../db/supabaseClient");
-// Secret key for JWT
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-for-development-only';
+const errorHandler_1 = require("./errorHandler");
+const errorTypes_1 = require("../types/errorTypes");
+const redisClient_1 = require("../db/redisClient");
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+// Environment variables
+const JWT_SECRET = process.env.JWT_SECRET || 'airwave-jwt-secret-key';
+// Constants
+exports.AUTH_MODE = {
+    PRODUCTION: 'production',
+    DEVELOPMENT: 'development',
+    PROTOTYPE: 'prototype',
+    CURRENT: process.env.NODE_ENV || 'development',
+    BYPASS_AUTH: process.env.DEV_BYPASS_AUTH === 'true' || process.env.PROTOTYPE_MODE === 'true'
+};
 /**
- * Middleware to authenticate JWT token and attach user to request
+ * Middleware to authenticate requests and attach user to request object
+ * Supports both JWT and Supabase authentication methods
  */
 const checkAuth = async (req, res, next) => {
-    // Check for development mode
-    const isDevelopment = process.env.NODE_ENV === 'development' || process.env.DEV_BYPASS_AUTH === 'true';
-    // In development mode, bypass authentication entirely
-    if (isDevelopment) {
+    // Check for development mode with auth bypass
+    if ((exports.AUTH_MODE.CURRENT === 'development' || exports.AUTH_MODE.CURRENT === 'prototype') &&
+        exports.AUTH_MODE.BYPASS_AUTH) {
         console.log('[DEV] Bypassing authentication check');
         // Set a mock user on the request
         req.user = {
-            id: '00000000-0000-0000-0000-000000000000',
+            userId: '00000000-0000-0000-0000-000000000000',
             email: 'admin@airwave.dev',
             role: 'admin',
+            sessionId: 'dev-session',
             name: 'Development Admin'
         };
+        // In development mode with successful auth, return a CSRF token for the client
+        const csrfToken = TokenService_1.tokenService.generateCsrfToken(req.user.sessionId);
+        res.set('X-CSRF-Token', csrfToken);
         return next();
     }
     try {
-        // Get the token from Authorization header
-        const authHeader = req.headers['authorization'];
-        const token = authHeader && authHeader.split(' ')[1];
-        if (!token) {
-            return res.status(401).json({ message: 'No token provided' });
+        // Extract token from different possible locations
+        // First try Authorization header
+        let token = req.headers.authorization?.split(' ')[1];
+        // Then try cookie (for HttpOnly approach)
+        if (!token && req.cookies?.access_token) {
+            token = req.cookies.access_token;
         }
-        // First try to verify with our JWT
-        jsonwebtoken_1.default.verify(token, JWT_SECRET, async (err, decoded) => {
-            if (err) {
-                // If our JWT verification fails, try Supabase token
-                try {
-                    // Verify with Supabase
-                    const { data, error } = await supabaseClient_1.supabase.auth.getUser(token);
-                    if (error || !data.user) {
-                        return res.status(403).json({ message: 'Invalid or expired token' });
-                    }
-                    // Get user role from Supabase
-                    const { data: userData } = await supabaseClient_1.supabase
-                        .from('users')
-                        .select('role')
-                        .eq('id', data.user.id)
-                        .single();
-                    req.user = {
-                        id: data.user.id,
-                        email: data.user.email,
-                        role: userData?.role || 'user'
-                    };
-                    return next();
-                }
-                catch (supabaseError) {
-                    console.error('Supabase auth error:', supabaseError);
-                    return res.status(403).json({ message: 'Invalid or expired token' });
-                }
+        // No token found
+        if (!token) {
+            throw new errorHandler_1.ApiError({
+                statusCode: 401,
+                message: 'Authentication required',
+                code: errorTypes_1.ErrorCode.AUTHENTICATION_REQUIRED
+            });
+        }
+        try {
+            // First try to verify with our JWT service
+            const payload = TokenService_1.tokenService.verifyAccessToken(token);
+            // Attach user info to request
+            req.user = {
+                ...payload,
+                userId: payload.userId,
+                email: payload.email,
+                role: payload.role,
+                sessionId: payload.sessionId
+            };
+            // Check for token in blocklist (logged out tokens)
+            const isBlocked = await redisClient_1.redis.exists(`blocklist:${token}`);
+            if (isBlocked) {
+                throw new errorHandler_1.ApiError({
+                    statusCode: 401,
+                    message: 'Token has been revoked',
+                    code: errorTypes_1.ErrorCode.INVALID_TOKEN
+                });
             }
-            // If JWT verification succeeds, use the decoded token
-            req.user = decoded;
+            // Set CSRF token in header for the client
+            const csrfToken = TokenService_1.tokenService.generateCsrfToken(payload.sessionId);
+            res.set('X-CSRF-Token', csrfToken);
             next();
-        });
+        }
+        catch (jwtError) {
+            // If JWT verification fails, try Supabase token as fallback
+            try {
+                // Verify with Supabase
+                const { data, error } = await supabaseClient_1.supabase.auth.getUser(token);
+                if (error || !data.user) {
+                    throw new errorHandler_1.ApiError({
+                        statusCode: 401,
+                        message: 'Invalid or expired token',
+                        code: errorTypes_1.ErrorCode.INVALID_TOKEN
+                    });
+                }
+                // Get user role from Supabase
+                const { data: userData, error: userError } = await supabaseClient_1.supabase
+                    .from('users')
+                    .select('role')
+                    .eq('id', data.user.id)
+                    .single();
+                if (userError) {
+                    console.warn('Error getting user role:', userError);
+                }
+                // Create a session ID for this request
+                const sessionId = `supabase-${Date.now()}`;
+                // Attach user info to request
+                req.user = {
+                    userId: data.user.id,
+                    email: data.user.email || '',
+                    role: userData?.role || 'user',
+                    sessionId: sessionId
+                };
+                // Set CSRF token in header for the client
+                const csrfToken = TokenService_1.tokenService.generateCsrfToken(sessionId);
+                res.set('X-CSRF-Token', csrfToken);
+                next();
+            }
+            catch (supabaseError) {
+                console.error('Authentication error:', supabaseError);
+                throw new errorHandler_1.ApiError({
+                    statusCode: 401,
+                    message: 'Authentication failed',
+                    code: errorTypes_1.ErrorCode.AUTHENTICATION_REQUIRED
+                });
+            }
+        }
     }
     catch (error) {
-        console.error('Authentication error:', error);
-        res.status(500).json({ message: 'Authentication failed' });
+        next(error instanceof errorHandler_1.ApiError ? error : new errorHandler_1.ApiError({
+            statusCode: 500,
+            message: 'Authentication failed',
+            code: errorTypes_1.ErrorCode.INTERNAL_ERROR
+        }));
     }
 };
 exports.checkAuth = checkAuth;

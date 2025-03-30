@@ -1,5 +1,5 @@
 import express from 'express';
-import assetRoutes from '../routes/assetRoutes';
+import assetRoutes from '../routes/assets.routes';
 
 /**
  * Debug script to list all registered routes in the asset router

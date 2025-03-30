@@ -1,20 +1,20 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
+const express_1 = require("express");
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const supabaseClient_1 = require("../db/supabaseClient");
 const creatomateService_1 = require("../services/creatomateService");
-const router = express_1.default.Router();
+const router = (0, express_1.Router)();
 // Get all campaigns for the current user
 router.get('/', auth_middleware_1.checkAuth, async (req, res) => {
     try {
+        if (!req.user) {
+            return res.status(401).json({ message: 'User not authenticated' });
+        }
         const { data, error } = await supabaseClient_1.supabase
             .from('campaigns')
             .select('*')
-            .eq('owner_id', req.user.id)
+            .eq('owner_id', req.user.userId)
             .order('created_at', { ascending: false });
         if (error)
             throw error;
@@ -28,6 +28,10 @@ router.get('/', auth_middleware_1.checkAuth, async (req, res) => {
 // Get a single campaign by ID
 router.get('/:id', auth_middleware_1.checkAuth, async (req, res) => {
     try {
+        const campaignId = req.params.id;
+        if (!req.user) {
+            return res.status(401).json({ message: 'User not authenticated' });
+        }
         // Get campaign with executions
         const { data, error } = await supabaseClient_1.supabase
             .from('campaigns')
@@ -35,8 +39,8 @@ router.get('/:id', auth_middleware_1.checkAuth, async (req, res) => {
         *,
         executions (*)
       `)
-            .eq('id', req.params.id)
-            .eq('owner_id', req.user.id)
+            .eq('id', campaignId)
+            .eq('owner_id', req.user.userId)
             .single();
         if (error)
             throw error;
@@ -53,6 +57,9 @@ router.get('/:id', auth_middleware_1.checkAuth, async (req, res) => {
 // Create a new campaign
 router.post('/', auth_middleware_1.checkAuth, async (req, res) => {
     try {
+        if (!req.user) {
+            return res.status(401).json({ message: 'User not authenticated' });
+        }
         const { name, description, client, startDate, endDate, platforms, tags } = req.body;
         // Validate required fields
         if (!name) {
@@ -71,7 +78,7 @@ router.post('/', auth_middleware_1.checkAuth, async (req, res) => {
                 platforms,
                 tags,
                 status: 'draft',
-                owner_id: req.user.id
+                owner_id: req.user.userId
             }
         ])
             .select()
@@ -94,13 +101,17 @@ router.post('/', auth_middleware_1.checkAuth, async (req, res) => {
 // Update a campaign
 router.put('/:id', auth_middleware_1.checkAuth, async (req, res) => {
     try {
+        const campaignId = req.params.id;
+        if (!req.user) {
+            return res.status(401).json({ message: 'User not authenticated' });
+        }
         const { name, description, client, startDate, endDate, platforms, tags, status } = req.body;
         // Check ownership
         const { data: existingCampaign, error: fetchError } = await supabaseClient_1.supabase
             .from('campaigns')
             .select('*')
-            .eq('id', req.params.id)
-            .eq('owner_id', req.user.id)
+            .eq('id', campaignId)
+            .eq('owner_id', req.user.userId)
             .single();
         if (fetchError || !existingCampaign) {
             return res.status(404).json({ message: 'Campaign not found or permission denied' });
@@ -119,7 +130,7 @@ router.put('/:id', auth_middleware_1.checkAuth, async (req, res) => {
             status: status || existingCampaign.status,
             updated_at: new Date().toISOString()
         })
-            .eq('id', req.params.id)
+            .eq('id', campaignId)
             .select(`
         *,
         executions (*)
@@ -141,12 +152,16 @@ router.put('/:id', auth_middleware_1.checkAuth, async (req, res) => {
 // Delete a campaign
 router.delete('/:id', auth_middleware_1.checkAuth, async (req, res) => {
     try {
+        const campaignId = req.params.id;
+        if (!req.user) {
+            return res.status(401).json({ message: 'User not authenticated' });
+        }
         // Check ownership
         const { data: campaign, error: fetchError } = await supabaseClient_1.supabase
             .from('campaigns')
             .select('*')
-            .eq('id', req.params.id)
-            .eq('owner_id', req.user.id)
+            .eq('id', campaignId)
+            .eq('owner_id', req.user.userId)
             .single();
         if (fetchError || !campaign) {
             return res.status(404).json({ message: 'Campaign not found or permission denied' });
@@ -155,14 +170,14 @@ router.delete('/:id', auth_middleware_1.checkAuth, async (req, res) => {
         const { error: deleteExecutionsError } = await supabaseClient_1.supabase
             .from('executions')
             .delete()
-            .eq('campaign_id', req.params.id);
+            .eq('campaign_id', campaignId);
         if (deleteExecutionsError)
             throw deleteExecutionsError;
         // Delete the campaign
         const { error } = await supabaseClient_1.supabase
             .from('campaigns')
             .delete()
-            .eq('id', req.params.id);
+            .eq('id', campaignId);
         if (error)
             throw error;
         res.json({
@@ -183,13 +198,16 @@ router.delete('/:id', auth_middleware_1.checkAuth, async (req, res) => {
 router.post('/:id/executions', auth_middleware_1.checkAuth, async (req, res) => {
     try {
         const campaignId = req.params.id;
+        if (!req.user) {
+            return res.status(401).json({ message: 'User not authenticated' });
+        }
         const { name, templateId, platform, format, assets } = req.body;
         // Check campaign ownership
         const { data: campaign, error: fetchError } = await supabaseClient_1.supabase
             .from('campaigns')
             .select('*')
             .eq('id', campaignId)
-            .eq('owner_id', req.user.id)
+            .eq('owner_id', req.user.userId)
             .single();
         if (fetchError || !campaign) {
             return res.status(404).json({ message: 'Campaign not found or permission denied' });
@@ -206,7 +224,7 @@ router.post('/:id/executions', auth_middleware_1.checkAuth, async (req, res) => 
                 format,
                 assets,
                 status: 'draft',
-                owner_id: req.user.id
+                owner_id: req.user.userId
             }
         ])
             .select()
@@ -231,6 +249,9 @@ router.post('/:id/executions', auth_middleware_1.checkAuth, async (req, res) => 
 router.post('/:id/render', auth_middleware_1.checkAuth, async (req, res) => {
     try {
         const campaignId = req.params.id;
+        if (!req.user) {
+            return res.status(401).json({ message: 'User not authenticated' });
+        }
         // Check campaign ownership
         const { data: campaign, error: fetchError } = await supabaseClient_1.supabase
             .from('campaigns')
@@ -239,7 +260,7 @@ router.post('/:id/render', auth_middleware_1.checkAuth, async (req, res) => {
         executions (*)
       `)
             .eq('id', campaignId)
-            .eq('owner_id', req.user.id)
+            .eq('owner_id', req.user.userId)
             .single();
         if (fetchError || !campaign) {
             return res.status(404).json({ message: 'Campaign not found or permission denied' });

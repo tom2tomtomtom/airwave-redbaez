@@ -3,6 +3,15 @@
     "target": "es2020",
     "module": "commonjs",
     "lib": ["es2020"],
+    "baseUrl": "./src",
+    "paths": {
+      "@/types/*": ["types/*"],
+      "@/utils/*": ["utils/*"],
+      "@/services/*": ["services/*"],
+      "@/controllers/*": ["controllers/*"],
+      "@/middleware/*": ["middleware/*"],
+      "@/routes/*": ["routes/*"]
+    },
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,

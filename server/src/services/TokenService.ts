@@ -6,7 +6,7 @@ import { supabase } from '../db/supabaseClient';
 import { redis } from '../db/redisClient';
 
 // Types
-interface TokenPayload {
+export interface TokenPayload {
   userId: string;
   role: string;
   email: string;

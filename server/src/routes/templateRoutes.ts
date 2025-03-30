@@ -3,12 +3,18 @@ import axios from 'axios';
 import { checkAuth, checkAdmin } from '../middleware/auth.middleware';
 import { supabase } from '../db/supabaseClient';
 import { creatomateService } from '../services/creatomateService';
+import { AuthenticatedRequest } from '../types/AuthenticatedRequest';
+import { Response, NextFunction } from 'express'; // Corrected import
 
 const router = express.Router();
 
 // Get all templates
-router.get('/', checkAuth, async (req, res) => {
+router.get('/', checkAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
     const { data, error } = await supabase
       .from('templates')
       .select('*')
@@ -22,13 +28,17 @@ router.get('/', checkAuth, async (req, res) => {
     res.json(templates);
   } catch (error: any) {
     console.error('Error fetching templates:', error.message);
-    res.status(500).json({ message: 'Failed to fetch templates' });
+    next(error);
   }
 });
 
 // Get template by ID
-router.get('/:id', checkAuth, async (req, res) => {
+router.get('/:id', checkAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
     const { data, error } = await supabase
       .from('templates')
       .select('*')
@@ -46,13 +56,17 @@ router.get('/:id', checkAuth, async (req, res) => {
     res.json(template);
   } catch (error: any) {
     console.error('Error fetching template:', error.message);
-    res.status(500).json({ message: 'Failed to fetch template' });
+    next(error);
   }
 });
 
 // Add a new template (admin only)
-router.post('/', checkAuth, checkAdmin, async (req, res) => {
+router.post('/', checkAuth, checkAdmin, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
     const { 
       name, 
       description, 
@@ -86,7 +100,7 @@ router.post('/', checkAuth, checkAdmin, async (req, res) => {
           parameters,
           requirements,
           creatomate_template_id: creatomateTemplateId,
-          created_by: req.user.id
+          created_by: req.user.userId
         }
       ])
       .select()
@@ -97,13 +111,17 @@ router.post('/', checkAuth, checkAdmin, async (req, res) => {
     res.status(201).json(transformTemplateFromDb(data));
   } catch (error: any) {
     console.error('Error creating template:', error.message);
-    res.status(500).json({ message: 'Failed to create template' });
+    next(error);
   }
 });
 
 // Update a template (admin only)
-router.put('/:id', checkAuth, checkAdmin, async (req, res) => {
+router.put('/:id', checkAuth, checkAdmin, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
     const { 
       name, 
       description, 
@@ -140,13 +158,17 @@ router.put('/:id', checkAuth, checkAdmin, async (req, res) => {
     res.json(transformTemplateFromDb(data));
   } catch (error: any) {
     console.error('Error updating template:', error.message);
-    res.status(500).json({ message: 'Failed to update template' });
+    next(error);
   }
 });
 
 // Delete a template
-router.delete('/:id', checkAuth, async (req, res) => {
+router.delete('/:id', checkAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
     const { error } = await supabase
       .from('templates')
       .delete()
@@ -157,13 +179,17 @@ router.delete('/:id', checkAuth, async (req, res) => {
     res.json({ message: 'Template deleted successfully' });
   } catch (error: any) {
     console.error('Error deleting template:', error.message);
-    res.status(500).json({ message: 'Failed to delete template' });
+    next(error);
   }
 });
 
 // Toggle favorite status for a template
-router.put('/:id/favorite', checkAuth, async (req, res) => {
+router.put('/:id/favorite', checkAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
     const { isFavorite } = req.body;
     
     // In prototype mode, we'll just respond with success
@@ -188,7 +214,7 @@ router.put('/:id/favorite', checkAuth, async (req, res) => {
     const { data: existingFavorite } = await supabase
       .from('user_template_favorites')
       .select('*')
-      .eq('user_id', req.user.id)
+      .eq('user_id', req.user.userId)
       .eq('template_id', req.params.id)
       .single();
     
@@ -198,7 +224,7 @@ router.put('/:id/favorite', checkAuth, async (req, res) => {
         .from('user_template_favorites')
         .insert([
           {
-            user_id: req.user.id,
+            user_id: req.user.userId,
             template_id: req.params.id
           }
         ]);
@@ -207,7 +233,7 @@ router.put('/:id/favorite', checkAuth, async (req, res) => {
       await supabase
         .from('user_template_favorites')
         .delete()
-        .eq('user_id', req.user.id)
+        .eq('user_id', req.user.userId)
         .eq('template_id', req.params.id);
     }
     
@@ -226,13 +252,17 @@ router.put('/:id/favorite', checkAuth, async (req, res) => {
     res.json(template);
   } catch (error: any) {
     console.error('Error toggling favorite:', error.message);
-    res.status(500).json({ message: 'Failed to update favorite status' });
+    next(error);
   }
 });
 
 // Import templates from Creatomate (admin only)
-router.post('/import-from-creatomate', checkAuth, checkAdmin, async (req, res) => {
+router.post('/import-from-creatomate', checkAuth, checkAdmin, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
     // In prototype mode, just simulate a successful import
     if (process.env.PROTOTYPE_MODE === 'true') {
       // Simulate delay
@@ -253,13 +283,17 @@ router.post('/import-from-creatomate', checkAuth, checkAdmin, async (req, res) =
     });
   } catch (error: any) {
     console.error('Error importing templates:', error.message);
-    res.status(500).json({ message: 'Failed to import templates from Creatomate' });
+    next(error);
   }
 });
 
 // Import a single template by ID (accessible to all authenticated users)
-router.post('/import-by-id', checkAuth, async (req, res) => {
+router.post('/import-by-id', checkAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
     const { creatomateTemplateId, name, format } = req.body;
     
     // Validate required fields
@@ -297,7 +331,6 @@ router.post('/import-by-id', checkAuth, async (req, res) => {
           aspectRatio = 'Unknown';
       }
       
-      // Debug logging
       console.log('Importing template with format:', format);
       
       // Create template object
@@ -311,7 +344,7 @@ router.post('/import-by-id', checkAuth, async (req, res) => {
         parameters: [],
         requirements: [],
         creatomate_template_id: creatomateTemplateId,
-        created_by: req.user.id
+        created_by: req.user.userId
       };
       
       console.log('Template data being inserted:', templateData);
@@ -538,7 +571,7 @@ router.post('/import-by-id', checkAuth, async (req, res) => {
     
   } catch (error: any) {
     console.error('Error importing template by ID:', error.message);
-    res.status(500).json({ message: 'Failed to import template. Please check the template ID and try again.' });
+    next(error);
   }
 });
 
@@ -592,8 +625,12 @@ function transformTemplateFromDb(template: any) {
 }
 
 // Development utility endpoint to fix template formats
-router.post('/fix-formats', async (req, res) => {
+router.post('/fix-formats', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
     // First get all templates
     const { data: templates, error: fetchError } = await supabase
       .from('templates')
@@ -625,7 +662,7 @@ router.post('/fix-formats', async (req, res) => {
     res.json({ message: `Updated ${updatedCount} templates with default formats` });
   } catch (error: any) {
     console.error('Error fixing template formats:', error);
-    res.status(500).json({ message: 'Failed to update template formats', error: error.message || 'Unknown error' });
+    next(error);
   }
 });
 

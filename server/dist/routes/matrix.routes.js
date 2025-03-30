@@ -11,6 +11,12 @@ const router = express_1.default.Router();
 // Create a new matrix configuration
 router.post('/', auth_middleware_1.checkAuth, async (req, res) => {
     try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated'
+            });
+        }
         const { campaignId, name, slots, rows, description } = req.body;
         if (!campaignId || !name || !slots) {
             return res.status(400).json({
@@ -25,7 +31,7 @@ router.post('/', auth_middleware_1.checkAuth, async (req, res) => {
             description,
             slots,
             rows: rows || []
-        }, req.user.id);
+        }, req.user.userId);
         res.status(201).json({
             success: true,
             message: 'Matrix configuration created successfully',
@@ -44,6 +50,12 @@ router.post('/', auth_middleware_1.checkAuth, async (req, res) => {
 // Get all matrices for a campaign
 router.get('/campaign/:campaignId', auth_middleware_1.checkAuth, async (req, res) => {
     try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated'
+            });
+        }
         const { campaignId } = req.params;
         const { data, error } = await supabaseClient_1.supabase
             .from('matrix_configurations')
@@ -71,6 +83,12 @@ router.get('/campaign/:campaignId', auth_middleware_1.checkAuth, async (req, res
 // Get a specific matrix by ID
 router.get('/:id', auth_middleware_1.checkAuth, async (req, res) => {
     try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated'
+            });
+        }
         const { id } = req.params;
         const matrix = await matrixService_1.matrixService.getMatrixById(id);
         res.json({
@@ -90,6 +108,12 @@ router.get('/:id', auth_middleware_1.checkAuth, async (req, res) => {
 // Update a matrix configuration
 router.put('/:id', auth_middleware_1.checkAuth, async (req, res) => {
     try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated'
+            });
+        }
         const { id } = req.params;
         const { name, description, slots, rows } = req.body;
         // Update the matrix
@@ -117,6 +141,12 @@ router.put('/:id', auth_middleware_1.checkAuth, async (req, res) => {
 // Generate combinations for a matrix
 router.post('/:id/combinations', auth_middleware_1.checkAuth, async (req, res) => {
     try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated'
+            });
+        }
         const { id } = req.params;
         const options = req.body.options || {};
         // Generate combinations
@@ -139,6 +169,12 @@ router.post('/:id/combinations', auth_middleware_1.checkAuth, async (req, res) =
 // Render a specific row in the matrix
 router.post('/:id/rows/:rowId/render', auth_middleware_1.checkAuth, async (req, res) => {
     try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated'
+            });
+        }
         const { id, rowId } = req.params;
         // Render the row
         const row = await matrixService_1.matrixService.renderMatrixRow(id, rowId);
@@ -160,6 +196,12 @@ router.post('/:id/rows/:rowId/render', auth_middleware_1.checkAuth, async (req, 
 // Update a row's lock status
 router.put('/:id/rows/:rowId/lock', auth_middleware_1.checkAuth, async (req, res) => {
     try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated'
+            });
+        }
         const { id, rowId } = req.params;
         const { locked } = req.body;
         if (typeof locked !== 'boolean') {
@@ -199,6 +241,12 @@ router.put('/:id/rows/:rowId/lock', auth_middleware_1.checkAuth, async (req, res
 // Update a slot's lock status
 router.put('/:id/slots/:slotId/lock', auth_middleware_1.checkAuth, async (req, res) => {
     try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated'
+            });
+        }
         const { id, slotId } = req.params;
         const { locked } = req.body;
         if (typeof locked !== 'boolean') {
@@ -238,6 +286,12 @@ router.put('/:id/slots/:slotId/lock', auth_middleware_1.checkAuth, async (req, r
 // Render all rows in the matrix
 router.post('/:id/render-all', auth_middleware_1.checkAuth, async (req, res) => {
     try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated'
+            });
+        }
         const { id } = req.params;
         // Get the matrix
         const matrix = await matrixService_1.matrixService.getMatrixById(id);

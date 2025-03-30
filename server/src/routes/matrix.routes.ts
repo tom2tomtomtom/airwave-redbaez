@@ -1,13 +1,21 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import { checkAuth } from '../middleware/auth.middleware';
 import { matrixService, PermutationOptions } from '../services/matrixService';
 import { supabase } from '../db/supabaseClient';
+import { AuthenticatedRequest } from '../types/AuthenticatedRequest';
 
 const router = express.Router();
 
 // Create a new matrix configuration
-router.post('/', checkAuth, async (req, res) => {
+router.post('/', checkAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+    }
+    
     const { campaignId, name, slots, rows, description } = req.body;
     
     if (!campaignId || !name || !slots) {
@@ -24,7 +32,7 @@ router.post('/', checkAuth, async (req, res) => {
       description,
       slots,
       rows: rows || []
-    }, req.user.id);
+    }, req.user.userId);
     
     res.status(201).json({
       success: true,
@@ -42,8 +50,15 @@ router.post('/', checkAuth, async (req, res) => {
 });
 
 // Get all matrices for a campaign
-router.get('/campaign/:campaignId', checkAuth, async (req, res) => {
+router.get('/campaign/:campaignId', checkAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+    }
+    
     const { campaignId } = req.params;
     
     const { data, error } = await supabase
@@ -72,8 +87,15 @@ router.get('/campaign/:campaignId', checkAuth, async (req, res) => {
 });
 
 // Get a specific matrix by ID
-router.get('/:id', checkAuth, async (req, res) => {
+router.get('/:id', checkAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+    }
+    
     const { id } = req.params;
     
     const matrix = await matrixService.getMatrixById(id);
@@ -93,8 +115,15 @@ router.get('/:id', checkAuth, async (req, res) => {
 });
 
 // Update a matrix configuration
-router.put('/:id', checkAuth, async (req, res) => {
+router.put('/:id', checkAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+    }
+    
     const { id } = req.params;
     const { name, description, slots, rows } = req.body;
     
@@ -122,8 +151,15 @@ router.put('/:id', checkAuth, async (req, res) => {
 });
 
 // Generate combinations for a matrix
-router.post('/:id/combinations', checkAuth, async (req, res) => {
+router.post('/:id/combinations', checkAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+    }
+    
     const { id } = req.params;
     const options: PermutationOptions = req.body.options || {};
     
@@ -146,8 +182,15 @@ router.post('/:id/combinations', checkAuth, async (req, res) => {
 });
 
 // Render a specific row in the matrix
-router.post('/:id/rows/:rowId/render', checkAuth, async (req, res) => {
+router.post('/:id/rows/:rowId/render', checkAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+    }
+    
     const { id, rowId } = req.params;
     
     // Render the row
@@ -169,8 +212,15 @@ router.post('/:id/rows/:rowId/render', checkAuth, async (req, res) => {
 });
 
 // Update a row's lock status
-router.put('/:id/rows/:rowId/lock', checkAuth, async (req, res) => {
+router.put('/:id/rows/:rowId/lock', checkAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+    }
+    
     const { id, rowId } = req.params;
     const { locked } = req.body;
     
@@ -214,8 +264,15 @@ router.put('/:id/rows/:rowId/lock', checkAuth, async (req, res) => {
 });
 
 // Update a slot's lock status
-router.put('/:id/slots/:slotId/lock', checkAuth, async (req, res) => {
+router.put('/:id/slots/:slotId/lock', checkAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+    }
+    
     const { id, slotId } = req.params;
     const { locked } = req.body;
     
@@ -259,8 +316,15 @@ router.put('/:id/slots/:slotId/lock', checkAuth, async (req, res) => {
 });
 
 // Render all rows in the matrix
-router.post('/:id/render-all', checkAuth, async (req, res) => {
+router.post('/:id/render-all', checkAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+    }
+    
     const { id } = req.params;
     
     // Get the matrix

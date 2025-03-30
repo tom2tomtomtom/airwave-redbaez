@@ -34,8 +34,8 @@ import { fetchCampaignExports, downloadExport } from '../../store/slices/exports
 import { selectAllCampaigns, fetchCampaigns } from '../../store/slices/campaignsSlice';
 import { Campaign } from '../../types/campaigns';
 
-import { ExportDetailsDialog } from '../../components/exports/ExportDetailsDialog';
-import { ExportToPlatformDialog } from '../../components/exports/ExportToPlatformDialog';
+import ExportDetailsDialog from '../../components/exports/ExportDetailsDialog';
+import ExportToPlatformDialog from '../../components/exports/ExportToPlatformDialog';
 
 const ExportsPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();

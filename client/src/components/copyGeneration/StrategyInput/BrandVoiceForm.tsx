@@ -10,14 +10,16 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  SelectChangeEvent,
+  DialogContentText
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { MarketingStrategy, ToneOption } from '../../../services/copyGeneration/types';
 
 interface BrandVoiceFormProps {
   strategy: MarketingStrategy;
-  onStrategyChange: (strategy: MarketingStrategy) => void;
+  onStrategyChange: (updates: Partial<MarketingStrategy['brandVoice']>) => void;
 }
 
 // Available tone options
@@ -54,27 +56,15 @@ const BrandVoiceForm: React.FC<BrandVoiceFormProps> = ({
   ) => {
     const { name, value } = e.target;
     
-    onStrategyChange({
-      ...strategy,
-      brandVoice: {
-        ...strategy.brandVoice,
-        [name]: value
-      }
-    });
+    onStrategyChange({ [name]: value });
   };
   
   // Handler for select changes
-  const handleSelectChange = (e: React.ChangeEvent<{ name?: string; value: unknown }>) => {
+  const handleSelectChange = (e: SelectChangeEvent<string>) => {
     const { name, value } = e.target;
     
     if (name) {
-      onStrategyChange({
-        ...strategy,
-        brandVoice: {
-          ...strategy.brandVoice,
-          [name]: value
-        }
-      });
+      onStrategyChange({ [name]: value });
     }
   };
   
@@ -82,13 +72,7 @@ const BrandVoiceForm: React.FC<BrandVoiceFormProps> = ({
   const handleAddValue = () => {
     if (!newValue.trim()) return;
     
-    onStrategyChange({
-      ...strategy,
-      brandVoice: {
-        ...strategy.brandVoice,
-        values: [...strategy.brandVoice.values, newValue.trim()]
-      }
-    });
+    onStrategyChange({ values: [...strategy.brandVoice.values, newValue.trim()] });
     
     setNewValue('');
   };
@@ -98,13 +82,7 @@ const BrandVoiceForm: React.FC<BrandVoiceFormProps> = ({
     const newValues = [...strategy.brandVoice.values];
     newValues.splice(index, 1);
     
-    onStrategyChange({
-      ...strategy,
-      brandVoice: {
-        ...strategy.brandVoice,
-        values: newValues
-      }
-    });
+    onStrategyChange({ values: newValues });
   };
   
   // Handler for key press (Enter key)

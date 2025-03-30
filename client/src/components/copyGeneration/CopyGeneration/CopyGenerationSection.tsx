@@ -30,7 +30,7 @@ import {
 } from '../../../services/copyGeneration/types';
 import CopyGenerationMediator from '../../../services/copyGeneration/CopyGenerationMediator';
 
-const toneOptions: ToneOption[] = ['Professional', 'Friendly', 'Formal', 'Informal', 'Sarcastic', 'Humorous'];
+const toneOptions: ToneOption[] = ['Professional', 'Friendly', 'Casual', 'Authoritative', 'Humorous', 'Inspirational']; // Use valid options from ToneOption type
 
 interface CopyGenerationSectionProps {
   strategy: MarketingStrategy;

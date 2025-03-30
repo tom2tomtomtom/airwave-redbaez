@@ -13,7 +13,7 @@ import { MarketingStrategy } from '../../../services/copyGeneration/types';
 
 interface TargetAudienceFormProps {
   strategy: MarketingStrategy;
-  onStrategyChange: (strategy: MarketingStrategy) => void;
+  onStrategyChange: (updates: Partial<MarketingStrategy['targetAudience']>) => void;
 }
 
 /**
@@ -35,26 +35,14 @@ const TargetAudienceForm: React.FC<TargetAudienceFormProps> = ({
   ) => {
     const { name, value } = e.target;
     
-    onStrategyChange({
-      ...strategy,
-      targetAudience: {
-        ...strategy.targetAudience,
-        [name]: value
-      }
-    });
+    onStrategyChange({ [name]: value });
   };
   
   // Handler for adding a new pain point
   const handleAddPainPoint = () => {
     if (!newPainPoint.trim()) return;
     
-    onStrategyChange({
-      ...strategy,
-      targetAudience: {
-        ...strategy.targetAudience,
-        painPoints: [...strategy.targetAudience.painPoints, newPainPoint.trim()]
-      }
-    });
+    onStrategyChange({ painPoints: [...strategy.targetAudience.painPoints, newPainPoint.trim()] });
     
     setNewPainPoint('');
   };
@@ -63,13 +51,7 @@ const TargetAudienceForm: React.FC<TargetAudienceFormProps> = ({
   const handleAddGoal = () => {
     if (!newGoal.trim()) return;
     
-    onStrategyChange({
-      ...strategy,
-      targetAudience: {
-        ...strategy.targetAudience,
-        goals: [...strategy.targetAudience.goals, newGoal.trim()]
-      }
-    });
+    onStrategyChange({ goals: [...strategy.targetAudience.goals, newGoal.trim()] });
     
     setNewGoal('');
   };
@@ -79,13 +61,7 @@ const TargetAudienceForm: React.FC<TargetAudienceFormProps> = ({
     const newPainPoints = [...strategy.targetAudience.painPoints];
     newPainPoints.splice(index, 1);
     
-    onStrategyChange({
-      ...strategy,
-      targetAudience: {
-        ...strategy.targetAudience,
-        painPoints: newPainPoints
-      }
-    });
+    onStrategyChange({ painPoints: newPainPoints });
   };
   
   // Handler for deleting a goal
@@ -93,13 +69,7 @@ const TargetAudienceForm: React.FC<TargetAudienceFormProps> = ({
     const newGoals = [...strategy.targetAudience.goals];
     newGoals.splice(index, 1);
     
-    onStrategyChange({
-      ...strategy,
-      targetAudience: {
-        ...strategy.targetAudience,
-        goals: newGoals
-      }
-    });
+    onStrategyChange({ goals: newGoals });
   };
   
   // Handler for key press (Enter key)

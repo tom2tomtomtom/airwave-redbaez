@@ -6,7 +6,7 @@
  */
 import express from 'express';
 import clientRoutes from './clients.routes';
-import assetRoutes from './assets.routes';
+import assetRoutes from '../assets.routes'; 
 import { logger } from '../../utils/logger';
 
 const router = express.Router();

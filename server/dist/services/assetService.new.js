@@ -42,34 +42,100 @@ class AssetService {
     /**
      * Transform database asset to application asset
      * This handles the conversion between DB column names and application properties
+     * Ensures all required fields for UI compatibility are present
      */
     transformAssetFromDb(dbAsset) {
         // Extract metadata from the DB format
         const meta = dbAsset.meta || {};
-        // Create asset with matching camelCase properties
-        return {
-            id: dbAsset.id,
-            name: dbAsset.name,
-            type: dbAsset.type,
+        // Normalize owner_id to ensure it's never null (use user_id if owner_id is missing)
+        const normalizedOwnerId = dbAsset.owner_id || dbAsset.user_id || '';
+        // If the owner_id is missing in the database, update it
+        if (!dbAsset.owner_id && dbAsset.user_id) {
+            try {
+                console.log(`Fixing missing owner_id for asset ${dbAsset.id} using user_id ${dbAsset.user_id}`);
+                // Don't await this to avoid slowing down the response
+                supabaseClient_1.supabase
+                    .from('assets')
+                    .update({
+                    owner_id: dbAsset.user_id
+                })
+                    .eq('id', dbAsset.id)
+                    .then(({ error }) => {
+                    if (error) {
+                        console.error(`Failed to update owner_id for asset ${dbAsset.id}:`, error);
+                    }
+                    else {
+                        console.log(`Successfully updated owner_id for asset ${dbAsset.id}`);
+                    }
+                });
+            }
+            catch (error) {
+                console.error(`Error updating owner_id for asset ${dbAsset.id}:`, error);
+            }
+        }
+        // Create normalized metadata for UI compatibility
+        const normalizedMetadata = {
+            originalName: meta.originalName || `${dbAsset.name}.${dbAsset.type}`,
+            mimeType: meta.mimeType || this.getMimeTypeFromType(dbAsset.type),
             description: meta.description || '',
-            url: dbAsset.url,
-            previewUrl: meta.previewUrl || '',
-            thumbnailUrl: dbAsset.thumbnail_url || '',
             size: meta.size || 0,
-            width: meta.width || null,
-            height: meta.height || null,
-            duration: meta.duration || null,
+            width: meta.width || 0,
+            height: meta.height || 0,
+            duration: meta.duration || 0,
             tags: meta.tags || [],
             categories: meta.categories || [],
             isFavourite: meta.isFavourite || false,
-            usageCount: meta.usageCount || 0,
-            userId: dbAsset.user_id || '',
-            ownerId: dbAsset.owner_id || '',
-            clientId: dbAsset.client_id || meta.clientId || '',
-            createdAt: dbAsset.created_at,
-            updatedAt: dbAsset.updated_at,
-            metadata: meta.metadata || {}
+            usageCount: meta.usageCount || 0
         };
+        // Create asset with both snake_case and camelCase properties for maximum compatibility
+        return {
+            // DB fields (direct mapping)
+            id: dbAsset.id,
+            name: dbAsset.name,
+            type: dbAsset.type,
+            url: dbAsset.url,
+            thumbnailUrl: dbAsset.thumbnail_url || '',
+            previewUrl: meta.previewUrl || '',
+            // UI expected fields (derived from meta or with defaults)
+            description: normalizedMetadata.description,
+            size: normalizedMetadata.size,
+            width: normalizedMetadata.width,
+            height: normalizedMetadata.height,
+            duration: normalizedMetadata.duration,
+            tags: normalizedMetadata.tags,
+            categories: normalizedMetadata.categories,
+            isFavourite: normalizedMetadata.isFavourite,
+            usageCount: normalizedMetadata.usageCount,
+            // User/client identifiers - standardized to camelCase
+            userId: dbAsset.user_id || '',
+            ownerId: normalizedOwnerId,
+            clientId: dbAsset.client_id || meta.clientId || '',
+            // Store the clientSlug if available for URL-friendly identification
+            clientSlug: meta.clientSlug || '',
+            // Timestamps in both formats
+            createdAt: dbAsset.created_at,
+            created_at: dbAsset.created_at,
+            updatedAt: dbAsset.updated_at,
+            updated_at: dbAsset.updated_at,
+            // Both metadata formats
+            metadata: normalizedMetadata,
+            meta: {
+                ...meta,
+                ...normalizedMetadata
+            }
+        };
+    }
+    /**
+     * Helper method to get MIME type from asset type
+     */
+    getMimeTypeFromType(type) {
+        switch (type) {
+            case 'image': return 'image/png';
+            case 'video': return 'video/mp4';
+            case 'audio': return 'audio/mp3';
+            case 'document': return 'application/pdf';
+            default: return 'application/octet-stream';
+        }
     }
     /**
      * Helper method to look up a client ID from a slug
@@ -109,6 +175,31 @@ class AssetService {
                 userId,
                 clientId: assetData.clientId
             });
+            // Use proper auth user when in development mode
+            if (!userId || userId === 'null' || userId === 'undefined' || userId === AUTH_MODE.DEV_USER_ID) {
+                // Admin user from auth.users table (dev@example.com) - this user exists in the auth system
+                const ADMIN_USER_ID = 'd53c7f82-42af-4ed0-a83b-2cbf505748db'; // Correct ID for dev@example.com
+                console.log('⚠️ DEV MODE: Using authenticated admin user with ID:', ADMIN_USER_ID);
+                // Verify the admin user exists in the database
+                const { data: adminUser, error: adminUserError } = await supabaseClient_1.supabase
+                    .from('users')
+                    .select('id, email, name, role')
+                    .eq('id', ADMIN_USER_ID)
+                    .single();
+                if (adminUserError || !adminUser) {
+                    console.error('❌ Admin user not found in database:', adminUserError);
+                    return {
+                        success: false,
+                        message: 'Failed to verify admin user exists in database. Asset upload aborted.',
+                        asset: null
+                    };
+                }
+                else {
+                    console.log('✅ Admin user verified in database:', adminUser);
+                    // Set the userId to the admin user
+                    userId = ADMIN_USER_ID;
+                }
+            }
             // Validate essential parameters
             if (!file) {
                 return {
@@ -247,27 +338,24 @@ class AssetService {
                 }
                 // Now insert the asset with explicit field setting
                 console.log(`Inserting asset with user_id: ${userId}`);
+                // Ensure URL is always set - this is a required field
+                if (!asset.url) {
+                    console.warn('⚠️ Asset URL is not set - using fallback');
+                    asset.url = `/uploads/${asset.id}`;
+                }
                 const dbAsset = {
                     id: asset.id,
                     name: asset.name,
                     type: asset.type,
-                    url: asset.url,
-                    thumbnail_url: asset.thumbnailUrl,
+                    url: asset.url, // Required field - NOT NULL constraint
+                    thumbnail_url: asset.thumbnailUrl || null,
                     user_id: userId, // Use the userId we've determined
                     owner_id: userId, // Use the userId we've determined
-                    client_id: asset.clientId,
+                    client_id: asset.clientId || 'default',
                     meta: {
-                        description: asset.description,
-                        previewUrl: asset.previewUrl,
-                        size: asset.size,
-                        width: asset.width,
-                        height: asset.height,
-                        duration: asset.duration,
-                        tags: asset.tags,
-                        categories: asset.categories,
-                        isFavourite: asset.isFavourite,
-                        usageCount: asset.usageCount,
-                        metadata: asset.metadata
+                        description: asset.description || '',
+                        tags: asset.tags || [],
+                        categories: asset.categories || []
                     },
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
@@ -280,11 +368,75 @@ class AssetService {
                     .single();
                 if (error) {
                     console.error('Error saving asset to database:', error);
-                    // If we still get a foreign key error, try one more approach with raw query if possible
+                    // If we still get a foreign key error, try more approaches with the dev user
                     if (error.code === '23503' && userId === AUTH_MODE.DEV_USER_ID) {
-                        console.log('⚠️ Foreign key constraint still failing. Trying direct SQL approach...');
+                        console.log('⚠️ Foreign key constraint still failing. Trying alternative approaches...');
                         console.log('Details:', error.details);
-                        console.log('SQL:', `INSERT INTO assets (id, name, type, url, thumbnail_url, user_id, owner_id, client_id, meta) VALUES ('${asset.id}', '${asset.name}', '${asset.type}', '${asset.url}', '${asset.thumbnailUrl}', '${AUTH_MODE.DEV_USER_ID}', '${AUTH_MODE.DEV_USER_ID}', '${asset.clientId || null}', '{}')`);
+                        // APPROACH 1: Try inserting with stringified meta data
+                        try {
+                            console.log('Approach 1: Inserting with stringified meta data');
+                            const { data: approach1Data, error: approach1Error } = await supabaseClient_1.supabase
+                                .from('assets')
+                                .insert({
+                                ...dbAsset,
+                                meta: JSON.stringify(dbAsset.meta)
+                            })
+                                .select()
+                                .single();
+                            if (!approach1Error) {
+                                console.log('✅ Asset saved using approach 1');
+                                return {
+                                    success: true,
+                                    message: 'Asset uploaded successfully with approach 1',
+                                    asset: this.transformAssetFromDb(approach1Data)
+                                };
+                            }
+                            console.log('Approach 1 failed:', approach1Error);
+                            // APPROACH 2: Try upsert instead of insert
+                            console.log('Approach 2: Using upsert instead of insert');
+                            const { data: approach2Data, error: approach2Error } = await supabaseClient_1.supabase
+                                .from('assets')
+                                .upsert(dbAsset)
+                                .select()
+                                .single();
+                            if (!approach2Error) {
+                                console.log('✅ Asset saved using approach 2');
+                                return {
+                                    success: true,
+                                    message: 'Asset uploaded successfully with approach 2',
+                                    asset: this.transformAssetFromDb(approach2Data)
+                                };
+                            }
+                            console.log('Approach 2 failed:', approach2Error);
+                            // APPROACH 3: Minimal insert with only required fields
+                            console.log('Approach 3: Minimal insert with only required fields');
+                            const { data: approach3Data, error: approach3Error } = await supabaseClient_1.supabase
+                                .from('assets')
+                                .insert({
+                                id: asset.id,
+                                name: asset.name,
+                                type: asset.type,
+                                url: asset.url || `/uploads/${asset.id}`, // Ensure URL is never null
+                                user_id: AUTH_MODE.DEV_USER_ID,
+                                client_id: asset.clientId || 'default',
+                                created_at: new Date().toISOString(),
+                                updated_at: new Date().toISOString()
+                            })
+                                .select()
+                                .single();
+                            if (!approach3Error) {
+                                console.log('✅ Asset saved using approach 3');
+                                return {
+                                    success: true,
+                                    message: 'Asset uploaded successfully with approach 3',
+                                    asset: this.transformAssetFromDb(approach3Data)
+                                };
+                            }
+                            console.log('Approach 3 failed:', approach3Error);
+                        }
+                        catch (alternativeError) {
+                            console.error('❌ All alternative approaches failed:', alternativeError);
+                        }
                     }
                     return {
                         success: false,
@@ -512,12 +664,17 @@ class AssetService {
             if (filters.sortBy) {
                 // Convert camelCase sortBy to snake_case for database
                 let dbSortField = filters.sortBy;
+                // Map client-side field names to actual database column names
                 if (dbSortField === 'createdAt')
                     dbSortField = 'created_at';
                 if (dbSortField === 'updatedAt')
                     dbSortField = 'updated_at';
+                if (dbSortField === 'date')
+                    dbSortField = 'created_at'; // Map 'date' to 'created_at'
                 if (dbSortField === 'usageCount')
                     dbSortField = 'meta->>usageCount';
+                if (dbSortField === 'name')
+                    dbSortField = 'name';
                 const sortDirection = filters.sortDirection || 'desc';
                 dataQuery = dataQuery.order(dbSortField, { ascending: sortDirection === 'asc' });
             }

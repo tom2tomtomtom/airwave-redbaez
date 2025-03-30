@@ -36,7 +36,7 @@ import { RootState, AppDispatch } from '../../store';
 import { logout } from '../../store/slices/authSlice';
 import ClientDialog from '../../components/clients/ClientDialog';
 import ClientListSelector from '../../components/clients/ClientListSelector';
-import { useClientContext } from '../../contexts/ClientContext';
+import { useClient } from '../../contexts/ClientContext';
 import { Client } from '../../types/client';
 import { ClientFilters } from '../../api/types/client.types';
 
@@ -50,13 +50,13 @@ const ClientSelectionPage: React.FC = () => {
   const { 
     clients, 
     selectedClient, 
-    selectClient, 
+    setClient, 
     loading, 
     error, 
     refreshClients,
     getFilteredClients,
     createClient
-  } = useClientContext();
+  } = useClient();
   
   // UI state
   const [openClientDialog, setOpenClientDialog] = useState(false);
@@ -117,21 +117,10 @@ const ClientSelectionPage: React.FC = () => {
     setOpenClientDialog(true);
   }, []);
 
-  const handleCloseClientDialog = useCallback((newClient?: Client) => {
+  const handleCloseClientDialog = useCallback(() => {
     setOpenClientDialog(false);
-    
-    // If a client was created, refresh the client list
-    if (newClient) {
-      console.log('Client was created, refreshing client list...');
-      refreshClients(filters);
-      
-      // Optionally select the newly created client
-      if (newClient.id) {
-        selectClient(newClient.id);
-      }
-    }
-  }, [refreshClients, filters, selectClient]);
-  
+  }, []);
+
   const handleRetryLoad = () => {
     console.log('Retrying client loading');
     refreshClients(filters);
@@ -139,7 +128,7 @@ const ClientSelectionPage: React.FC = () => {
   
   const handleClientSelected = (clientId: string) => {
     console.log('Client selected:', clientId);
-    selectClient(clientId);
+    setClient(clientId);
   };
   
   const handleLogout = () => {
@@ -379,7 +368,6 @@ const ClientSelectionPage: React.FC = () => {
                   Available Clients ({filteredClients.length})
                 </Typography>
                 <ClientListSelector 
-                  clients={filteredClients}
                   vertical={true}
                   showSearch={false} // We have our own search functionality now
                   maxHeight={500}
@@ -480,10 +468,9 @@ const ClientSelectionPage: React.FC = () => {
       {openClientDialog && (
         <ClientDialog 
           open={true} 
-          onClose={(client?: Client) => handleCloseClientDialog(client)} 
+          onClose={handleCloseClientDialog} 
           title="Create New Client"
-          onCreateClient={createClient} 
-          useContext={true} // Flag to use ClientContext instead of direct API calls
+          // ClientDialog handles creation internally now
         />
       )}
     </Container>

@@ -1,17 +1,21 @@
-import express from 'express';
+import express, { Request, Response, NextFunction, Router } from 'express';
 import { checkAuth } from '../middleware/auth.middleware';
 import { supabase } from '../db/supabaseClient';
 import { creatomateService } from '../services/creatomateService';
+import { AuthenticatedRequest } from '../types/AuthenticatedRequest';
 
-const router = express.Router();
+const router = Router();
 
 // Get all campaigns for the current user
-router.get('/', checkAuth, async (req, res) => {
+router.get('/', checkAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
     const { data, error } = await supabase
       .from('campaigns')
       .select('*')
-      .eq('owner_id', req.user.id)
+      .eq('owner_id', req.user.userId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -24,8 +28,12 @@ router.get('/', checkAuth, async (req, res) => {
 });
 
 // Get a single campaign by ID
-router.get('/:id', checkAuth, async (req, res) => {
+router.get('/:id', checkAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const campaignId = req.params.id;
+    if (!req.user) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
     // Get campaign with executions
     const { data, error } = await supabase
       .from('campaigns')
@@ -33,8 +41,8 @@ router.get('/:id', checkAuth, async (req, res) => {
         *,
         executions (*)
       `)
-      .eq('id', req.params.id)
-      .eq('owner_id', req.user.id)
+      .eq('id', campaignId)
+      .eq('owner_id', req.user.userId)
       .single();
 
     if (error) throw error;
@@ -50,8 +58,11 @@ router.get('/:id', checkAuth, async (req, res) => {
 });
 
 // Create a new campaign
-router.post('/', checkAuth, async (req, res) => {
+router.post('/', checkAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
     const { 
       name,
       description, 
@@ -80,7 +91,7 @@ router.post('/', checkAuth, async (req, res) => {
           platforms,
           tags,
           status: 'draft',
-          owner_id: req.user.id
+          owner_id: req.user.userId
         }
       ])
       .select()
@@ -103,8 +114,12 @@ router.post('/', checkAuth, async (req, res) => {
 });
 
 // Update a campaign
-router.put('/:id', checkAuth, async (req, res) => {
+router.put('/:id', checkAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const campaignId = req.params.id;
+    if (!req.user) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
     const { 
       name,
       description, 
@@ -120,8 +135,8 @@ router.put('/:id', checkAuth, async (req, res) => {
     const { data: existingCampaign, error: fetchError } = await supabase
       .from('campaigns')
       .select('*')
-      .eq('id', req.params.id)
-      .eq('owner_id', req.user.id)
+      .eq('id', campaignId)
+      .eq('owner_id', req.user.userId)
       .single();
 
     if (fetchError || !existingCampaign) {
@@ -142,7 +157,7 @@ router.put('/:id', checkAuth, async (req, res) => {
         status: status || existingCampaign.status,
         updated_at: new Date().toISOString()
       })
-      .eq('id', req.params.id)
+      .eq('id', campaignId)
       .select(`
         *,
         executions (*)
@@ -163,14 +178,18 @@ router.put('/:id', checkAuth, async (req, res) => {
 });
 
 // Delete a campaign
-router.delete('/:id', checkAuth, async (req, res) => {
+router.delete('/:id', checkAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const campaignId = req.params.id;
+    if (!req.user) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
     // Check ownership
     const { data: campaign, error: fetchError } = await supabase
       .from('campaigns')
       .select('*')
-      .eq('id', req.params.id)
-      .eq('owner_id', req.user.id)
+      .eq('id', campaignId)
+      .eq('owner_id', req.user.userId)
       .single();
 
     if (fetchError || !campaign) {
@@ -181,7 +200,7 @@ router.delete('/:id', checkAuth, async (req, res) => {
     const { error: deleteExecutionsError } = await supabase
       .from('executions')
       .delete()
-      .eq('campaign_id', req.params.id);
+      .eq('campaign_id', campaignId);
 
     if (deleteExecutionsError) throw deleteExecutionsError;
 
@@ -189,7 +208,7 @@ router.delete('/:id', checkAuth, async (req, res) => {
     const { error } = await supabase
       .from('campaigns')
       .delete()
-      .eq('id', req.params.id);
+      .eq('id', campaignId);
 
     if (error) throw error;
 
@@ -208,9 +227,12 @@ router.delete('/:id', checkAuth, async (req, res) => {
 });
 
 // Add execution to campaign
-router.post('/:id/executions', checkAuth, async (req, res) => {
+router.post('/:id/executions', checkAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const campaignId = req.params.id;
+    if (!req.user) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
     const { 
       name,
       templateId,
@@ -224,7 +246,7 @@ router.post('/:id/executions', checkAuth, async (req, res) => {
       .from('campaigns')
       .select('*')
       .eq('id', campaignId)
-      .eq('owner_id', req.user.id)
+      .eq('owner_id', req.user.userId)
       .single();
 
     if (fetchError || !campaign) {
@@ -243,7 +265,7 @@ router.post('/:id/executions', checkAuth, async (req, res) => {
           format,
           assets,
           status: 'draft',
-          owner_id: req.user.id
+          owner_id: req.user.userId
         }
       ])
       .select()
@@ -266,10 +288,12 @@ router.post('/:id/executions', checkAuth, async (req, res) => {
 });
 
 // Start rendering campaign executions
-router.post('/:id/render', checkAuth, async (req, res) => {
+router.post('/:id/render', checkAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const campaignId = req.params.id;
-
+    if (!req.user) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
     // Check campaign ownership
     const { data: campaign, error: fetchError } = await supabase
       .from('campaigns')
@@ -278,7 +302,7 @@ router.post('/:id/render', checkAuth, async (req, res) => {
         executions (*)
       `)
       .eq('id', campaignId)
-      .eq('owner_id', req.user.id)
+      .eq('owner_id', req.user.userId)
       .single();
 
     if (fetchError || !campaign) {

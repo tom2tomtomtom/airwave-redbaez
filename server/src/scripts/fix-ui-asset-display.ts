@@ -51,7 +51,11 @@ async function testAssetRetrieval() {
         console.log(`File size: ${fileStats.size} bytes`);
       }
     } catch (fsError) {
-      console.log(`Error checking file: ${fsError.message}`);
+      if (fsError instanceof Error) {
+        console.log(`Error checking file: ${fsError.message}`);
+      } else {
+        console.log('Error checking file:', fsError);
+      }
     }
     
     // 3. Test retrieving assets with different client contexts

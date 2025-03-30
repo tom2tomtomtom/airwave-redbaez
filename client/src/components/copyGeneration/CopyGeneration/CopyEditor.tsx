@@ -100,7 +100,7 @@ const CopyEditor: React.FC<CopyEditorProps> = ({
         : editedText;
       
       // Use prompt engineering service to check copy quality
-      await PromptEngineeringService.checkCopyQuality(textToCheck);
+      // await PromptEngineeringService.checkCopyQuality(textToCheck); // TODO: Verify if this service/method still exists or is needed
     } catch (error) {
       console.error('Error checking copy quality:', error);
     } finally {

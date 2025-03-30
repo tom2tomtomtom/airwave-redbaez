@@ -1,5 +1,8 @@
 import axios from 'axios';
-import WebSocketService from './websocket';
+import { WebSocketService } from './WebSocketService'; // Update import path
+import { WebSocketEvent, JobProgressPayload } from '../types/websocket.types'; 
+import { logger } from '../utils/logger';
+import { v4 as uuidv4 } from 'uuid';
 
 // Import the Runway SDK
 const RunwayML = require('@runwayml/sdk').default;
@@ -32,6 +35,7 @@ interface RunwayImageGenerationOptions {
   style?: string;
   seed?: number;
   clientId?: string;
+  userId?: string; // Add userId
   withLogo?: boolean;
 }
 
@@ -42,6 +46,7 @@ interface RunwayVideoGenerationOptions {
   motionStrength?: number;  // How much motion to apply (0.0 to 1.0)
   duration?: number;        // Video duration in seconds
   clientId?: string;        // Client ID for tracking
+  userId?: string;        // User ID for tracking
 }
 
 interface RunwayTextToVideoOptions {
@@ -53,6 +58,7 @@ interface RunwayTextToVideoOptions {
   height?: number;          // Height of the video (default: 576)
   duration?: number;        // Video duration in seconds (default: 4)
   clientId?: string;        // Client ID for tracking
+  userId?: string;        // User ID for tracking
 }
 
 interface GenerationJob {
@@ -205,11 +211,17 @@ class RunwayService {
       
       // Notify clients via WebSocket if available
       if (this.wsService) {
-        this.wsService.broadcastToAll('image_generation_complete', {
-          jobId: job.id,
-          status: job.status,
-          url: job.imageUrl
-        });
+        const finalData: JobProgressPayload = {
+          jobId: taskId, // Use taskId from the outer scope
+          service: 'runway',
+          status: 'succeeded',
+          progress: 100, // Success means 100%
+          resultUrl: imageUrl ?? undefined, // Handle potentially undefined imageUrl
+          clientId: options.clientId ?? '', // Add fallback
+          userId: options.userId ?? '', // Add fallback
+          message: `Image generation succeeded`,
+        };
+        this.wsService.broadcast(WebSocketEvent.JOB_PROGRESS, finalData);
       }
 
       return job;
@@ -464,8 +476,8 @@ class RunwayService {
       // Store job for tracking
       this.activeJobs.set(jobId, job);
       
-      // Start polling for results in the background
-      this.pollVideoTask(task.id, jobId);
+      // Start polling for results in the background, passing context
+      this.pollVideoTask(task.id, jobId, options.clientId, options.userId);
       
       return job;
     } catch (error: any) {
@@ -477,11 +489,11 @@ class RunwayService {
   /**
    * Poll for video task results and update the job status
    */
-  private async pollVideoTask(taskId: string, jobId: string) {
+  private async pollVideoTask(taskId: string, jobId: string, clientId?: string, userId?: string) {
     try {
       // Poll for task completion
       const videoUrl = await this.pollForTaskResults(taskId);
-      
+
       // Update the job with the video URL
       const job = this.activeJobs.get(jobId);
       if (job) {
@@ -491,11 +503,17 @@ class RunwayService {
         
         // Notify clients via WebSocket if available
         if (this.wsService) {
-          this.wsService.broadcastToAll('video_generation_complete', {
-            jobId: job.id,
-            status: job.status,
-            url: job.videoUrl
-          });
+          const finalData: JobProgressPayload = {
+            jobId: taskId, // Use taskId from the outer scope
+            service: 'runway',
+            status: 'succeeded',
+            progress: 100, // Success means 100%
+            resultUrl: videoUrl, // Use finalOutputUrl
+            clientId: clientId ?? '', // Use passed clientId with fallback
+            userId: userId ?? '', // Use passed userId with fallback
+            message: `Video generation succeeded`,
+          };
+          this.wsService.broadcast(WebSocketEvent.JOB_PROGRESS, finalData);
         }
       }
     } catch (error: any) {
@@ -510,11 +528,16 @@ class RunwayService {
         
         // Notify clients via WebSocket if available
         if (this.wsService) {
-          this.wsService.broadcastToAll('video_generation_failed', {
-            jobId: job.id,
-            status: job.status,
-            error: job.error
-          });
+          const finalData: JobProgressPayload = {
+            jobId: taskId, // Use taskId from outer scope
+            service: 'runway',
+            status: 'failed',
+            error: error.message,
+            clientId: clientId ?? '', // Use passed clientId with fallback
+            userId: userId ?? '', // Use passed userId with fallback
+            message: `Video generation failed: ${error.message}`,
+          };
+          this.wsService.broadcast(WebSocketEvent.JOB_PROGRESS, finalData);
         }
       }
     }

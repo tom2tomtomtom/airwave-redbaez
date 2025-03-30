@@ -13,7 +13,8 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const MISSING_ASSET_ID = '3feaa091-bd0b-4501-8c67-a5f96c767e1a';
 
 // Use the admin user ID we know exists
-const ADMIN_USER_ID = 'd53c7f82-42af-4ed0-a83b-2cbf505748db';
+let ADMIN_USER_ID = 'd53c7f82-42af-4ed0-a83b-2cbf505748db'; // Default, will be overwritten
+const DEFAULT_CLIENT_ID = 'fe418478-806e-411a-ad0b-1b9a537a8081'; // Replace with your actual default client ID
 
 async function fixMissingAsset() {
   console.log('=== Fixing Missing Asset ===');
@@ -42,9 +43,8 @@ async function fixMissingAsset() {
         return;
       }
       
-      console.log('Found valid user:', anyUser);
-      console.log(`Using user ID: ${anyUser.id}`);
-      ADMIN_USER_ID = anyUser.id;
+      console.log('Found user:', anyUser.id);
+      ADMIN_USER_ID = anyUser.id; // Assign the first found user ID
     } else {
       console.log('Admin user found:', adminUser);
     }
@@ -88,7 +88,7 @@ async function fixMissingAsset() {
       url: `/uploads/asset-Juniper-Brainfog-Colour-2x-${MISSING_ASSET_ID}.png`,
       thumbnail_url: `/uploads/thumb-${MISSING_ASSET_ID}.png`,
       user_id: ADMIN_USER_ID, // Valid user ID
-      client_id: 'fe418478-806e-411a-ad0b-1b9a537a8081', // Juniper client ID
+      client_id: DEFAULT_CLIENT_ID, // Default client ID
       meta: {
         originalName: 'Juniper_Brainfog_Colour@2x.png',
         mimeType: 'image/png',

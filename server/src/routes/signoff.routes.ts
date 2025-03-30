@@ -4,6 +4,7 @@ import { supabase } from '../db/supabaseClient';
 import { v4 as uuidv4 } from 'uuid';
 import { signoffService } from '../services/signoffService';
 import { SignoffSession, SignoffAsset, SignoffResponse } from '../models/signoff.model';
+import { AuthenticatedRequest } from '../types/AuthenticatedRequest';
 
 const router = express.Router();
 
@@ -24,8 +25,16 @@ interface SignOffItem {
 }
 
 // Create a new sign-off request
-router.post('/', checkAuth, async (req, res) => {
+router.post('/', checkAuth, async (req: AuthenticatedRequest, res) => {
   try {
+    // Explicit check to satisfy TypeScript, even with checkAuth middleware
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+    }
+    
     const { campaignId, title, type, content } = req.body;
     
     if (!campaignId || !title || !type || !content) {
@@ -43,7 +52,7 @@ router.post('/', checkAuth, async (req, res) => {
       content,
       status: 'pending',
       version: 1,
-      createdBy: req.user.id,
+      createdBy: req.user.userId, // Use userId
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -99,9 +108,18 @@ router.post('/', checkAuth, async (req, res) => {
 });
 
 // Get sign-off items for a campaign
-router.get('/campaign/:campaignId', checkAuth, async (req, res) => {
+router.get('/campaign/:campaignId', checkAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const { campaignId } = req.params;
+    
+    if (!req.user) {
+      // If no user, maybe allow if a valid client token is present?
+      // For now, assume it requires internal user auth.
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
     
     const { data, error } = await supabase
       .from('sign_off_items')
@@ -129,9 +147,18 @@ router.get('/campaign/:campaignId', checkAuth, async (req, res) => {
 });
 
 // Get a specific sign-off item
-router.get('/:id', checkAuth, async (req, res) => {
+router.get('/:id', checkAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
+    
+    if (!req.user) {
+      // If no user, maybe allow if a valid client token is present?
+      // For now, assume it requires internal user auth.
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
     
     const { data, error } = await supabase
       .from('sign_off_items')
@@ -159,10 +186,19 @@ router.get('/:id', checkAuth, async (req, res) => {
 });
 
 // Update a sign-off item status
-router.put('/:id/status', checkAuth, async (req, res) => {
+router.put('/:id/status', checkAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
     const { status, comments } = req.body;
+    
+    if (!req.user) {
+      // If no user, maybe allow if a valid client token is present?
+      // For now, assume it requires internal user auth.
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
     
     if (!status || !['pending', 'approved', 'rejected', 'revision'].includes(status)) {
       return res.status(400).json({
@@ -206,10 +242,19 @@ router.put('/:id/status', checkAuth, async (req, res) => {
 });
 
 // Create a new version of a sign-off item
-router.post('/:id/versions', checkAuth, async (req, res) => {
+router.post('/:id/versions', checkAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
     const { content, title } = req.body;
+    
+    if (!req.user) {
+      // If no user, maybe allow if a valid client token is present?
+      // For now, assume it requires internal user auth.
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
     
     if (!content) {
       return res.status(400).json({

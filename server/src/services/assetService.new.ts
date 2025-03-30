@@ -1,11 +1,22 @@
-import { supabase } from '../db/supabaseClient';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
-import fs from 'fs';
 import path from 'path';
-import sharp from 'sharp';
-import ffmpeg from 'fluent-ffmpeg';
-import { promisify } from 'util';
-import { AUTH_MODE } from '../middleware/auth';
+import fs from 'fs/promises'; // Correct import for promise-based fs
+import { promisify } from 'util'; // Ensure promisify is imported
+import ffmpeg from 'fluent-ffmpeg'; // Ensure ffmpeg types are imported
+import sharp from 'sharp'; // Import sharp
+
+// Import canonical types
+import {
+  Asset,
+  DbAsset,
+  AssetFilters,
+  ServiceResult,
+  AssetUploadOptions,
+  ImageMetadata,
+  VideoMetadata,
+  AudioMetadata,
+} from '../types/assetTypes';
 
 // Convert fs methods to promise-based
 const mkdir = promisify(fs.mkdir);
@@ -15,86 +26,31 @@ const unlink = promisify(fs.unlink);
 const stat = promisify(fs.stat);
 
 /**
- * Interface definitions for the Asset Service
- */
-
-// Database schema representation (matches Supabase columns)
-export interface DbAsset {
-  id: string;
-  name: string;
-  type: string;
-  url: string;
-  thumbnail_url?: string;
-  user_id?: string;
-  owner_id?: string;
-  meta?: Record<string, any>;
-  created_at: string;
-  updated_at: string;
-  client_id?: string;
-}
-
-// Application interface with camelCase properties
-export interface Asset {
-  id: string;
-  name: string;
-  type: string;
-  description?: string;
-  url: string;
-  previewUrl?: string;
-  thumbnailUrl?: string;
-  size?: number;
-  width?: number;
-  height?: number;
-  duration?: number;
-  tags?: string[];
-  categories?: string[];
-  isFavourite?: boolean;
-  usageCount?: number;
-  userId?: string;
-  ownerId?: string;
-  clientId: string;
-  createdAt: string;
-  updatedAt: string;
-  metadata?: Record<string, any>;
-}
-
-export interface ServiceResult<T = any> {
-  success: boolean;
-  message?: string;
-  code?: number;
-  asset?: Asset;
-  data?: T;
-}
-
-export interface AssetUploadResult extends ServiceResult {
-  asset: Asset;
-}
-
-export interface AssetFilters {
-  type?: string[];
-  tags?: string[];
-  categories?: string[];
-  favouritesOnly?: boolean;
-  searchTerm?: string;
-  userId?: string;
-  clientId?: string;
-  clientSlug?: string;
-  sortBy?: 'name' | 'createdAt' | 'updatedAt' | 'usageCount';
-  sortDirection?: 'asc' | 'desc';
-  limit?: number;
-  offset?: number;
-  bypassAuth?: boolean;
-}
-
-/**
  * Service for managing assets
  */
 class AssetService {
-  private uploadsDir: string;
+  private supabase: SupabaseClient;
+  private readonly uploadsDir: string;
+  private static instance: AssetService;
 
-  constructor() {
-    this.uploadsDir = path.join(process.cwd(), 'uploads');
-    this.ensureUploadsDir();
+  // Make constructor private for singleton pattern
+  private constructor() {
+    // Initialize Supabase client
+    // Ensure SUPABASE_URL and SUPABASE_KEY are in your environment variables
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase URL and Key must be provided in environment variables');
+    }
+    this.supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Set uploads directory
+    this.uploadsDir = path.resolve(process.env.UPLOAD_DIR || './uploads');
+    // Ensure uploads directory exists
+    if (!fs.existsSync(this.uploadsDir)) {
+      fs.mkdirSync(this.uploadsDir, { recursive: true });
+    }
   }
 
   /**
@@ -115,92 +71,73 @@ class AssetService {
    * This handles the conversion between DB column names and application properties
    * Ensures all required fields for UI compatibility are present
    */
-  public transformAssetFromDb(dbAsset: DbAsset): Asset {
-    // Extract metadata from the DB format
-    const meta = dbAsset.meta || {};
-
-    // Normalize owner_id to ensure it's never null (use user_id if owner_id is missing)
-    const normalizedOwnerId = dbAsset.owner_id || dbAsset.user_id || '';
-    
-    // If the owner_id is missing in the database, update it
-    if (!dbAsset.owner_id && dbAsset.user_id) {
-      try {
-        console.log(`Fixing missing owner_id for asset ${dbAsset.id} using user_id ${dbAsset.user_id}`);
-        // Don't await this to avoid slowing down the response
-        supabase
-          .from('assets')
-          .update({
-            owner_id: dbAsset.user_id
-          })
-          .eq('id', dbAsset.id)
-          .then(({ error }) => {
-            if (error) {
-              console.error(`Failed to update owner_id for asset ${dbAsset.id}:`, error);
-            } else {
-              console.log(`Successfully updated owner_id for asset ${dbAsset.id}`);
-            }
-          });
-      } catch (error) {
-        console.error(`Error updating owner_id for asset ${dbAsset.id}:`, error);
-      }
+  public transformAssetFromDb(dbAsset: DbAsset | Record<string, any>): Asset {
+    // Basic validation - ensure essential fields exist
+    if (!dbAsset || typeof dbAsset !== 'object' || !dbAsset.id || !dbAsset.name || !dbAsset.type) {
+      console.error('Invalid or incomplete DbAsset object provided to transformAssetFromDb', dbAsset);
+      // Throw or return a default/error Asset based on requirements
+      throw new Error('Invalid DbAsset data encountered during transformation.');
     }
 
-    // Create normalized metadata for UI compatibility
-    const normalizedMetadata = {
-      originalName: meta.originalName || `${dbAsset.name}.${dbAsset.type}`,
-      mimeType: meta.mimeType || this.getMimeTypeFromType(dbAsset.type),
-      description: meta.description || '',
-      size: meta.size || 0,
-      width: meta.width || 0,
-      height: meta.height || 0,
-      duration: meta.duration || 0,
-      tags: meta.tags || [],
-      categories: meta.categories || [],
-      isFavourite: meta.isFavourite || false,
-      usageCount: meta.usageCount || 0
+    // Extract metadata from the DB format (now uses 'metadata' field)
+    const metadata = (dbAsset.metadata || {}) as Record<string, any>;
+
+    // Normalize ownerId from potential user_id or ownerId in metadata for consistency
+    const normalizedOwnerId = dbAsset.owner_id || metadata?.ownerId || '';
+
+    // If the owner_id is missing in the database, update it (using snake_case)
+    // Non-blocking background update
+    if (!dbAsset.owner_id && dbAsset.user_id) {
+      this.supabase // Use the initialized client instance
+        .from('assets')
+        .update({
+          owner_id: dbAsset.user_id
+        })
+        .eq('id', dbAsset.id)
+        .then(({ error }) => {
+          if (error) {
+            console.error(`Failed to backfill owner_id for asset ${dbAsset.id}:`, error);
+          } else {
+            console.log(`Successfully backfilled owner_id for asset ${dbAsset.id}`);
+          }
+        });
+    }
+
+    // Map DbAsset (snake_case) to Asset (camelCase, extends SharedAsset)
+    const appAsset: Asset = {
+      // Core fields from SharedAsset (defined in ../types/shared.ts)
+      id: dbAsset.id,
+      name: dbAsset.name || 'Untitled Asset', // Provide default for name
+      type: dbAsset.type || this.determineAssetType(dbAsset.mime_type), // Ensure type is set
+      url: dbAsset.file_path || '', // Map file_path
+      thumbnailUrl: dbAsset.thumbnail_path || '', // Map thumbnail_path
+      description: ('description' in dbAsset && dbAsset.description) ? dbAsset.description : (metadata.description || ''), // From metadata
+      tags: dbAsset.tags || metadata.tags || [], // Prefer direct column, fallback to metadata
+      clientId: dbAsset.client_id || '', // Direct mapping
+      isFavourite: dbAsset.is_favourite || false, // Map is_favourite
+      size: dbAsset.size || 0,
+      width: dbAsset.width,
+      height: dbAsset.height,
+      duration: dbAsset.duration,
+      // Ensure dates are converted to ISO strings for the Asset interface
+      createdAt: dbAsset.created_at ? new Date(dbAsset.created_at).toISOString() : '',
+      updatedAt: dbAsset.updated_at ? new Date(dbAsset.updated_at).toISOString() : '',
+      ownerId: normalizedOwnerId, // Use normalized camelCase ownerId (derived above)
+      status: dbAsset.status || 'unknown', // Default status if missing
+      metadata: metadata, // Assign the whole metadata object
+      // Additional fields specific to the Asset interface (defined in ../types/assetTypes.ts)
+      processingStatus: metadata.processingStatus || 'complete', // Default if not in metadata
+      categories: dbAsset.categories || (metadata as Record<string, any>)?.categories || [], // Prefer direct column, safe access metadata
+      alternativeText: dbAsset.alternative_text || metadata.alternativeText || '', // Prefer direct column
+      // Ensure expiresAt is a string for the Asset interface
+      expiresAt: dbAsset.expires_at ? new Date(dbAsset.expires_at).toISOString() : '',
+      // Derive fileExtension from file_path
+      fileExtension: dbAsset.file_path ? path.extname(dbAsset.file_path).toLowerCase().substring(1) : '',
+      // TODO: Replace this placeholder with actual client slug lookup based on dbAsset.client_id
+      clientSlug: `client-${dbAsset.client_id}`, // Placeholder mapping for required field
     };
 
-    // Create asset with both snake_case and camelCase properties for maximum compatibility
-    return {
-      // DB fields (direct mapping)
-      id: dbAsset.id,
-      name: dbAsset.name,
-      type: dbAsset.type,
-      url: dbAsset.url,
-      thumbnailUrl: dbAsset.thumbnail_url || '',
-      previewUrl: meta.previewUrl || '',
-      
-      // UI expected fields (derived from meta or with defaults)
-      description: normalizedMetadata.description,
-      size: normalizedMetadata.size,
-      width: normalizedMetadata.width,
-      height: normalizedMetadata.height,
-      duration: normalizedMetadata.duration,
-      tags: normalizedMetadata.tags,
-      categories: normalizedMetadata.categories,
-      isFavourite: normalizedMetadata.isFavourite,
-      usageCount: normalizedMetadata.usageCount,
-      
-      // User/client identifiers - standardized to camelCase
-      userId: dbAsset.user_id || '',
-      ownerId: normalizedOwnerId,
-      clientId: dbAsset.client_id || meta.clientId || '',
-      // Store the clientSlug if available for URL-friendly identification
-      clientSlug: meta.clientSlug || '',
-      
-      // Timestamps in both formats
-      createdAt: dbAsset.created_at,
-      created_at: dbAsset.created_at,
-      updatedAt: dbAsset.updated_at,
-      updated_at: dbAsset.updated_at,
-      
-      // Both metadata formats
-      metadata: normalizedMetadata,
-      meta: {
-        ...meta,
-        ...normalizedMetadata
-      }
-    };
+    return appAsset;
   }
 
   /**
@@ -219,9 +156,9 @@ class AssetService {
   /**
    * Helper method to look up a client ID from a slug
    */
-  async lookupClientId(slug: string): Promise<string | null> {
+  private async lookupClientId(slug: string): Promise<string | null> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await this.supabase
         .from('clients')
         .select('id')
         .eq('slug', slug.toLowerCase())
@@ -248,355 +185,192 @@ class AssetService {
   async uploadAsset(
     file: Express.Multer.File,
     userId: string,
-    assetData: {
-      name: string;
-      type: string;
-      description?: string;
-      tags?: string[];
-      categories?: string[];
-      clientId: string;
-      additionalMetadata?: Record<string, any>;
-    }
-  ): Promise<ServiceResult<AssetUploadResult>> {
-    // Import AUTH_MODE here to avoid circular dependency
-    const { AUTH_MODE } = require('../middleware/auth');
+    assetData: AssetUploadOptions
+  ): Promise<ServiceResult<Asset>> {
     try {
-      console.log('Asset upload initiated:', {
-        fileName: file.originalname,
-        fileType: file.mimetype,
-        fileSize: file.size,
-        userId,
-        clientId: assetData.clientId
-      });
-      
-      // Use proper auth user when in development mode
-      if (!userId || userId === 'null' || userId === 'undefined' || userId === AUTH_MODE.DEV_USER_ID) {
-        // Admin user from auth.users table (dev@example.com) - this user exists in the auth system
-        const ADMIN_USER_ID = 'd53c7f82-42af-4ed0-a83b-2cbf505748db'; // Correct ID for dev@example.com
-        console.log('⚠️ DEV MODE: Using authenticated admin user with ID:', ADMIN_USER_ID);
-        
-        // Verify the admin user exists in the database
-        const { data: adminUser, error: adminUserError } = await supabase
-          .from('users')
-          .select('id, email, name, role')
-          .eq('id', ADMIN_USER_ID)
-          .single();
-        
-        if (adminUserError || !adminUser) {
-          console.error('❌ Admin user not found in database:', adminUserError);
-          return {
-            success: false,
-            message: 'Failed to verify admin user exists in database. Asset upload aborted.',
-            asset: null as unknown as Asset
-          };
-        } else {
-          console.log('✅ Admin user verified in database:', adminUser);
-          // Set the userId to the admin user
-          userId = ADMIN_USER_ID;
-        }
+      // 1. Validate input
+      if (!file || !userId || !assetData.clientId) {
+        console.error('Upload validation failed:', { file: !!file, userId, clientId: assetData.clientId });
+        return { success: false, message: 'Missing required file, userId, or clientId for upload.' };
       }
 
-      // Validate essential parameters
-      if (!file) {
-        return {
-          success: false,
-          message: 'No file provided',
-          asset: null as unknown as Asset
-        };
-      }
+      // Log entry point
+      console.log(`Attempting asset upload for user ${userId}, client ${assetData.clientId}, file ${file.originalname}`);
 
-      if (!userId) {
-        return {
-          success: false,
-          message: 'User ID is required',
-          asset: null as unknown as Asset
-        };
-      }
-
-      if (!assetData.clientId) {
-        return {
-          success: false,
-          message: 'Client ID is required',
-          asset: null as unknown as Asset
-        };
-      }
-
-      // Generate a unique ID for the asset
+      // 2. Determine asset type and process file (metadata, thumbnail)
+      const fileExtension = path.extname(file.originalname).toLowerCase().substring(1);
+      const mimeType = file.mimetype;
+      const assetType = this.determineAssetType(mimeType);
       const assetId = uuidv4();
-      
-      // Determine asset type based on MIME type if not specified
-      const assetType = assetData.type || this.determineAssetType(file.mimetype);
-      
-      // Create relative path for the file within uploads directory
-      const relativePath = path.join(
-        'clients',
-        assetData.clientId,
-        'assets',
-        assetType,
-        assetId
-      );
-      
-      // Create absolute path for the file
-      const assetDir = path.join(this.uploadsDir, relativePath);
-      await mkdir(assetDir, { recursive: true });
-      
-      // Original filename with extension
-      const originalExt = path.extname(file.originalname);
-      const originalFileName = `original${originalExt}`;
-      const filePath = path.join(assetDir, originalFileName);
-      
-      // Write the file to disk
-      await writeFile(filePath, file.buffer);
-      
-      // Create the asset object
-      const asset: Asset = {
-        id: assetId,
-        name: assetData.name || file.originalname,
-        type: assetType,
-        description: assetData.description || '',
-        url: `/uploads/${relativePath}/${originalFileName}`,
-        thumbnailUrl: '',
-        size: file.size,
-        userId,
-        ownerId: userId,
-        clientId: assetData.clientId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        tags: assetData.tags || [],
-        categories: assetData.categories || [],
-        isFavourite: false,
-        usageCount: 0,
-        metadata: assetData.additionalMetadata || {}
-      };
-      
-      // Process the asset based on its type
-      if (assetType === 'image') {
-        await this.processImageAsset(asset, filePath);
-      } else if (assetType === 'video') {
-        await this.processVideoAsset(asset, filePath);
-      } else if (assetType === 'audio') {
-        await this.processAudioAsset(asset, filePath);
-      }
-      
-      // Check if we need to use the development user ID
-      if (!userId || userId === 'null' || userId === 'undefined') {
-        console.log(`No valid user ID provided, using development user ID (${AUTH_MODE.DEV_USER_ID}) for upload`);
-        userId = AUTH_MODE.DEV_USER_ID;
-      }
-      
-      console.log(`[ASSET UPLOAD] Using user ID: ${userId}`);
-      
-      // Check if the user exists in the database, especially important for development user
-      if (userId === AUTH_MODE.DEV_USER_ID) {
-        console.log('🔍 Checking if development user exists in database...');
-        const { data: userExists, error: userCheckError } = await supabase
-          .from('users')
-          .select('id')
-          .eq('id', userId)
-          .single();
-          
-        if (userCheckError || !userExists) {
-          console.log('⚠️ Development user not found, creating it now...');
-          
-          // Create development user if it doesn't exist
-          const { error: createError } = await supabase
-            .from('users')
-            .insert({
-              id: AUTH_MODE.DEV_USER_ID,
-              email: 'dev@airwave.dev',
-              name: 'Development User',
-              role: 'admin',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            });
-            
-          if (createError) {
-            console.error('❌ Failed to create development user:', createError);
-            return {
-              success: false,
-              message: `Failed to create development user: ${createError.message}`,
-              asset: asset
-            };
-          }
-          
-          console.log('✅ Development user created successfully');
-        } else {
-          console.log('✅ Development user exists in database');
-        }
-      }
-      
-      // Always save to database regardless of mode
+      const uniqueFilename = `${assetId}.${fileExtension}`;
+      const clientUploadsPath = path.join(this.uploadsDir, assetData.clientId); // Use instance var
+      const relativeFilePath = path.join(assetData.clientId, uniqueFilename); // Relative path for DB/URL
+      const absoluteFilePath = path.join(this.uploadsDir, relativeFilePath);
+      let relativeThumbnailPath: string | undefined = undefined;
+      let fileMetadata: Record<string, any> = {}; // Metadata extracted from file
+
+      // Ensure client directory exists
+      await mkdir(clientUploadsPath, { recursive: true });
+      // Save the original file
+      await writeFile(absoluteFilePath, file.buffer);
+      console.log(`Saved original file to: ${absoluteFilePath}`);
+
+      // Process based on type
+      const processingPromises: Promise<void>[] = [];
       try {
-        // First, perform an explicit check if the asset will work with this user
-        const { data: userCheck, error: userCheckError } = await supabase
-          .from('users')
-          .select('id')
-          .eq('id', userId);
+        if (assetType === 'image') {
+          processingPromises.push((async () => {
+            const imageMetadata = await sharp(absoluteFilePath).metadata();
+            fileMetadata.width = imageMetadata.width;
+            fileMetadata.height = imageMetadata.height;
+            fileMetadata.format = imageMetadata.format;
+            fileMetadata.size = file.size; // From multer file object
 
-        if (userCheckError || !userCheck || userCheck.length === 0) {
-          console.log('⚠️ Final validation failed - user not found in database. Attempting alternative approach...');
-          
-          // If user still doesn't exist after our checks, try one final approach
-          // Insert user directly with all fields
-          const { error: lastResortError } = await supabase
-            .from('users')
-            .upsert({
-              id: userId === AUTH_MODE.DEV_USER_ID ? AUTH_MODE.DEV_USER_ID : userId,
-              email: userId === AUTH_MODE.DEV_USER_ID ? 'dev@airwave.dev' : `user-${userId}@example.com`,
-              name: userId === AUTH_MODE.DEV_USER_ID ? 'Development User' : 'Unknown User',
-              role: 'user',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }, { onConflict: 'id' });
-            
-          if (lastResortError) {
-            console.error('❌ Final user creation attempt failed:', lastResortError);
-          } else {
-            console.log('✅ User created/updated using upsert approach');
-          }
+            // Generate thumbnail
+            const thumbnailFilename = `${assetId}_thumb.jpg`;
+            const absoluteThumbnailPath = path.join(clientUploadsPath, thumbnailFilename);
+            relativeThumbnailPath = path.join(assetData.clientId, thumbnailFilename); // Relative path for DB/URL
+            await sharp(absoluteFilePath)
+              .resize(200)
+              .jpeg({ quality: 80 })
+              .toFile(absoluteThumbnailPath);
+            console.log(`Generated image thumbnail: ${relativeThumbnailPath}`);
+          })());
+        } else if (assetType === 'video') {
+          processingPromises.push((async () => {
+            const videoMetadata = await this.getVideoMetadata(absoluteFilePath);
+            fileMetadata = { ...fileMetadata, ...videoMetadata }; // Merge video metadata
+            fileMetadata.size = file.size; // Ensure size is set
+
+            // Generate thumbnail from video
+            const thumbnailFilename = `${assetId}_thumb.jpg`;
+            const absoluteThumbnailPath = path.join(clientUploadsPath, thumbnailFilename);
+            relativeThumbnailPath = path.join(assetData.clientId, thumbnailFilename);
+            await this.generateVideoThumbnail(absoluteFilePath, absoluteThumbnailPath);
+            console.log(`Generated video thumbnail: ${relativeThumbnailPath}`);
+          })());
         }
-        
-        // Now insert the asset with explicit field setting
-        console.log(`Inserting asset with user_id: ${userId}`);
-        
-        // Ensure URL is always set - this is a required field
-        if (!asset.url) {
-          console.warn('⚠️ Asset URL is not set - using fallback');
-          asset.url = `/uploads/${asset.id}`;
+
+        // Add simple size metadata for other types if not already set by specific processing
+        if (!fileMetadata.size) {
+          fileMetadata.size = file.size;
         }
-        
-        const dbAsset = {
-            id: asset.id,
-            name: asset.name,
-            type: asset.type,
-            url: asset.url, // Required field - NOT NULL constraint
-            thumbnail_url: asset.thumbnailUrl || null,
-            user_id: userId,  // Use the userId we've determined
-            owner_id: userId, // Use the userId we've determined
-            client_id: asset.clientId || 'default',
-            meta: { // Keep fields minimal initially to avoid schema issues
-              description: asset.description || '',
-              tags: asset.tags || [],
-              categories: asset.categories || []
-            },
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+
+        // Wait for all processing (metadata, thumbnail) to complete
+        await Promise.all(processingPromises);
+        console.log(`File processing complete for ${assetId}`);
+
+        // 3. Construct DbAsset object (using imported DbAsset type with snake_case)
+        const finalMetadata = {
+          // Start with file-extracted metadata
+          ...fileMetadata,
+          // Add provided metadata from options (takes precedence if keys overlap)
+          ...(assetData.metadata || {}),
+          // Ensure some standard fields are present from options
+          description: assetData.description || fileMetadata.description || '',
+          clientSlug: assetData.clientSlug || '', // Store client slug if provided
+          originalName: file.originalname, // Always store original name
         };
-        
-        // Perform the insert operation
-        const { data, error } = await supabase
-          .from('assets')
-          .insert(dbAsset)
-          .select()
-          .single();
 
-        if (error) {
-          console.error('Error saving asset to database:', error);
-          
-          // If we still get a foreign key error, try more approaches with the dev user
-          if (error.code === '23503' && userId === AUTH_MODE.DEV_USER_ID) {
-            console.log('⚠️ Foreign key constraint still failing. Trying alternative approaches...');
-            console.log('Details:', error.details);
-            
-            // APPROACH 1: Try inserting with stringified meta data
+        const dbAssetPayload: Omit<DbAsset, 'created_at' | 'updated_at'> = {
+          id: assetId,
+          name: assetData.name || path.parse(file.originalname).name, // Use provided name or base filename
+          type: assetType,
+          mime_type: mimeType,
+          file_path: relativeFilePath, // Store relative path
+          thumbnail_path: relativeThumbnailPath,
+          size: fileMetadata.size || 0,
+          width: fileMetadata.width,
+          height: fileMetadata.height,
+          duration: fileMetadata.duration,
+          user_id: userId, // FK to users table
+          owner_id: userId, // Assume uploader is owner
+          client_id: assetData.clientId, // FK to clients table
+          tags: assetData.tags || [], // Use tags from options
+          categories: assetData.categories || [], // Use categories from options
+          is_favourite: assetData.isFavourite || false,
+          status: 'active', // Initial status
+          alternative_text: assetData.alternativeText || '',
+          metadata: finalMetadata, // Combined metadata
+          expires_at: assetData.expiresAt, // Assign Date object or undefined directly, matching DbAsset type
+        };
+
+        // 4. Save to database using the initialized Supabase client
+        try {
+          console.log(`Inserting asset ${assetId} into database for user ${userId}`);
+          const { data, error } = await this.supabase
+            .from('assets')
+            .insert(dbAssetPayload)
+            .select()
+            .single();
+
+          if (error) {
+            console.error(`Supabase insert error for asset ${assetId}:`, error);
+            // Attempt cleanup: delete the saved file
             try {
-              console.log('Approach 1: Inserting with stringified meta data');
-              const { data: approach1Data, error: approach1Error } = await supabase
-                .from('assets')
-                .insert({
-                  ...dbAsset,
-                  meta: JSON.stringify(dbAsset.meta)
-                })
-                .select()
-                .single();
-                
-              if (!approach1Error) {
-                console.log('✅ Asset saved using approach 1');
-                return {
-                  success: true,
-                  message: 'Asset uploaded successfully with approach 1',
-                  asset: this.transformAssetFromDb(approach1Data as DbAsset)
-                };
+              await fs.unlink(absoluteFilePath);
+              if (relativeThumbnailPath) {
+                await fs.unlink(path.join(this.uploadsDir, relativeThumbnailPath));
               }
-              console.log('Approach 1 failed:', approach1Error);
-              
-              // APPROACH 2: Try upsert instead of insert
-              console.log('Approach 2: Using upsert instead of insert');
-              const { data: approach2Data, error: approach2Error } = await supabase
-                .from('assets')
-                .upsert(dbAsset)
-                .select()
-                .single();
-                
-              if (!approach2Error) {
-                console.log('✅ Asset saved using approach 2');
-                return {
-                  success: true,
-                  message: 'Asset uploaded successfully with approach 2',
-                  asset: this.transformAssetFromDb(approach2Data as DbAsset)
-                };
-              }
-              console.log('Approach 2 failed:', approach2Error);
-              
-              // APPROACH 3: Minimal insert with only required fields
-              console.log('Approach 3: Minimal insert with only required fields');
-              const { data: approach3Data, error: approach3Error } = await supabase
-                .from('assets')
-                .insert({
-                  id: asset.id,
-                  name: asset.name,
-                  type: asset.type,
-                  url: asset.url || `/uploads/${asset.id}`, // Ensure URL is never null
-                  user_id: AUTH_MODE.DEV_USER_ID,
-                  client_id: asset.clientId || 'default',
-                  created_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString()
-                })
-                .select()
-                .single();
-                
-              if (!approach3Error) {
-                console.log('✅ Asset saved using approach 3');
-                return {
-                  success: true,
-                  message: 'Asset uploaded successfully with approach 3',
-                  asset: this.transformAssetFromDb(approach3Data as DbAsset)
-                };
-              }
-              console.log('Approach 3 failed:', approach3Error);
-              
-            } catch (alternativeError: any) {
-              console.error('❌ All alternative approaches failed:', alternativeError);
+            } catch (cleanupError) {
+              console.error(`Failed to cleanup files for failed upload ${assetId}:`, cleanupError);
             }
+            return { success: false, message: `Database insert failed: ${error.message}`, error };
           }
-          
-          return {
-            success: false,
-            message: `Failed to save asset: ${error.message}`,
-            asset: asset
-          };
+
+          if (!data) {
+            console.error(`Supabase insert error: No data returned for asset ${assetId}`);
+            // Attempt cleanup
+            try {
+              await fs.unlink(absoluteFilePath);
+              if (relativeThumbnailPath) {
+                await fs.unlink(path.join(this.uploadsDir, relativeThumbnailPath));
+              }
+            } catch (cleanupError) {
+              console.error(`Failed to cleanup files for failed upload ${assetId}:`, cleanupError);
+            }
+            return { success: false, message: 'Database insert failed: No data returned.' };
+          }
+
+          console.log(`Asset ${assetId} successfully inserted into database.`);
+          // 5. Transform DbAsset to Asset for the response
+          const createdAsset = this.transformAssetFromDb(data as DbAsset); // data is already DbAsset
+
+          // Use ServiceResult<Asset> structure
+          return { success: true, data: createdAsset, message: 'Asset uploaded and processed successfully.' };
+
+        } catch (dbError: any) {
+          console.error(`Unexpected database operation error for asset ${assetId}:`, dbError);
+          // Attempt cleanup
+          try {
+            await fs.unlink(absoluteFilePath);
+            if (relativeThumbnailPath) {
+              await fs.unlink(path.join(this.uploadsDir, relativeThumbnailPath));
+            }
+          } catch (cleanupError) {
+            console.error(`Failed to cleanup files for failed upload ${assetId}:`, cleanupError);
+          }
+          return { success: false, message: `Database operation failed: ${dbError.message || 'Unknown error'}`, error: dbError };
         }
-        
-        console.log(`Successfully saved asset to database with ID: ${data.id}`);
-        return {
-          success: true,
-          message: 'Asset uploaded successfully',
-          asset: this.transformAssetFromDb(data as DbAsset)
-        };
-      } catch (dbError: any) {
-        console.error('Exception saving asset to database:', dbError);
-        return {
-          success: false,
-          message: `Failed to save asset: ${dbError.message}`,
-          asset: asset
-        };
+      } catch (processError: unknown) {
+        console.error('Error processing file:', processError);
+        // Attempt cleanup
+        try {
+          await fs.unlink(absoluteFilePath);
+          if (relativeThumbnailPath) {
+            await fs.unlink(path.join(this.uploadsDir, relativeThumbnailPath));
+          }
+        } catch (cleanupError) {
+          console.error(`Failed to cleanup files for failed upload ${assetId}:`, cleanupError);
+        }
+        return { success: false, message: `Failed to process file: ${processError instanceof Error ? processError.message : 'Unknown error'}`, error: processError };
       }
     } catch (error: any) {
-      console.error('Error uploading asset:', error);
+      console.error('Unhandled error during asset upload:', error);
       return {
         success: false,
-        message: `Failed to upload asset: ${error.message}`,
-        asset: null as unknown as Asset
+        message: `Upload failed: ${error.message || 'Unknown error'}`,
+        error: error,
       };
     }
   }
@@ -622,6 +396,68 @@ class AssetService {
     } else {
       return 'other';
     }
+  }
+
+  /**
+   * Helper method to get video metadata
+   */
+  private async getVideoMetadata(filePath: string): Promise<Record<string, any>> {
+    const ffprobeAsync = promisify(ffmpeg.ffprobe);
+    try {
+      // Pass the filePath to ffprobe
+      const metadata = await ffprobeAsync(filePath);
+
+      // Extract relevant data (example: dimensions, duration, codec)
+      const videoStream = metadata.streams.find(
+        // Added explicit type for stream parameter 's' with type predicate
+        (s: any): s is { codec_type: 'video' } => s.codec_type === 'video'
+      );
+      const format = metadata.format;
+
+      // Return relevant format data, adjust as needed
+      return {
+        duration: format.duration,
+        size: format.size,
+        bit_rate: format.bit_rate,
+        format_name: format.format_name,
+        width: videoStream?.width,
+        height: videoStream?.height,
+        codec: videoStream?.codec_name,
+        // Add other stream info if needed
+      };
+    } catch (err: unknown) {
+      const error = err as Error & { stderr?: string }; // Type assertion for potential stderr
+      console.error(`Error probing video ${filePath}:`, error.message);
+      if (error.stderr) {
+        console.error('FFprobe stderr:', error.stderr);
+      }
+      // Re-throw a more specific error or return a default object
+      throw new Error(`Failed to get video metadata for ${path.basename(filePath)}`);
+    }
+  }
+
+  /**
+   * Helper method to generate video thumbnail
+   */
+  private async generateVideoThumbnail(videoPath: string, outputPath: string): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      ffmpeg(videoPath)
+        .on('end', () => {
+          console.log(`Thumbnail generated successfully: ${outputPath}`);
+          resolve();
+        })
+        .on('error', (err: Error) => {
+          console.error(`Error generating thumbnail for ${videoPath}:`, err.message);
+          reject(new Error(`Failed to generate video thumbnail: ${err.message}`));
+        })
+        .screenshots({
+          count: 1,
+          folder: path.dirname(outputPath),
+          filename: path.basename(outputPath),
+          timemarks: ['1'], // Capture frame at 1 second, adjust as needed
+          size: `${200}x?`, // Keep aspect ratio
+        });
+    });
   }
 
   /**
@@ -672,16 +508,16 @@ class AssetService {
       // Extract a thumbnail from the video at the 1 second mark
       return new Promise<void>((resolve, reject) => {
         ffmpeg(filePath)
-          .on('error', (err) => {
+          .on('error', (err: Error) => {
             console.error('Error generating video thumbnail:', err);
             resolve(); // Continue even if thumbnail generation fails
           })
-          .on('end', () => {
+          .on('end', () => { // Add type for callback
             // Update asset with thumbnail URL
             asset.thumbnailUrl = `${asset.url.substring(0, asset.url.lastIndexOf('/'))}/${thumbnailFileName}`;
             
             // Try to get video metadata
-            ffmpeg.ffprobe(filePath, (err, metadata) => {
+            ffmpeg.ffprobe(filePath, (err: any, metadata: any) => {
               if (err) {
                 console.error('Error getting video metadata:', err);
                 resolve();
@@ -690,7 +526,7 @@ class AssetService {
               
               try {
                 if (metadata && metadata.streams && metadata.streams.length > 0) {
-                  const videoStream = metadata.streams.find(s => s.codec_type === 'video');
+                  const videoStream = metadata.streams.find((s: any): s is { codec_type: 'video' } => s.codec_type === 'video');
                   if (videoStream) {
                     asset.width = videoStream.width;
                     asset.height = videoStream.height;
@@ -732,7 +568,7 @@ class AssetService {
       // This would typically generate a waveform image and extract audio metadata
       // For now, we'll just extract basic metadata
       return new Promise<void>((resolve, reject) => {
-        ffmpeg.ffprobe(filePath, (err, metadata) => {
+        ffmpeg.ffprobe(filePath, (err: any, metadata: any) => {
           if (err) {
             console.error('Error getting audio metadata:', err);
             resolve();
@@ -765,32 +601,12 @@ class AssetService {
     try {
       console.log('🔍 DEBUG: Asset fetch initiated with filters:', JSON.stringify(filters, null, 2));
       
-      // Debug check if development user ID exists
-      const { data: devUserCheck, error: devUserError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('id', AUTH_MODE.DEV_USER_ID)
-        .single();
-        
-      console.log('🔍 DEBUG: Development user check:', devUserCheck ? 'User exists' : 'User DOES NOT exist', 
-                  devUserError ? `Error: ${devUserError.message}` : 'No error');
-                  
-      // Debug check if any assets exist for dev user
-      const { data: assetCountCheck, error: assetCountError } = await supabase
-        .from('assets')
-        .select('id', { count: 'exact' })
-        .eq('user_id', AUTH_MODE.DEV_USER_ID);  
-        
-      console.log('🔍 DEBUG: Asset count for dev user:', 
-                  assetCountCheck !== null ? `Found ${assetCountCheck.length} assets` : 'No assets found', 
-                  assetCountError ? `Error: ${assetCountError.message}` : 'No error');
-      
       // Default pagination values
       const limit = filters.limit || 50;
       const offset = filters.offset || 0;
       
       // First, get the count for pagination
-      let countQuery = supabase
+      let countQuery = this.supabase
         .from('assets')
         .select('id', { count: 'exact' });
       
@@ -805,7 +621,7 @@ class AssetService {
       }
       
       // Then, get the paginated data
-      let dataQuery = supabase
+      let dataQuery = this.supabase
         .from('assets')
         .select('*');
       
@@ -858,58 +674,69 @@ class AssetService {
   /**
    * Helper method to apply filters to a Supabase query
    */
-  private applyFiltersToQuery(query: any, filters: AssetFilters): any {
-    // Filter by client ID 
+  private applyFiltersToQuery(query: any, filters: AssetFilters): any { // `any` for query builder type flexibility
+    // Client Filter (crucial for multi-tenancy)
     if (filters.clientId) {
       query = query.eq('client_id', filters.clientId);
     }
     
-    // Handle client filtering by slug (more reliable)
-    if (filters.clientSlug) {
-      // We need to handle this case separately as it requires a join or subquery
-      // For simplicity in this implementation, we'll log this case
-      console.warn('Client slug filtering requires a join or subquery - implement based on your DB schema');
-    }
-    
-    // Filter by user ID - always ensure there's a valid user ID filter
+    // User Filter (if provided)
     if (filters.userId) {
-      query = query.eq('user_id', filters.userId);
-    } else {
-      // If no user ID provided, use the development user ID
-      console.log(`Using development user ID (${AUTH_MODE.DEV_USER_ID}) for asset retrieval`);
-      query = query.eq('user_id', AUTH_MODE.DEV_USER_ID);
+      query = query.eq('user_id', filters.userId); // Assuming user_id column
     }
     
-    // Filter by type
+    // Type Filter
     if (filters.type && filters.type.length > 0) {
       query = query.in('type', filters.type);
     }
     
-    // Filter by search term (search in name, description)
-    if (filters.searchTerm) {
-      const term = filters.searchTerm.trim();
-      if (term) {
-        // Use ILIKE for case-insensitive search
-        query = query.or(`name.ilike.%${term}%, meta->>description.ilike.%${term}%`);
-      }
-    }
-    
-    // Filter by favourites
-    if (filters.favouritesOnly) {
-      query = query.eq('meta->>isFavourite', 'true');
-    }
-    
-    // Tags and categories filters use containment operators
+    // Tag Filter (array contains)
+    // Assuming tags are stored directly in a 'tags' column (array type)
+    // If tags are in metadata JSON: query = query.contains('metadata->tags', filters.tags);
     if (filters.tags && filters.tags.length > 0) {
-      // Assumes tags are stored as a JSON array in the meta field
-      const tagConditions = filters.tags.map(tag => `meta->tags.cs.{"${tag}"}`).join(',');
-      query = query.or(tagConditions);
+      query = query.contains('tags', filters.tags);
     }
     
+    // Category Filter (array contains)
+    // Assuming categories are stored directly in a 'categories' column (array type)
+    // If categories are in metadata JSON: query = query.contains('metadata->categories', filters.categories);
     if (filters.categories && filters.categories.length > 0) {
-      const categoryConditions = filters.categories.map(category => 
-        `meta->categories.cs.{"${category}"}`).join(',');
-      query = query.or(categoryConditions);
+      query = query.contains('categories', filters.categories);
+    }
+    
+    // Favourites Filter
+    // Assuming is_favourite is a direct boolean column
+    // If in metadata: query = query.eq('metadata->isFavourite', true);
+    if (filters.favourite) { // Check favourite from imported type
+      query = query.eq('is_favourite', true);
+    }
+    
+    // Search Term Filter (searches name and description)
+    // Check search from imported type
+    if (filters.search) {
+      const searchTerm = `%${filters.search}%`;
+      // Assuming search across name, description (in metadata), and maybe tags/categories
+      query = query.or(`name.ilike.${searchTerm},metadata->>description.ilike.${searchTerm}`);
+      // Example: searching tags array: `tags.cs.{${filters.search}}`
+      // Example: searching alternative text: `alternative_text.ilike.${searchTerm}`
+    }
+    
+    // Date Range Filter
+    if (filters.startDate) {
+      query = query.gte('created_at', new Date(filters.startDate).toISOString());
+    }
+    if (filters.endDate) {
+      query = query.lte('created_at', new Date(filters.endDate).toISOString());
+    }
+    
+    // Status Filter
+    if (filters.status) {
+      query = query.eq('status', filters.status);
+    }
+    
+    // Owner Filter
+    if (filters.ownerId) {
+      query = query.eq('owner_id', filters.ownerId); // Corrected: use ownerId
     }
     
     return query;
@@ -921,7 +748,7 @@ class AssetService {
   async getAssetById(id: string, userId?: string): Promise<{asset: Asset | null, success: boolean, message?: string}> {
     try {
       // Build up our query
-      let query = supabase
+      let query = this.supabase
         .from('assets')
         .select('*');
       
@@ -971,7 +798,7 @@ class AssetService {
   async getAvailableCategories(): Promise<string[]> {
     try {
       // This query gets all unique categories from the assets
-      const { data, error } = await supabase
+      const { data, error } = await this.supabase
         .from('assets')
         .select('meta->categories')
         .not('meta->categories', 'is', null);
@@ -1002,145 +829,276 @@ class AssetService {
   }
 
   /**
-   * Delete an asset
+   * Deletes an asset, including its database record and associated files.
    */
-  async deleteAsset(id: string, userId?: string): Promise<{ success: boolean; message?: string }> {
+  public async deleteAsset(id: string, clientId: string): Promise<ServiceResult<boolean>> {
+    if (!this.isSupabaseConfigured()) {
+      return { success: false, error: 'Supabase client not configured.', message: 'Service configuration error.', data: false };
+    }
+    if (!id || !clientId) {
+      return { success: false, error: 'Asset ID and Client ID are required.', message: 'Missing required parameters.', data: false };
+    }
+
+    let filePathToDelete: string | undefined;
+    let thumbPathToDelete: string | undefined;
+
     try {
-      // First get the asset to check permissions and get file path
-      const { asset, success, message } = await this.getAssetById(id, userId);
-      
-      if (!success || !asset) {
-        return { success: false, message: message || 'Asset not found' };
+      // 1. Get asset details first to know which files to delete
+      const { data: assetData, error: fetchError } = await this.supabase
+        .from('assets')
+        .select('file_path, thumbnail_path')
+        .eq('id', id)
+        .eq('client_id', clientId)
+        .maybeSingle();
+
+      if (fetchError) {
+        console.error(`Error fetching asset ${id} before deletion:`, fetchError);
+        return { success: false, error: fetchError.message, message: `Database error checking asset before delete: ${fetchError.message}`, data: false };
       }
-      
-      // Delete from database
-      const { error } = await supabase
+
+      if (!assetData) {
+        // Asset doesn't exist or doesn't belong to client - treat as success (idempotent delete)
+        console.log(`Asset ${id} not found for client ${clientId} during delete attempt. Assuming already deleted.`);
+        return { success: true, message: 'Asset not found, assumed already deleted.', data: true };
+      }
+
+      filePathToDelete = assetData.file_path;
+      thumbPathToDelete = assetData.thumbnail_path;
+
+      // 2. Delete the database record
+      const { error: deleteError } = await this.supabase
         .from('assets')
         .delete()
-        .eq('id', id);
-      
-      if (error) {
-        return { success: false, message: `Database error: ${error.message}` };
-      }
-      
-      // Delete the files from storage
-      try {
-        // Extract the relative path from URL
-        const urlPath = asset.url;
-        if (urlPath.startsWith('/uploads/')) {
-          const relativePath = urlPath.substring('/uploads/'.length);
-          const assetDir = path.dirname(path.join(this.uploadsDir, relativePath));
-          
-          // Recursively delete the asset directory
-          fs.rm(assetDir, { recursive: true, force: true }, (err) => {
-            if (err) {
-              console.error(`Error deleting asset files for ${id}:`, err);
-            }
-          });
+        .eq('id', id)
+        .eq('client_id', clientId);
+
+      if (deleteError) {
+        // Check if it was a 'not found' error again (e.g., race condition)
+        if (deleteError.code === 'PGRST204') { // Not found or RLS failed
+          console.log(`Asset ${id} not found during delete confirmation (PGRST204). Assuming deleted.`);
+          // Proceed to file cleanup anyway, in case DB delete failed but files exist
+        } else {
+          console.error(`Error deleting asset ${id} from database:`, deleteError);
+          return { success: false, error: deleteError.message, message: `Database error deleting asset: ${deleteError.message}`, data: false };
         }
-      } catch (fileError: any) {
-        console.error(`Error cleaning up asset files for ${id}:`, fileError);
-        // Continue anyway since the DB record is deleted
       }
-      
-      return { success: true, message: 'Asset deleted successfully' };
-    } catch (error: any) {
-      return {
-        success: false,
-        message: `Error deleting asset: ${error.message}`
-      };
+
+      console.log(`Asset ${id} deleted from database.`);
+
+      // 3. Delete files from filesystem (attempt even if DB delete had PGRST204)
+      let fileDeleted = false;
+      let thumbDeleted = false;
+      const fileDeleteErrors: string[] = [];
+
+      if (filePathToDelete) {
+        try {
+          await fs.unlink(filePathToDelete);
+          console.log(`Deleted asset file: ${filePathToDelete}`);
+          fileDeleted = true;
+        } catch (fsError: unknown) {
+          const errorMsg = `Failed to delete asset file ${filePathToDelete}: ${fsError instanceof Error ? fsError.message : String(fsError)}`;
+          console.error(errorMsg);
+          fileDeleteErrors.push(errorMsg);
+        }
+      }
+
+      if (thumbPathToDelete) {
+        try {
+          await fs.unlink(thumbPathToDelete);
+          console.log(`Deleted thumbnail file: ${thumbPathToDelete}`);
+          thumbDeleted = true;
+        } catch (fsError: unknown) {
+          const errorMsg = `Failed to delete thumbnail file ${thumbPathToDelete}: ${fsError instanceof Error ? fsError.message : String(fsError)}`;
+          console.error(errorMsg);
+          fileDeleteErrors.push(errorMsg);
+        }
+      }
+
+      if (fileDeleteErrors.length > 0) {
+        // Return success=true because the DB record is gone (primary goal),
+        // but include a message about the file cleanup issues.
+        return { success: true, message: `Asset record deleted, but encountered errors cleaning up files: ${fileDeleteErrors.join('; ')}`, data: true };
+      }
+
+      return { success: true, message: 'Asset deleted successfully, including associated files.', data: true };
+
+    } catch (error: unknown) {
+      console.error('Error in deleteAsset:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { success: false, error: errorMessage, message: `An unexpected error occurred during asset deletion: ${errorMessage}`, data: false };
     }
   }
 
   /**
-   * Update an asset
+   * Helper function to map Asset update fields to DbAsset update fields.
+   * Only includes fields typically allowed for update.
    */
-  async updateAsset(
-    id: string,
-    userId: string,
-    updateData: {
-      name?: string;
-      description?: string;
-      tags?: string[];
-      categories?: string[];
-      isFavourite?: boolean;
-      metadata?: Record<string, any>;
+  private mapAssetToDbUpdate(updates: Partial<Asset>): Partial<Omit<DbAsset, 'id' | 'created_at' | 'updated_at' | 'client_id' | 'owner_id' | 'file_path' | 'thumbnail_path' | 'type' | 'mime_type' | 'size' | 'width' | 'height' | 'duration'>> {
+    const dbUpdates: Partial<Omit<DbAsset, 'id' | 'created_at' | 'updated_at' | 'client_id' | 'owner_id' | 'file_path' | 'thumbnail_path' | 'type' | 'mime_type' | 'size' | 'width' | 'height' | 'duration'>> = {};
+
+    if ('name' in updates) dbUpdates.name = updates.name;
+    if ('description' in updates) dbUpdates.description = updates.description;
+    if ('isFavourite' in updates) dbUpdates.is_favourite = updates.isFavourite;
+    // Map Asset 'status' or 'processingStatus' to DbAsset 'status'
+    if ('status' in updates) dbUpdates.status = updates.status;
+    if ('processingStatus' in updates) dbUpdates.status = updates.processingStatus; // Allow updating via processingStatus
+
+    if ('tags' in updates) dbUpdates.tags = updates.tags;
+    if ('categories' in updates) dbUpdates.categories = updates.categories;
+    if ('alternativeText' in updates) dbUpdates.alternative_text = updates.alternativeText;
+
+    // Convert incoming string date (from Asset.expiresAt) to Date object
+    if ('expiresAt' in updates) {
+      // Check if expiresAt is a non-empty string before parsing
+      dbUpdates.expires_at = updates.expiresAt ? new Date(updates.expiresAt) : undefined;
     }
-  ): Promise<{ success: boolean; message?: string; asset?: Asset }> {
+    // Handle metadata - merge if existing, otherwise set
+    // Note: This assumes a simple merge; complex merges might need specific logic
+    if ('metadata' in updates) {
+      // We need the existing metadata to merge properly. This helper might not be the best place.
+      // For now, just overwrite. Consider moving merge logic to updateAsset itself.
+      dbUpdates.metadata = updates.metadata;
+    }
+
+    // Fields like id, client_id, owner_id, file paths, type, size, dimensions, created_at, updated_at
+    // are generally not updated via this method.
+
+    return dbUpdates;
+  }
+
+  /**
+   * Updates an existing asset.
+   */
+  public async updateAsset(
+    id: string,
+    clientId: string,
+    updates: Partial<Asset>
+  ): Promise<ServiceResult<Asset>> {
+    if (!this.isSupabaseConfigured()) {
+      return { success: false, error: 'Supabase client not configured.', message: 'Service configuration error.' };
+    }
+    if (!id || !clientId) {
+      return { success: false, error: 'Asset ID and Client ID are required.', message: 'Missing required parameters.' };
+    }
+    if (Object.keys(updates).length === 0) {
+      return { success: false, error: 'No update data provided.', message: 'At least one field must be provided for update.' };
+    }
+
+    // Map application-level updates to database fields
+    const dbUpdates = this.mapAssetToDbUpdate(updates);
+
+    // Check if there are any valid fields to update after mapping
+    if (Object.keys(dbUpdates).length === 0) {
+      return { success: false, error: 'No updatable fields provided.', message: 'None of the provided fields are allowed for update.' };
+    }
+
     try {
-      // First get the asset to check permissions
-      const { asset, success, message } = await this.getAssetById(id, userId);
-      
-      if (!success || !asset) {
-        return { success: false, message: message || 'Asset not found' };
-      }
-      
-      // Prepare the update
-      const updates: any = {};
-      
-      // Handle simple name field
-      if (updateData.name !== undefined) {
-        updates.name = updateData.name;
-      }
-      
-      // Prepare meta updates
-      const metaUpdates: Record<string, any> = {};
-      
-      if (updateData.description !== undefined) {
-        metaUpdates.description = updateData.description;
-      }
-      
-      if (updateData.tags !== undefined) {
-        metaUpdates.tags = updateData.tags;
-      }
-      
-      if (updateData.categories !== undefined) {
-        metaUpdates.categories = updateData.categories;
-      }
-      
-      if (updateData.isFavourite !== undefined) {
-        metaUpdates.isFavourite = updateData.isFavourite;
-      }
-      
-      if (updateData.metadata !== undefined) {
-        metaUpdates.metadata = updateData.metadata;
-      }
-      
-      // Update the asset in the database
-      const { data, error } = await supabase
+      // Add updated_at manually if database doesn't handle it automatically
+      // dbUpdates.updated_at = new Date();
+
+      const { data: updatedData, error: updateError } = await this.supabase
         .from('assets')
-        .update({
-          ...updates,
-          // Update meta fields that need updating
-          ...(Object.keys(metaUpdates).length > 0 ? {
-            meta: supabase.rpc('jsonb_merge', {
-              a: asset.clientId ? { clientId: asset.clientId } : {},
-              b: metaUpdates
-            })
-          } : {})
-        })
+        .update(dbUpdates)
         .eq('id', id)
+        .eq('client_id', clientId)
         .select()
         .single();
-      
-      if (error) {
-        return { success: false, message: `Failed to update asset: ${error.message}` };
+
+      if (updateError) {
+        console.error(`Error updating asset ${id}:`, updateError);
+        if (updateError.code === 'PGRST204') { // Not found or RLS failed
+          return { success: false, error: 'Asset not found or access denied.', message: `Asset with ID ${id} not found for client ${clientId} or update failed.` };
+        }
+        return { success: false, error: updateError.message, message: `Database error updating asset: ${updateError.message}` };
       }
-      
-      return {
-        success: true,
-        message: 'Asset updated successfully',
-        asset: this.transformAssetFromDb(data as DbAsset)
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        message: `Error updating asset: ${error.message}`
-      };
+
+      if (!updatedData) {
+        return { success: false, error: 'Update operation returned no data.', message: 'Failed to retrieve the updated asset after update.' };
+      }
+
+      const transformedAsset = this.transformAssetFromDb(updatedData as DbAsset);
+      return { success: true, data: transformedAsset, message: 'Asset updated successfully.' };
+
+    } catch (error: unknown) {
+      console.error('Error in updateAsset:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { success: false, error: errorMessage, message: `An unexpected error occurred while updating asset: ${errorMessage}` };
     }
   }
+
+  /**
+   * Toggles the favourite status of an asset.
+   */
+  public async toggleFavourite(id: string, clientId: string, isFavourite: boolean): Promise<ServiceResult<Asset>> {
+    if (!this.isSupabaseConfigured()) {
+      return { success: false, error: 'Supabase client not configured.', message: 'Service configuration error.' };
+    }
+    if (!id || !clientId) {
+      return { success: false, error: 'Asset ID and Client ID are required.', message: 'Missing required parameters.' };
+    }
+
+    try {
+      const { data: updatedData, error: updateError } = await this.supabase
+        .from('assets')
+        .update({ is_favourite: isFavourite })
+        .eq('id', id)
+        .eq('client_id', clientId)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error(`Error toggling favourite for asset ${id}:`, updateError);
+        // Check for specific errors, like RowLevelSecurity or not found
+        if (updateError.code === 'PGRST204') { // PostgREST code for no rows found
+          return { success: false, error: 'Asset not found or access denied.', message: `Asset with ID ${id} not found for client ${clientId} or update failed.` };
+        }
+        return { success: false, error: updateError.message, message: `Database error updating favourite status: ${updateError.message}` };
+      }
+
+      if (!updatedData) {
+        // This case might be covered by PGRST204 check, but added for robustness
+        return { success: false, error: 'Update operation returned no data.', message: 'Failed to retrieve the updated asset after toggling favourite status.' };
+      }
+
+      const transformedAsset = this.transformAssetFromDb(updatedData as DbAsset);
+      return { success: true, data: transformedAsset, message: `Asset favourite status updated successfully to ${isFavourite}.` };
+
+    } catch (error: unknown) {
+      console.error('Error in toggleFavourite:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { success: false, error: errorMessage, message: `An unexpected error occurred while toggling favourite: ${errorMessage}` };
+    }
+  }
+
+  /**
+   * Checks if the Supabase client is configured.
+   */
+  public isSupabaseConfigured(): boolean {
+    // Simple check if the client object exists
+    // Add more robust checks if necessary (e.g., check connection status if possible)
+    return !!this.supabase;
+  }
+
+  // Create singleton instance
+  static getInstance(): AssetService {
+    if (!AssetService.instance) {
+      AssetService.instance = new AssetService();
+    }
+    return AssetService.instance;
+  }
+
 }
 
 // Create singleton instance
-const assetService = new AssetService();
-export { assetService };
+const assetService = AssetService.getInstance();
+export {
+  assetService,
+  Asset,
+  DbAsset,
+  AssetFilters,
+  ServiceResult,
+  AssetUploadOptions,
+  ImageMetadata,
+  VideoMetadata,
+  AudioMetadata,
+};

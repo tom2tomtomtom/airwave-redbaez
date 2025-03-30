@@ -3,7 +3,7 @@ import { FixedSizeGrid as Grid } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer'; // We need AutoSizer for responsive grid
 import { AssetCard } from './AssetCard';
 import { Box, Typography } from '@mui/material';
-import { Asset } from '../../types/asset.types';
+import { Asset } from '../../types/assets'; // Correct path
 
 interface VirtualizedAssetGridProps {
   assets: Asset[];
@@ -24,29 +24,24 @@ export const VirtualizedAssetGrid: React.FC<VirtualizedAssetGridProps> = React.m
   assetType
 }) => {
 
-  if (!assets || assets.length === 0) {
-    return <Typography variant="body2" sx={{ p: 2, textAlign: 'center' }}>No assets available</Typography>;
-  }
-
   // Cell renderer function for FixedSizeGrid
-  const Cell = useCallback(({ columnIndex, rowIndex, style }: {
+  // Define this BEFORE the early return, per rules of hooks
+  const Cell = useCallback(({ columnIndex, rowIndex, style, data }: {
     columnIndex: number;
     rowIndex: number;
     style: React.CSSProperties;
+    data: any; // react-window passes itemData here
   }) => {
     // Calculate index based on grid position and number of columns
-    // This needs the column count, which AutoSizer provides.
-    // We will pass columnCount down to this component when using AutoSizer.
-    // For now, let's assume we get columnCount somehow (will fix in AutoSizer part)
-    const columnCount = style.gridColumnCount || 2; // Placeholder, needs actual value
+    const { assets, selectedAssetId, onAssetSelect, assetType, columnCount } = data;
     const index = rowIndex * columnCount + columnIndex;
 
     // Check if index is out of bounds
-    if (index >= assets.length) {
-      return null; // Render nothing if it's beyond the asset list
+    if (!data.assets || index >= data.assets.length) { // Check assets existence via data
+      return null; // Render nothing if it's beyond the asset list or assets are not yet loaded
     }
 
-    const asset = assets[index];
+    const asset = data.assets[index];
     
     // Adjust style to account for grid gap
     const adjustedStyle = {
@@ -68,6 +63,10 @@ export const VirtualizedAssetGrid: React.FC<VirtualizedAssetGridProps> = React.m
     );
   }, [assets, selectedAssetId, onAssetSelect, assetType]);
 
+  if (!assets || assets.length === 0) {
+    return <Typography variant="body2" sx={{ p: 2, textAlign: 'center' }}>No assets available</Typography>;
+  }
+
   return (
     <Box sx={{ height: 300, width: '100%', overflow: 'hidden' }}>
       <AutoSizer>
@@ -86,7 +85,7 @@ export const VirtualizedAssetGrid: React.FC<VirtualizedAssetGridProps> = React.m
               rowCount={rowCount}
               rowHeight={ROW_HEIGHT + GRID_GAP} // Include gap in height
               width={width}
-              itemData={{ // Pass necessary data to Cell renderer
+              itemData={{ 
                 assets,
                 selectedAssetId,
                 onAssetSelect,
@@ -95,14 +94,7 @@ export const VirtualizedAssetGrid: React.FC<VirtualizedAssetGridProps> = React.m
               }}
               style={{ overflowX: 'hidden' }} // Prevent horizontal scrollbar if calculation is slightly off
             >
-              {/* Pass columnCount to Cell via style prop (a bit hacky but works with react-window) */}
-              {({ columnIndex, rowIndex, style, data }) => (
-                <Cell 
-                  columnIndex={columnIndex} 
-                  rowIndex={rowIndex} 
-                  style={{ ...style, gridColumnCount: data.columnCount }} // Inject columnCount
-                />
-              )}
+              {Cell} 
             </Grid>
           );
         }}

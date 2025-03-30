@@ -7,6 +7,7 @@ const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
+const reviewRoutes_1 = __importDefault(require("./routes/reviewRoutes"));
 // Initialize environment variables
 dotenv_1.default.config();
 // Server configuration
@@ -18,6 +19,8 @@ app.use(express_1.default.json({ limit: '50mb' }));
 app.use(express_1.default.urlencoded({ extended: true, limit: '50mb' }));
 // Static file serving
 app.use('/uploads', express_1.default.static(path_1.default.join(__dirname, '../uploads')));
+// Mount the review routes
+app.use('/api', reviewRoutes_1.default);
 // Health check route
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });

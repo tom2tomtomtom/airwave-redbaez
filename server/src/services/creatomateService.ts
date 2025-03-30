@@ -1,5 +1,6 @@
 import axios from 'axios';
-import WebSocketService from './websocket';
+import { WebSocketService } from './WebSocketService';
+import { WebSocketEvent, JobProgressPayload } from '../types/websocket.types';
 
 // Initialize Creatomate API client
 const CREATOMATE_API_KEY = process.env.CREATOMATE_API_KEY || '';
@@ -17,6 +18,8 @@ interface RenderJob {
   url?: string;
   thumbnailUrl?: string;
   error?: string;
+  clientId?: string;
+  userId?: string;
 }
 
 class CreatomateService {
@@ -256,7 +259,17 @@ class CreatomateService {
 
       // Notify clients if status has changed and WebSocket service is available
       if (this.wsService) {
-        this.wsService.broadcastToAll('renderStatus', { jobId, status: job.status, url: job.url });
+        const payload: JobProgressPayload = {
+          jobId: job.id,
+          service: 'creatomate',
+          status: job.status === 'completed' ? 'succeeded' : (job.status as 'processing' | 'failed'),
+          progress: job.status === 'completed' ? 100 : (job.status === 'failed' ? undefined : 0),
+          clientId: job.clientId ?? '', // Add fallback for potentially undefined ID
+          userId: job.userId ?? '',   // Add fallback for potentially undefined ID
+          resultUrl: job.url,
+          error: job.status === 'failed' ? 'Render failed' : undefined, // Add error if failed
+        };
+        this.wsService.broadcast(WebSocketEvent.JOB_PROGRESS, payload);
       }
 
       return job;
@@ -347,12 +360,17 @@ class CreatomateService {
       
       // Notify clients if WebSocket service is available
       if (this.wsService) {
-        this.wsService.broadcastToAll('renderStatus', { 
-          jobId, 
-          status: updatedJob.status, 
-          url: updatedJob.url,
-          thumbnailUrl: updatedJob.thumbnailUrl 
-        });
+        const payload: JobProgressPayload = {
+          jobId: updatedJob.id,
+          service: 'creatomate',
+          status: updatedJob.status === 'completed' ? 'succeeded' : (updatedJob.status as 'processing' | 'failed'),
+          progress: updatedJob.status === 'completed' ? 100 : (updatedJob.status === 'failed' ? undefined : 0),
+          clientId: updatedJob.clientId ?? '', // Add fallback
+          userId: updatedJob.userId ?? '',   // Add fallback
+          resultUrl: updatedJob.url,
+          error: updatedJob.error,
+        };
+        this.wsService.broadcast(WebSocketEvent.JOB_PROGRESS, payload);
       }
       
       index++;
@@ -425,12 +443,17 @@ class CreatomateService {
     
     // Notify clients
     if (this.wsService) {
-      this.wsService.broadcastToAll('renderStatus', { 
-        jobId, 
-        status: job.status, 
-        url: job.url,
-        thumbnailUrl: job.thumbnailUrl 
-      });
+      const payload: JobProgressPayload = {
+        jobId: job.id,
+        service: 'creatomate',
+        status: job.status === 'completed' ? 'succeeded' : (job.status as 'processing' | 'failed'),
+        progress: job.status === 'completed' ? 100 : (job.status === 'failed' ? undefined : 0),
+        clientId: job.clientId ?? '', // Add fallback
+        userId: job.userId ?? '',   // Add fallback
+        resultUrl: job.url,
+        error: job.error,
+      };
+      this.wsService.broadcast(WebSocketEvent.JOB_PROGRESS, payload);
     }
     
     return job;

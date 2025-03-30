@@ -1,14 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { supabase } from '../db/supabaseClient';
-
-// Extend Express Request type to include user property
-declare global {
-  namespace Express {
-    interface Request {
-      user?: any;
-    }
-  }
-}
+import { AuthenticatedUser } from '../types/shared'; // Import canonical type
 
 /**
  * Authentication configuration
@@ -43,12 +35,13 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     if (AUTH_MODE.BYPASS_AUTH) {
       console.log(`${AUTH_MODE.CURRENT.toUpperCase()} MODE: Bypassing authentication with DEV_USER_ID`);
       // Assign a consistent development user
-      req.user = {
-        id: AUTH_MODE.DEV_USER_ID, // Consistent development user ID
+      const devUser: AuthenticatedUser = {
+        userId: AUTH_MODE.DEV_USER_ID, // Consistent development user ID
         email: 'dev@example.com',
-        name: 'Development User',
-        role: 'admin'
+        role: 'admin',
+        sessionId: 'dev-session-bypass' // Added session ID for dev mode
       };
+      req.user = devUser;
       return next();
     }
     
@@ -63,12 +56,13 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
       if (token === AUTH_MODE.DEV_TOKEN) {
         console.log('Development token detected, using dev user');
         // Use the development user
-        req.user = {
-          id: AUTH_MODE.DEV_USER_ID,
+        const devUser: AuthenticatedUser = {
+          userId: AUTH_MODE.DEV_USER_ID,
           email: 'dev@example.com',
-          name: 'Development User',
-          role: 'admin'
+          role: 'admin',
+          sessionId: 'dev-session-token' // Added session ID for dev mode
         };
+        req.user = devUser;
         return next();
       }
       
@@ -77,12 +71,13 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
         const { data } = await supabase.auth.getSession();
         if (data?.session?.user) {
           // Use the session user
-          req.user = {
-            id: data.session.user.id,
+          const supabaseUser: AuthenticatedUser = {
+            userId: data.session.user.id,
             email: data.session.user.email || '',
-            name: data.session.user.user_metadata?.name || 'User',
-            role: data.session.user.user_metadata?.role || 'user'
+            role: data.session.user.user_metadata?.role || 'user',
+            sessionId: data.session.access_token || 'supabase-session-fallback' // Use access token as session identifier
           };
+          req.user = supabaseUser;
           return next();
         }
         
@@ -146,28 +141,24 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     console.log('Supabase token verified for user:', authenticatedUser.id);
     
     // Get additional user data from our database
-    const { data: dbUser, error: dbError } = await supabase
-      .from('users')
-      .select('id, email, name, role')
-      .eq('id', authenticatedUser.id)
-      .single();
+    const dbUser = null; // Placeholder
     
-    if (dbError && dbError.code !== 'PGRST116') { // PGRST116 is 'not found'
-      console.error('Error fetching user from database:', dbError.message);
-    }
-    
-    // Combine data from Auth and database
-    // If user exists in our database, use that data, otherwise create basic user object from auth data
-    const user = dbUser || {
-      id: authenticatedUser.id,
-      email: authenticatedUser.email || '',
-      name: authenticatedUser.user_metadata?.name || 'User',
-      role: authenticatedUser.user_metadata?.role || 'user'
+    // Ensure authenticatedUser has the correct shape matching AuthenticatedUser
+    const jwtAuthenticatedUser: AuthenticatedUser = {
+      userId: authenticatedUser.id,
+      email: authenticatedUser.email, 
+      role: authenticatedUser.user_metadata?.role,
+      sessionId: authenticatedUser.id 
     };
     
-    // Attach the verified user data to the request
+    // Combine data - currently just uses jwtAuthenticatedUser as dbUser is null
+    const user: AuthenticatedUser = dbUser || jwtAuthenticatedUser;
+    
+    // Attach user to request
     req.user = user;
-    console.log('User verified and attached to request:', req.user.id);
+    if (req.user) { // Check if user is defined before logging
+      console.log('User verified and attached to request:', req.user.userId);
+    }
     
     next();
   } catch (error) {

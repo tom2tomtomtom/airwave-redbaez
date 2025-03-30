@@ -88,6 +88,8 @@ export interface AssetUploadOptions {
   categories?: string[];
   alternativeText?: string;
   clientId: string;
+  ownerId: string; // Added ownerId for clarity during upload
+  isFavourite?: boolean; // Allow setting favourite status on upload
   metadata?: Record<string, any>;
   expiresAt?: Date;
 }

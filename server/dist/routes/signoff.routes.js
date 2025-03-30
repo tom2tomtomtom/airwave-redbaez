@@ -11,6 +11,13 @@ const router = express_1.default.Router();
 // Create a new sign-off request
 router.post('/', auth_middleware_1.checkAuth, async (req, res) => {
     try {
+        // Explicit check to satisfy TypeScript, even with checkAuth middleware
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated'
+            });
+        }
         const { campaignId, title, type, content } = req.body;
         if (!campaignId || !title || !type || !content) {
             return res.status(400).json({
@@ -26,7 +33,7 @@ router.post('/', auth_middleware_1.checkAuth, async (req, res) => {
             content,
             status: 'pending',
             version: 1,
-            createdBy: req.user.id,
+            createdBy: req.user.userId, // Use userId
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
@@ -78,6 +85,14 @@ router.post('/', auth_middleware_1.checkAuth, async (req, res) => {
 router.get('/campaign/:campaignId', auth_middleware_1.checkAuth, async (req, res) => {
     try {
         const { campaignId } = req.params;
+        if (!req.user) {
+            // If no user, maybe allow if a valid client token is present?
+            // For now, assume it requires internal user auth.
+            return res.status(401).json({
+                success: false,
+                message: 'Authentication required'
+            });
+        }
         const { data, error } = await supabaseClient_1.supabase
             .from('sign_off_items')
             .select('*')
@@ -105,6 +120,14 @@ router.get('/campaign/:campaignId', auth_middleware_1.checkAuth, async (req, res
 router.get('/:id', auth_middleware_1.checkAuth, async (req, res) => {
     try {
         const { id } = req.params;
+        if (!req.user) {
+            // If no user, maybe allow if a valid client token is present?
+            // For now, assume it requires internal user auth.
+            return res.status(401).json({
+                success: false,
+                message: 'Authentication required'
+            });
+        }
         const { data, error } = await supabaseClient_1.supabase
             .from('sign_off_items')
             .select('*')
@@ -133,6 +156,14 @@ router.put('/:id/status', auth_middleware_1.checkAuth, async (req, res) => {
     try {
         const { id } = req.params;
         const { status, comments } = req.body;
+        if (!req.user) {
+            // If no user, maybe allow if a valid client token is present?
+            // For now, assume it requires internal user auth.
+            return res.status(401).json({
+                success: false,
+                message: 'Authentication required'
+            });
+        }
         if (!status || !['pending', 'approved', 'rejected', 'revision'].includes(status)) {
             return res.status(400).json({
                 success: false,
@@ -175,6 +206,14 @@ router.post('/:id/versions', auth_middleware_1.checkAuth, async (req, res) => {
     try {
         const { id } = req.params;
         const { content, title } = req.body;
+        if (!req.user) {
+            // If no user, maybe allow if a valid client token is present?
+            // For now, assume it requires internal user auth.
+            return res.status(401).json({
+                success: false,
+                message: 'Authentication required'
+            });
+        }
         if (!content) {
             return res.status(400).json({
                 success: false,

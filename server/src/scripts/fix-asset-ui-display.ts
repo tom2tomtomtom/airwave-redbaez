@@ -97,7 +97,11 @@ async function fixAssetForUI() {
       fs.chmodSync(mainFile, 0o644);
       console.log('File permissions updated to ensure it\'s readable');
     } catch (fsError) {
-      console.error('File access error:', fsError.message);
+      if (fsError instanceof Error) {
+        console.error('File access error:', fsError.message);
+      } else {
+        console.error('File access error:', fsError);
+      }
     }
     
     // 4. Log debugging information for the client

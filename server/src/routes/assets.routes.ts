@@ -14,7 +14,8 @@ import Joi from 'joi';
 import { BaseRouter } from './BaseRouter';
 import { ApiError } from '../middleware/errorHandler';
 import { validateRequest, validationSchemas } from '../middleware/validation';
-import { assetService, AssetFilters, ServiceResult, Asset } from '../services/assetService';
+// Use the refactored asset service
+import { assetService, AssetFilters, ServiceResult, Asset } from '../services/assetService.new';
 import { logger } from '../utils/logger';
 
 // Configure multer storage for file uploads
@@ -142,43 +143,45 @@ export class AssetRouter extends BaseRouter {
   private async getAssets(req: Request, res: Response): Promise<void> {
     const clientId = this.validateClientId(req);
     
-    // Build filters from query parameters
+    // Explicitly type filters from req.query, ensuring defaults
     const filters: AssetFilters = {
       clientId,
-      ...req.query
+      limit: parseInt(req.query.limit as string || '50', 10),
+      offset: parseInt(req.query.offset as string || '0', 10),
+      sortBy: (req.query.sortBy as AssetFilters['sortBy']) || 'createdAt',
+      sortDirection: (req.query.sortDirection as AssetFilters['sortDirection']) || 'desc',
     };
-    
-    // Convert string tags to array if needed
-    if (typeof filters.tags === 'string') {
-      try {
-        // Parse JSON string to array
-        const parsed = JSON.parse(filters.tags as string);
-        filters.tags = Array.isArray(parsed) ? parsed : [parsed];
-      } catch (e) {
-        // Handle comma-separated list
-        filters.tags = (filters.tags as string).split(',').map(tag => tag.trim());
+
+    // Apply other query params safely, converting types as needed
+    for (const key in req.query) {
+      if (Object.prototype.hasOwnProperty.call(req.query, key) && !(key in filters)) {
+        // Avoid overwriting explicitly set properties like limit, offset, etc.
+        (filters as any)[key] = req.query[key];
       }
     }
-    
-    // Convert string boolean to actual boolean
-    if (filters.favourite !== undefined) {
-      // Handle both string and array cases
-      if (Array.isArray(filters.favourite)) {
-        // If it's an array, use the first element
-        filters.favourite = String(filters.favourite[0]) === 'true';
-      } else {
-        filters.favourite = String(filters.favourite) === 'true';
-      }
+
+    // Ensure correct type for tags (handle string or array from query)
+    if (req.query.tags && typeof req.query.tags === 'string') {
+      filters.tags = req.query.tags.split(',').map((tag: string) => tag.trim()); // Add type for tag
+    } else if (req.query.tags && Array.isArray(req.query.tags)) {
+      // If it's already an array (e.g., ?tags=a&tags=b), ensure elements are strings
+      filters.tags = req.query.tags.map(tag => String(tag));
+    } // If undefined or other type, filters.tags remains undefined
+
+    // Convert string boolean to actual boolean for favouritesOnly *after* potential assignment from query
+    if ('favouritesOnly' in filters && typeof filters.favouritesOnly === 'string') {
+      filters.favouritesOnly = filters.favouritesOnly.toLowerCase() === 'true';
+    } else if ('favouritesOnly' in filters && typeof filters.favouritesOnly !== 'boolean') {
+      // Handle cases where it might be assigned a non-string/non-boolean value from query
+      filters.favouritesOnly = Boolean(filters.favouritesOnly);
     }
-    
+
     logger.debug('Getting assets with filters', { filters });
     const result = await assetService.getAssets(filters);
     
-    if (result.success && result.data) {
-      res.success(result.data, 'Assets retrieved successfully');
-    } else {
-      throw ApiError.internal(result.message || 'Failed to retrieve assets', { clientId });
-    }
+    // New service returns { assets, total }
+    res.success({ assets: result.assets, total: result.total }, 'Assets retrieved successfully');
+    // Error handling should rely on service throwing errors which are caught by global handler
   }
   
   /**
@@ -191,12 +194,12 @@ export class AssetRouter extends BaseRouter {
     logger.debug('Getting asset by ID', { id, clientId });
     const result = await assetService.getAssetById(id, clientId);
     
-    if (result.success && result.data) {
-      res.success(result.data, 'Asset retrieved successfully');
-    } else if (!result.success && result.message?.includes('not found')) {
-      throw ApiError.notFound('Asset not found', { id, clientId });
+    // New service returns { asset, success, message }
+    if (result.success && result.asset) {
+      res.success(result.asset, 'Asset retrieved successfully');
     } else {
-      throw ApiError.internal(result.message || 'Failed to retrieve asset', { id, clientId });
+      // Check for specific not found message or rely on thrown errors
+      throw ApiError.notFound('Asset not found', { id, clientId });
     }
   }
   
@@ -209,13 +212,13 @@ export class AssetRouter extends BaseRouter {
     }
     
     const clientId = this.validateClientId(req);
-    const userId = req.user?.id;
-    
-    if (!userId) {
-      throw ApiError.unauthorized('User ID is required');
+    const ownerId = req.auth?.userId;
+    if (!ownerId) {
+      logger.error('User ID not found on authenticated request during asset upload', { clientId });
+      throw ApiError.unauthorized('Authentication required for asset upload');
     }
     
-    const { name, description, type, tags } = req.body;
+    const { name, description, tags } = req.body;
     
     // Process tags if provided
     let parsedTags: string[] | undefined;
@@ -230,9 +233,10 @@ export class AssetRouter extends BaseRouter {
     // Upload options
     const options = {
       clientId,
+      ownerId, // Add ownerId from authenticated user
       name: name || req.file.originalname,
       description: description || '',
-      type: type || this.getAssetTypeFromMimetype(req.file.mimetype),
+      type: this.getAssetTypeFromMimetype(req.file.mimetype),
       tags: parsedTags
     };
     
@@ -242,7 +246,7 @@ export class AssetRouter extends BaseRouter {
       options
     });
     
-    const result = await assetService.uploadAsset(req.file, userId, options);
+    const result = await assetService.uploadAsset(req.file, ownerId, options);
     
     if (result.success && result.data) {
       res.success(result.data, 'Asset uploaded successfully', 201);

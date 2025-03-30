@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import reviewRoutes from './routes/reviewRoutes';
 
 // Initialize environment variables
 dotenv.config();
@@ -17,6 +18,9 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Static file serving
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// Mount the review routes
+app.use('/api', reviewRoutes);
 
 // Health check route
 app.get('/health', (req, res) => {

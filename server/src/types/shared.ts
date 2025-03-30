@@ -36,3 +36,25 @@ export interface Client {
   updatedAt: string;      // ISO date string
   id?: string;            // Legacy UUID (kept for backward compatibility)
 }
+
+/**
+ * Standardised response structure for services
+ */
+export interface ServiceResult<T = any> {
+  success: boolean;
+  message?: string;
+  data?: T;
+  error?: any; // Consider a more specific error type
+  statusCode?: number;
+}
+
+/**
+ * Canonical representation of an authenticated user attached to requests.
+ */
+export interface AuthenticatedUser {
+  userId: string; 
+  email: string;
+  role: string;
+  sessionId: string;
+  // Add other essential properties if needed, e.g., clientId
+}

@@ -1,15 +1,17 @@
 import express from 'express';
 import { authenticateToken as checkAuth, AUTH_MODE } from '../middleware/auth';
 import bcrypt from 'bcrypt';
+import { AuthenticatedRequest } from '../types/AuthenticatedRequest';
+import { Response, NextFunction } from 'express';
+import { supabase } from '../db/supabaseClient';
+import { ApiError } from '../middleware/errorHandler';
 
 const router = express.Router();
-
-import { supabase } from '../db/supabaseClient';
 
 // We'll use Supabase for both authentication and user data storage
 
 // Add the register-complete endpoint
-router.post('/register-complete', async (req, res) => {
+router.post('/register-complete', async (req: express.Request, res: Response, next: NextFunction) => {
   try {
     const { user } = req.body;
     
@@ -75,11 +77,7 @@ router.post('/register-complete', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Registration completion error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Registration completion failed',
-      error: error.message
-    });
+    next(error); // Pass to error handler
   }
 });
 
@@ -87,7 +85,7 @@ router.post('/register-complete', async (req, res) => {
 
 // POST - Session sync
 // This endpoint is called after client-side Supabase login to sync with our server
-router.post('/session', async (req, res) => {
+router.post('/session', async (req: express.Request, res: Response, next: NextFunction) => {
   try {
     const { session, user } = req.body;
 
@@ -145,17 +143,13 @@ router.post('/session', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Session sync error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Session synchronization failed',
-      error: error.message
-    });
+    next(error); // Pass to error handler
   }
 });
 
 
 // GET - Get current user info
-router.get('/me', async (req, res) => {
+router.get('/me', checkAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     // Check if we're in prototype or development mode with auth bypass
     if ((AUTH_MODE.CURRENT === 'prototype' || AUTH_MODE.CURRENT === 'development') && AUTH_MODE.BYPASS_AUTH) {
@@ -227,17 +221,13 @@ router.get('/me', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Error fetching user:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching user information',
-      error: error.message
-    });
+    next(error); // Pass to error handler
   }
 });
 
 // This is now just a server-side admin endpoint for creating users
 // Normal users will register through the client using Supabase directly
-router.post('/register', checkAuth, async (req, res) => {
+router.post('/register', checkAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { email, password, name, role = 'user' } = req.body;
 
@@ -335,16 +325,13 @@ router.post('/register', checkAuth, async (req, res) => {
       }
     });
   } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Registration failed',
-      error: error.message
-    });
+    console.error('Error registering user:', error);
+    next(error); // Pass to error handler
   }
 });
 
 // PUT - Update user profile
-router.put('/profile', checkAuth, async (req, res) => {
+router.put('/profile', checkAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     if (!req.user) {
       return res.status(401).json({
@@ -353,7 +340,7 @@ router.put('/profile', checkAuth, async (req, res) => {
       });
     }
 
-    const userId = req.user.id;
+    const userId = req.user.userId;
     const { name, currentPassword, newPassword, settings, avatar_url } = req.body;
     
     // Prepare update data
@@ -419,11 +406,8 @@ router.put('/profile', checkAuth, async (req, res) => {
       data: updatedUser
     });
   } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update profile',
-      error: error.message
-    });
+    console.error('Error updating profile:', error);
+    next(error); // Pass to error handler
   }
 });
 
@@ -436,7 +420,7 @@ const checkAdmin = (req: any, res: any, next: any) => {
 };
 
 // GET - Get all users (admin only)
-router.get('/users', checkAuth, checkAdmin, async (req, res) => {
+router.get('/users', checkAuth, checkAdmin, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     // Fetch all users from the database (excluding passwords)
     const { data: userList, error } = await supabase
@@ -457,16 +441,13 @@ router.get('/users', checkAuth, checkAdmin, async (req, res) => {
       data: userList
     });
   } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to retrieve users',
-      error: error.message
-    });
+    console.error('Error fetching users:', error);
+    next(error); // Pass to error handler
   }
 });
 
 // POST - Create new user (admin only)
-router.post('/users', checkAuth, checkAdmin, async (req, res) => {
+router.post('/users', checkAuth, checkAdmin, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { email, password, name, role = 'user' } = req.body;
 
@@ -538,16 +519,13 @@ router.post('/users', checkAuth, checkAdmin, async (req, res) => {
       }
     });
   } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create user',
-      error: error.message
-    });
+    console.error('Error creating user:', error);
+    next(error); // Pass to error handler
   }
 });
 
 // Debug endpoint to create a test user (DEV ONLY)
-router.post('/debug-create-user', async (req, res) => {
+router.post('/debug-create-user', async (req: express.Request, res: Response, next: NextFunction) => {
   // Only allow in development mode
   if (process.env.NODE_ENV === 'production') {
     return res.status(403).json({
@@ -599,16 +577,12 @@ router.post('/debug-create-user', async (req, res) => {
     });
   } catch (err: any) {
     console.error('Error in debug-create-user:', err);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to create test user',
-      error: err.message
-    });
+    next(err); // Pass to error handler
   }
 });
 
 // Development login endpoint - only available when USE_DEV_LOGIN is true
-router.post('/dev-login', async (req, res) => {
+router.post('/dev-login', async (req: express.Request, res: Response, next: NextFunction) => {
   // Allow in development and prototype modes
   // In prototype mode, we want to bypass auth completely
   if ((AUTH_MODE.CURRENT !== 'development' && AUTH_MODE.CURRENT !== 'prototype') || 
@@ -720,16 +694,12 @@ router.post('/dev-login', async (req, res) => {
     });
   } catch (err: any) {
     console.error('Error in dev-login:', err);
-    return res.status(500).json({
-      success: false,
-      message: 'Development login failed',
-      error: err.message
-    });
+    next(err); // Pass to error handler
   }
 });
 
 // Status check endpoint for health monitoring
-router.get('/check', async (req, res) => {
+router.get('/check', async (req: express.Request, res: Response, next: NextFunction) => {
   try {
     // Simple database query to verify connection
     const { data, error } = await supabase
@@ -750,16 +720,13 @@ router.get('/check', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error: any) {
-    return res.status(500).json({
-      connected: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
+    console.error('Error checking status:', error);
+    next(error); // Pass to error handler
   }
 });
 
 // Supabase status check endpoint
-router.get('/supabase-status', async (req, res) => {
+router.get('/supabase-status', async (req: express.Request, res: Response, next: NextFunction) => {
   try {
     const { data, error } = await supabase.auth.getSession();
     
@@ -768,11 +735,8 @@ router.get('/supabase-status', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error: any) {
-    return res.status(500).json({
-      connected: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
+    console.error('Error checking Supabase status:', error);
+    next(error); // Pass to error handler
   }
 });
 

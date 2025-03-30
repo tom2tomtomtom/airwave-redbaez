@@ -1,12 +1,17 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import { checkAuth } from '../middleware/auth.middleware';
 import { signoffService } from '../services/signoffService';
+import { AuthenticatedRequest } from '../types/AuthenticatedRequest';
 
 const router = express.Router();
 
 // Create a new signoff session
-router.post('/create', checkAuth, async (req, res) => {
+router.post('/create', checkAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    if (!req.user) {
+      return next(new Error('User not authenticated'));
+    }
+
     const { campaignId, title, description, clientEmail, clientName, expiresAt, matrixId, assetIds } = req.body;
     
     if (!campaignId || !clientEmail || !clientName || !assetIds || !assetIds.length) {
@@ -25,7 +30,7 @@ router.post('/create', checkAuth, async (req, res) => {
       clientName,
       expiresAt: expiresAt ? new Date(expiresAt).toISOString() : undefined,
       matrixId
-    }, req.user.id);
+    }, req.user.userId);
 
     // Add assets to the session
     await signoffService.addAssetsToSession(session.id, assetIds);
@@ -46,8 +51,12 @@ router.post('/create', checkAuth, async (req, res) => {
 });
 
 // Send a signoff session to client
-router.post('/:id/send', checkAuth, async (req, res) => {
+router.post('/:id/send', checkAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    if (!req.user) {
+      return next(new Error('User not authenticated'));
+    }
+
     const { id } = req.params;
     
     // Send the signoff session
@@ -72,8 +81,12 @@ router.post('/:id/send', checkAuth, async (req, res) => {
 });
 
 // Get all signoff sessions for a campaign
-router.get('/campaign/:campaignId', checkAuth, async (req, res) => {
+router.get('/campaign/:campaignId', checkAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    if (!req.user) {
+      return next(new Error('User not authenticated'));
+    }
+
     const { campaignId } = req.params;
     
     const sessions = await signoffService.listCampaignSignoffSessions(campaignId);
@@ -93,8 +106,12 @@ router.get('/campaign/:campaignId', checkAuth, async (req, res) => {
 });
 
 // Get a specific signoff session
-router.get('/:id', checkAuth, async (req, res) => {
+router.get('/:id', checkAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    if (!req.user) {
+      return next(new Error('User not authenticated'));
+    }
+
     const { id } = req.params;
     
     const session = await signoffService.getSignoffSessionById(id);
@@ -114,7 +131,7 @@ router.get('/:id', checkAuth, async (req, res) => {
 });
 
 // Client view of signoff session (no auth required, uses access token)
-router.get('/client/:id', async (req, res) => {
+router.get('/client/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const { token } = req.query;
@@ -151,7 +168,7 @@ router.get('/client/:id', async (req, res) => {
 });
 
 // Process client feedback
-router.post('/client/:id/feedback', async (req, res) => {
+router.post('/client/:id/feedback', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const { token, feedback, assetStatuses } = req.body;

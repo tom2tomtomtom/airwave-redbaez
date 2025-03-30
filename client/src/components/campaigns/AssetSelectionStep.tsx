@@ -137,15 +137,6 @@ const AssetSelectionStep: React.FC<AssetSelectionStepProps> = ({
   const handleSelectAll = (selected: boolean) => {
     const newSelectedAssetsMap: Record<string, boolean> = {};
 
-    const filteredAssets = useMemo(() => assets.filter(asset => {
-      const matchesSearch = asset.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesType = assetType === 'all' || asset.type === assetType;
-      const matchesTab = tabValue === 0 || // All assets tab
-        (tabValue === 1 && asset.isFavourite); // Favourites tab
-
-      return matchesSearch && matchesType && matchesTab;
-    }), [assets, searchQuery, assetType, tabValue]);
-
     filteredAssets.forEach(asset => {
       newSelectedAssetsMap[asset.id] = selected;
     });

@@ -159,11 +159,8 @@ export class CampaignRouter extends BaseRouter {
       query = query.ilike('name', `%${search}%`);
     }
     
-    // Get total count before pagination
-    const { count } = await query.count() as { count: number };
-    
-    // Add pagination and sorting
-    const { data: campaigns, error } = await query
+    // Execute the query to get data and count
+    const { data: campaigns, error, count } = await query
       .order(sortBy as string, { ascending: sortDirection === 'asc' })
       .range((Number(page) - 1) * Number(limit), Number(page) * Number(limit) - 1);
     
@@ -194,10 +191,10 @@ export class CampaignRouter extends BaseRouter {
     res.success({
       campaigns: transformedCampaigns,
       pagination: {
-        total: count,
+        total: count ?? 0,
         page: Number(page),
         limit: Number(limit),
-        pages: Math.ceil(count / Number(limit))
+        pages: Math.ceil((count ?? 0) / Number(limit))
       }
     }, 'Campaigns retrieved successfully');
   }
