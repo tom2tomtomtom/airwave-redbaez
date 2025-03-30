@@ -12,11 +12,12 @@ import { v4 as uuidv4 } from 'uuid';
 import Joi from 'joi';
 
 import { BaseRouter } from './BaseRouter';
-import { ApiError } from '../middleware/errorHandler';
 import { validateRequest, validationSchemas } from '../middleware/validation';
 // Use the refactored asset service
 import { assetService, AssetFilters, ServiceResult, Asset } from '../services/assetService.new';
 import { logger } from '../utils/logger';
+import { ApiError } from '@/utils/ApiError';
+import { ErrorCode } from '@/types/errorTypes';
 
 // Configure multer storage for file uploads
 const storage = multer.diskStorage({
@@ -140,7 +141,7 @@ export class AssetRouter extends BaseRouter {
   /**
    * Get assets with filtering
    */
-  private async getAssets(req: Request, res: Response): Promise<void> {
+  private async getAssets(req: Request, res: Response, next: NextFunction): Promise<void> {
     const clientId = this.validateClientId(req);
     
     // Explicitly type filters from req.query, ensuring defaults
@@ -162,7 +163,7 @@ export class AssetRouter extends BaseRouter {
 
     // Ensure correct type for tags (handle string or array from query)
     if (req.query.tags && typeof req.query.tags === 'string') {
-      filters.tags = req.query.tags.split(',').map((tag: string) => tag.trim()); // Add type for tag
+      filters.tags = req.query.tags.split(',').map(tag => tag.trim());
     } else if (req.query.tags && Array.isArray(req.query.tags)) {
       // If it's already an array (e.g., ?tags=a&tags=b), ensure elements are strings
       filters.tags = req.query.tags.map(tag => String(tag));
@@ -177,29 +178,51 @@ export class AssetRouter extends BaseRouter {
     }
 
     logger.debug('Getting assets with filters', { filters });
-    const result = await assetService.getAssets(filters);
-    
-    // New service returns { assets, total }
-    res.success({ assets: result.assets, total: result.total }, 'Assets retrieved successfully');
-    // Error handling should rely on service throwing errors which are caught by global handler
+    try {
+      const result = await assetService.getAssets(filters);
+      
+      // New service returns { assets, total }
+      res.success({ assets: result.assets, total: result.total }, 'Assets retrieved successfully');
+      // Error handling should rely on service throwing errors which are caught by global handler
+    } catch (error) {
+      next(error); // Pass any errors (including ApiErrors from service) to the handler
+    }
   }
   
   /**
    * Get asset by ID
    */
-  private async getAssetById(req: Request, res: Response): Promise<void> {
+  private async getAssetById(req: Request, res: Response, next: NextFunction): Promise<void> {
     const clientId = this.validateClientId(req);
     const { id } = req.params;
     
     logger.debug('Getting asset by ID', { id, clientId });
-    const result = await assetService.getAssetById(id, clientId);
-    
-    // New service returns { asset, success, message }
-    if (result.success && result.asset) {
-      res.success(result.asset, 'Asset retrieved successfully');
-    } else {
-      // Check for specific not found message or rely on thrown errors
-      throw ApiError.notFound('Asset not found', { id, clientId });
+    try {
+      const result = await assetService.getAssetById(id, clientId);
+      
+      // New service returns { asset, success, message }
+      if (result.success && result.asset) {
+        res.success(result.asset, 'Asset retrieved successfully');
+      } else {
+        // If service indicates failure without throwing, create appropriate ApiError
+        // Assuming service sets a message indicating not found
+        if (result.message?.toLowerCase().includes('not found')) {
+          next(new ApiError(
+            ErrorCode.RESOURCE_NOT_FOUND, 
+            result.message || `Asset with ID ${id} not found for client ${clientId}`,
+            { assetId: id, clientId }
+          ));
+        } else {
+          // Keep as Internal Error for generic retrieval failure
+          next(new ApiError(
+            ErrorCode.INTERNAL_ERROR, 
+            result.message || 'Failed to retrieve asset.',
+            { assetId: id, clientId } 
+          ));
+        }
+      }
+    } catch (error) {
+      next(error); // Pass any errors (including ApiErrors from service) to the handler
     }
   }
   
@@ -208,14 +231,16 @@ export class AssetRouter extends BaseRouter {
    */
   private async uploadAsset(req: Request, res: Response): Promise<void> {
     if (!req.file) {
-      throw ApiError.validation('No file uploaded');
+      // Corrected: Use VALIDATION_FAILED
+      throw new ApiError(ErrorCode.VALIDATION_FAILED, 'No file uploaded');
     }
     
     const clientId = this.validateClientId(req);
     const ownerId = req.auth?.userId;
     if (!ownerId) {
       logger.error('User ID not found on authenticated request during asset upload', { clientId });
-      throw ApiError.unauthorized('Authentication required for asset upload');
+      // Corrected: Use AUTHENTICATION_REQUIRED
+      throw new ApiError(ErrorCode.AUTHENTICATION_REQUIRED, 'Authentication required for asset upload');
     }
     
     const { name, description, tags } = req.body;
@@ -251,7 +276,8 @@ export class AssetRouter extends BaseRouter {
     if (result.success && result.data) {
       res.success(result.data, 'Asset uploaded successfully', 201);
     } else {
-      throw ApiError.internal(result.message || 'Failed to upload asset', { clientId });
+      // Corrected: Use OPERATION_FAILED for specific upload failure
+      throw new ApiError(ErrorCode.OPERATION_FAILED, result.message || 'Failed to upload asset', { clientId });
     }
   }
   
@@ -268,9 +294,11 @@ export class AssetRouter extends BaseRouter {
     if (result.success && result.data) {
       res.success(result.data, 'Asset updated successfully');
     } else if (!result.success && result.message?.includes('not found')) {
-      throw ApiError.notFound('Asset not found', { id, clientId });
+      // Correct: Resource not found
+      throw new ApiError(ErrorCode.RESOURCE_NOT_FOUND, 'Asset not found', { id, clientId });
     } else {
-      throw ApiError.internal(result.message || 'Failed to update asset', { id, clientId });
+      // Corrected: Use OPERATION_FAILED for specific update failure
+      throw new ApiError(ErrorCode.OPERATION_FAILED, result.message || 'Failed to update asset', { id, clientId });
     }
   }
   
@@ -287,9 +315,11 @@ export class AssetRouter extends BaseRouter {
     if (result.success) {
       res.success(null, 'Asset deleted successfully');
     } else if (!result.success && result.message?.includes('not found')) {
-      throw ApiError.notFound('Asset not found', { id, clientId });
+      // Correct: Resource not found
+      throw new ApiError(ErrorCode.RESOURCE_NOT_FOUND, 'Asset not found', { id, clientId });
     } else {
-      throw ApiError.internal(result.message || 'Failed to delete asset', { id, clientId });
+      // Corrected: Use OPERATION_FAILED for specific delete failure
+      throw new ApiError(ErrorCode.OPERATION_FAILED, result.message || 'Failed to delete asset', { id, clientId });
     }
   }
   
@@ -302,7 +332,8 @@ export class AssetRouter extends BaseRouter {
     const { isFavourite } = req.body;
     
     if (isFavourite === undefined) {
-      throw ApiError.validation('isFavourite parameter is required');
+      // Corrected: Use VALIDATION_FAILED
+      throw new ApiError(ErrorCode.VALIDATION_FAILED, 'isFavourite parameter is required');
     }
     
     logger.debug('Toggling asset favourite status', { id, clientId, isFavourite });
@@ -311,9 +342,11 @@ export class AssetRouter extends BaseRouter {
     if (result.success && result.data) {
       res.success(result.data, `Asset ${isFavourite ? 'added to' : 'removed from'} favourites`);
     } else if (!result.success && result.message?.includes('not found')) {
-      throw ApiError.notFound('Asset not found', { id, clientId });
+      // Correct: Resource not found
+      throw new ApiError(ErrorCode.RESOURCE_NOT_FOUND, 'Asset not found', { id, clientId });
     } else {
-      throw ApiError.internal(result.message || 'Failed to update favourite status', { id, clientId });
+      // Corrected: Use OPERATION_FAILED for specific favourite toggle failure
+      throw new ApiError(ErrorCode.OPERATION_FAILED, result.message || 'Failed to update favourite status', { id, clientId });
     }
   }
   

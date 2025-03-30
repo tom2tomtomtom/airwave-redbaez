@@ -4,7 +4,8 @@ import bcrypt from 'bcrypt';
 import { AuthenticatedRequest } from '../types/AuthenticatedRequest';
 import { Response, NextFunction } from 'express';
 import { supabase } from '../db/supabaseClient';
-import { ApiError } from '../middleware/errorHandler';
+import { ApiError } from '@/utils/ApiError'; // Corrected import path
+import { ErrorCode } from '../types/errorTypes'; // Import ErrorCode
 
 const router = express.Router();
 
@@ -16,10 +17,7 @@ router.post('/register-complete', async (req: express.Request, res: Response, ne
     const { user } = req.body;
     
     if (!user || !user.id || !user.email) {
-      return res.status(400).json({
-        success: false,
-        message: 'User data is required'
-      });
+      return next(new ApiError(ErrorCode.INVALID_INPUT, 'User data (id, email) is required'));
     }
 
     console.log(`Completing registration for user: ${user.id} (${user.email})`);
@@ -58,11 +56,8 @@ router.post('/register-complete', async (req: express.Request, res: Response, ne
         });
       
       if (insertError) {
-        console.error('Error inserting user into database:', insertError.message);
-        return res.status(500).json({
-          success: false,
-          message: 'Error creating user in database'
-        });
+        console.error('Error inserting user into database:', insertError);
+        return next(new ApiError(ErrorCode.DATABASE_ERROR, 'Error creating user in database', undefined, { originalError: insertError.message }));
       }
       
       console.log('User record created in database');
@@ -90,10 +85,7 @@ router.post('/session', async (req: express.Request, res: Response, next: NextFu
     const { session, user } = req.body;
 
     if (!session || !user) {
-      return res.status(400).json({
-        success: false,
-        message: 'Session and user data are required'
-      });
+      return next(new ApiError(ErrorCode.INVALID_INPUT, 'Session and user data are required'));
     }
 
     console.log(`Session sync for user: ${user.id} (${user.email})`);
@@ -145,8 +137,7 @@ router.post('/session', async (req: express.Request, res: Response, next: NextFu
     console.error('Session sync error:', error);
     next(error); // Pass to error handler
   }
-});
-
+}); // Correct closing for the route handler
 
 // GET - Get current user info
 router.get('/me', checkAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
@@ -170,11 +161,8 @@ router.get('/me', checkAuth, async (req: AuthenticatedRequest, res: Response, ne
     // Normal auth flow
     // Get the authorization header
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required'
-      });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) { 
+      return next(new ApiError(ErrorCode.AUTHENTICATION_REQUIRED, 'Authentication required: Bearer token missing.'));
     }
 
     // Extract the token
@@ -185,10 +173,7 @@ router.get('/me', checkAuth, async (req: AuthenticatedRequest, res: Response, ne
     
     if (tokenError || !tokenData.user) {
       console.error('Invalid Supabase token:', tokenError?.message || 'User not found');
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid or expired token'
-      });
+      return next(new ApiError(ErrorCode.AUTHENTICATION_REQUIRED, tokenError?.message || 'Invalid or expired token', undefined, { originalError: tokenError }));
     }
     
     const authUser = tokenData.user;
@@ -233,29 +218,21 @@ router.post('/register', checkAuth, async (req: AuthenticatedRequest, res: Respo
 
     // Validate inputs
     if (!email || !password || !name) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email, password, and name are required'
-      });
+      return next(new ApiError(ErrorCode.INVALID_INPUT, 'Email, password, and name are required'));
     }
     
     // Check if requesting user is admin (only admins can create users)
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required'
-      });
+      return next(new ApiError(ErrorCode.AUTHENTICATION_REQUIRED, 'Authentication required: Bearer token missing for admin check.'));
     }
     
     const token = authHeader.split(' ')[1];
     const { data: tokenData, error: tokenError } = await supabase.auth.getUser(token);
     
     if (tokenError || !tokenData.user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid or expired token'
-      });
+       console.error('Invalid Supabase token for admin check:', tokenError?.message || 'User not found');
+      return next(new ApiError(ErrorCode.AUTHENTICATION_REQUIRED, tokenError?.message || 'Invalid or expired token for admin check', undefined, { originalError: tokenError }));
     }
     
     // Check admin role
@@ -266,10 +243,7 @@ router.post('/register', checkAuth, async (req: AuthenticatedRequest, res: Respo
       .single();
     
     if (adminError || !adminCheck || adminCheck.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Admin privileges required'
-      });
+      return next(new ApiError(ErrorCode.INSUFFICIENT_PERMISSIONS, 'Admin privileges required to register new users.'));
     }
 
     // Use Supabase Admin API to create the user
@@ -284,17 +258,11 @@ router.post('/register', checkAuth, async (req: AuthenticatedRequest, res: Respo
     
     if (signUpError) {
       console.error('Error creating user with Supabase Auth:', signUpError);
-      return res.status(500).json({
-        success: false,
-        message: signUpError.message || 'Registration failed'
-      });
+      return next(new ApiError(ErrorCode.EXTERNAL_SERVICE_ERROR, 'Registration failed via Supabase Auth', undefined, { originalError: signUpError.message, service: 'Supabase Auth' }));
     }
 
     if (!authData.user) {
-      return res.status(500).json({
-        success: false,
-        message: 'User creation failed - no user returned'
-      });
+      return next(new ApiError(ErrorCode.INTERNAL_ERROR, 'User creation failed - no user returned from Supabase Auth', undefined, undefined));
     }
 
     // Create user record in our users table
@@ -311,7 +279,7 @@ router.post('/register', checkAuth, async (req: AuthenticatedRequest, res: Respo
       console.error('Error creating user record in database:', insertError);
     }
 
-    // Return success with user data
+    // Return success
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
@@ -330,91 +298,10 @@ router.post('/register', checkAuth, async (req: AuthenticatedRequest, res: Respo
   }
 });
 
-// PUT - Update user profile
-router.put('/profile', checkAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: 'User not authenticated'
-      });
-    }
-
-    const userId = req.user.userId;
-    const { name, currentPassword, newPassword, settings, avatar_url } = req.body;
-    
-    // Prepare update data
-    const updateData: Record<string, any> = {
-      updated_at: new Date()
-    };
-    
-    if (name) updateData.name = name;
-    if (settings) updateData.settings = settings;
-    if (avatar_url) updateData.avatar_url = avatar_url;
-    
-    // If password change requested, verify current password first
-    if (newPassword && currentPassword) {
-      // Get current user data with password
-      const { data: user, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      
-      if (userError || !user) {
-        console.error('Error fetching user:', userError?.message || 'User not found');
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
-      }
-      
-      // Verify current password
-      const isMatch = await bcrypt.compare(currentPassword, user.password);
-      if (!isMatch) {
-        return res.status(400).json({
-          success: false,
-          message: 'Current password is incorrect'
-        });
-      }
-      
-      // Hash new password and add to update data
-      const salt = await bcrypt.genSalt(10);
-      updateData.password = await bcrypt.hash(newPassword, salt);
-      updateData.last_login = new Date();
-    }
-    
-    // Update user in database
-    const { data: updatedUser, error: updateError } = await supabase
-      .from('users')
-      .update(updateData)
-      .eq('id', userId)
-      .select('id, email, name, role, avatar_url, settings')
-      .single();
-    
-    if (updateError) {
-      console.error('Error updating user profile:', updateError);
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to update profile'
-      });
-    }
-    
-    res.json({
-      success: true,
-      message: 'Profile updated successfully',
-      data: updatedUser
-    });
-  } catch (error: any) {
-    console.error('Error updating profile:', error);
-    next(error); // Pass to error handler
-  }
-});
-
 // Helper middleware for admin check
 const checkAdmin = (req: any, res: any, next: any) => {
   if (req.user?.role !== 'admin') {
-    return res.status(403).json({ message: 'Access denied. Admin only.' });
+    return next(new ApiError(ErrorCode.INSUFFICIENT_PERMISSIONS, 'Access denied. Admin privileges required.'));
   }
   next();
 };
@@ -430,10 +317,7 @@ router.get('/users', checkAuth, checkAdmin, async (req: AuthenticatedRequest, re
     
     if (error) {
       console.error('Error fetching users:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve users'
-      });
+      return next(new ApiError(ErrorCode.DATABASE_ERROR, 'Failed to retrieve users from database.', undefined, { originalError: error.message }));
     }
     
     res.json({
@@ -453,10 +337,7 @@ router.post('/users', checkAuth, checkAdmin, async (req: AuthenticatedRequest, r
 
     // Validate inputs
     if (!email || !password || !name) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email, password, and name are required'
-      });
+      return next(new ApiError(ErrorCode.INVALID_INPUT, 'Email, password, and name are required for user creation.'));
     }
 
     // Check if email already exists in the database
@@ -468,17 +349,11 @@ router.post('/users', checkAuth, checkAdmin, async (req: AuthenticatedRequest, r
       
     if (userCheckError) {
       console.error('Error checking existing user:', userCheckError);
-      return res.status(500).json({
-        success: false,
-        message: 'User creation failed'
-      });
+      return next(new ApiError(ErrorCode.DATABASE_ERROR, 'Database error checking for existing user email.', undefined, { email, originalError: userCheckError.message }));
     }
     
     if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email already in use'
-      });
+      return next(new ApiError(ErrorCode.RESOURCE_ALREADY_EXISTS, 'Email already in use.'));
     }
 
     // Hash password
@@ -501,10 +376,7 @@ router.post('/users', checkAuth, checkAdmin, async (req: AuthenticatedRequest, r
     
     if (insertError || !newUser) {
       console.error('Error creating user:', insertError?.message || 'Unknown error');
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to create user account'
-      });
+      return next(new ApiError(ErrorCode.DATABASE_ERROR, 'Failed to create user account.', undefined, { email, originalError: insertError?.message }));
     }
 
     // Return success
@@ -528,10 +400,7 @@ router.post('/users', checkAuth, checkAdmin, async (req: AuthenticatedRequest, r
 router.post('/debug-create-user', async (req: express.Request, res: Response, next: NextFunction) => {
   // Only allow in development mode
   if (process.env.NODE_ENV === 'production') {
-    return res.status(403).json({
-      success: false,
-      message: 'This endpoint is only available in development mode'
-    });
+    return next(new ApiError(ErrorCode.INSUFFICIENT_PERMISSIONS, 'Debug endpoint only available in non-production environments.'));
   }
 
   try {
@@ -557,11 +426,7 @@ router.post('/debug-create-user', async (req: express.Request, res: Response, ne
     
     if (signUpError) {
       console.error('Error creating test user:', signUpError);
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to create test user',
-        error: signUpError
-      });
+      return next(new ApiError(ErrorCode.EXTERNAL_SERVICE_ERROR, 'Failed to create test user via Supabase Auth.', undefined, { originalError: signUpError.message, service: 'Supabase Auth' }));
     }
     
     // Return the user data including the ID needed for asset creation
@@ -587,10 +452,7 @@ router.post('/dev-login', async (req: express.Request, res: Response, next: Next
   // In prototype mode, we want to bypass auth completely
   if ((AUTH_MODE.CURRENT !== 'development' && AUTH_MODE.CURRENT !== 'prototype') || 
       (!process.env.USE_DEV_LOGIN && !AUTH_MODE.BYPASS_AUTH)) {
-    return res.status(403).json({
-      success: false,
-      message: 'This endpoint is only available in development/prototype mode with USE_DEV_LOGIN=true or DEV_BYPASS_AUTH=true'
-    });
+    return next(new ApiError(ErrorCode.INSUFFICIENT_PERMISSIONS, 'Dev login endpoint not available in current mode/configuration.'));
   }
 
   try {
@@ -625,11 +487,7 @@ router.post('/dev-login', async (req: express.Request, res: Response, next: Next
       
       if (signUpError) {
         console.error('Error creating development user:', signUpError);
-        return res.status(500).json({
-          success: false,
-          message: 'Failed to create development user',
-          error: signUpError.message
-        });
+        return next(new ApiError(ErrorCode.EXTERNAL_SERVICE_ERROR, 'Failed to create development user via Supabase Auth.', undefined, { originalError: signUpError.message, service: 'Supabase Auth' }));
       }
       
       // Now sign in with the newly created user
@@ -642,20 +500,13 @@ router.post('/dev-login', async (req: express.Request, res: Response, next: Next
     // Check for any sign-in errors
     if (signInError) {
       console.error('Error signing in development user:', signInError);
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to sign in development user',
-        error: signInError.message
-      });
+      return next(new ApiError(ErrorCode.EXTERNAL_SERVICE_ERROR, 'Failed to sign in development user via Supabase Auth.', undefined, { originalError: signInError.message, service: 'Supabase Auth' }));
     }
     
     // Ensure we have valid session data
     if (!signInData || !signInData.session) {
       console.error('No session data returned from Supabase');
-      return res.status(500).json({
-        success: false,
-        message: 'No session data returned from authentication provider'
-      });
+      return next(new ApiError(ErrorCode.EXTERNAL_SERVICE_ERROR, 'No session data returned from Supabase after sign-in.', undefined, { service: 'Supabase Auth' }));
     }
     
     console.log('Development login successful, returning valid Supabase tokens');
@@ -708,11 +559,7 @@ router.get('/check', async (req: express.Request, res: Response, next: NextFunct
       .limit(1);
       
     if (error) {
-      return res.status(500).json({
-        connected: false,
-        error: error.message,
-        timestamp: new Date().toISOString()
-      });
+      return next(new ApiError(ErrorCode.DATABASE_ERROR, 'Health check failed: Cannot connect to the database.', undefined, { originalError: error.message }));
     }
     
     return res.status(200).json({

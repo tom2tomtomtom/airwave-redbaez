@@ -1,10 +1,12 @@
 // server/src/controllers/reviewController.ts
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { ReviewService } from '@/services/ReviewService';
-import { logger } from '@/utils/logger'; 
+import { logger } from '@/utils/logger';
 import { AuthenticatedRequest } from '@/types/AuthenticatedRequest';
-import { ReviewRequestContext, ReviewAuthenticatedRequest } from '@/types/review.types';
-import { ApiError } from '@/middleware/errorHandler';
+import { ReviewAuthenticatedRequest, ReviewApprovalPayload } from '@/types/review.types';
+import { ApiError } from '@/utils/ApiError'; 
+import { ApiResponse } from '@/utils/ApiResponse';
+import { ErrorCode } from '@/types/errorTypes';
 
 const reviewService = new ReviewService();
 
@@ -16,30 +18,35 @@ export const reviewController = {
    * POST /api/reviews
    * Initiates a new review for an asset. Requires internal authentication.
    */
-  async initiateReview(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  async initiateReview(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      // Assuming internal auth middleware adds user and client info to req
       const userId = req.user?.userId;
 
       if (!userId) {
-        // Use next for consistent error handling
-        return next(new ApiError({ statusCode: 401, message: 'User not authenticated' }));
+        // Use new ApiError signature with ErrorCode
+        return next(new ApiError(ErrorCode.AUTHENTICATION_REQUIRED));
       }
 
-      // Assuming initiateReview needs request body and the initiating user's ID
       const result = await reviewService.initiateReview(req.body, userId);
 
       if (result.success) {
-        res.status(201).json(result.data);
+        // Use ApiResponse.success
+        ApiResponse.success(res, result.data, 'Review initiated successfully', 201);
       } else {
-        // Use next for consistent error handling
-        const statusCode = result.error?.includes('Validation') ? 400 : 500;
-        next(new ApiError({ statusCode, message: result.error || 'Failed to initiate review.' }));
+        // Map service error to appropriate ApiError
+        // Assuming validation failures return specific strings
+        const errorCode = result.error?.includes('Validation') 
+          ? ErrorCode.VALIDATION_FAILED 
+          : ErrorCode.OPERATION_FAILED;
+        next(new ApiError(errorCode, result.error || 'Failed to initiate review.'));
       }
     } catch (error) {
       logger.error('Error initiating review:', error);
-      // Pass error to the central handler
-      next(error instanceof ApiError ? error : new ApiError({ statusCode: 500, message: 'Internal server error while initiating review.' }));
+      // Wrap unexpected errors before passing to central handler
+      const apiError = error instanceof ApiError 
+        ? error 
+        : new ApiError(ErrorCode.INTERNAL_ERROR, 'Internal server error while initiating review.', undefined, error);
+      next(apiError);
     }
   },
 
@@ -47,32 +54,35 @@ export const reviewController = {
    * GET /api/review/:token
    * Fetches data for the external review portal using a token. Auth handled by reviewAuth middleware.
    */
-  async getReviewDataByToken(req: ReviewAuthenticatedRequest, res: Response, next: NextFunction) {
+  async getReviewDataByToken(req: ReviewAuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const reviewContext = req.reviewContext;
 
       if (!reviewContext) {
         logger.error('Review context missing after reviewAuth middleware');
-        // Use next for consistent error handling
-        return next(new ApiError({ statusCode: 401, message: 'Unauthorized or invalid token context.' }));
+        // Use new ApiError signature with ErrorCode
+        return next(new ApiError(ErrorCode.AUTHENTICATION_REQUIRED, 'Unauthorized or invalid token context.'));
       }
 
-      // Correct method name and argument order
       const result = await reviewService.getReviewData(
         reviewContext.reviewVersionId,
         reviewContext.reviewParticipantId
       );
 
       if (result.success) {
-        res.status(200).json(result.data);
+        // Use ApiResponse.success
+        ApiResponse.success(res, result.data, 'Review data fetched successfully.');
       } else {
-        // Use next for consistent error handling
-        next(new ApiError({ statusCode: 500, message: result.error || 'Failed to fetch review data.' }));
+        // Map service error to ApiError
+        next(new ApiError(ErrorCode.OPERATION_FAILED, result.error || 'Failed to fetch review data.'));
       }
     } catch (error) {
       logger.error('Error fetching review data by token:', error);
-      // Pass error to the central handler
-      next(error instanceof ApiError ? error : new ApiError({ statusCode: 500, message: 'Internal server error while fetching review data.' }));
+      // Wrap unexpected errors
+      const apiError = error instanceof ApiError 
+        ? error 
+        : new ApiError(ErrorCode.INTERNAL_ERROR, 'Internal server error while fetching review data.', undefined, error);
+      next(apiError);
     }
   },
 
@@ -80,17 +90,16 @@ export const reviewController = {
    * POST /api/review/:token/comments
    * Adds a comment to the review. Auth handled by reviewAuth middleware.
    */
-  async addComment(req: ReviewAuthenticatedRequest, res: Response, next: NextFunction) {
+  async addComment(req: ReviewAuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const reviewContext = req.reviewContext;
 
       if (!reviewContext) {
         logger.error('Review context missing after reviewAuth middleware');
-        // Use next for consistent error handling
-        return next(new ApiError({ statusCode: 401, message: 'Unauthorized or invalid token context.' }));
+        // Use new ApiError signature
+        return next(new ApiError(ErrorCode.AUTHENTICATION_REQUIRED, 'Unauthorized or invalid token context.'));
       }
 
-      // Add missing reviewVersionId argument
       const result = await reviewService.addComment(
         req.body,
         reviewContext.reviewVersionId,
@@ -98,16 +107,22 @@ export const reviewController = {
       );
 
       if (result.success) {
-        res.status(201).json(result.data);
+        // Use ApiResponse.success
+        ApiResponse.success(res, result.data, 'Comment added successfully.', 201);
       } else {
-        // Use next for consistent error handling
-        const statusCode = result.error?.includes('Validation') ? 400 : 500;
-        next(new ApiError({ statusCode, message: result.error || 'Failed to add comment.' }));
+        // Map service error to ApiError (consider VALIDATION_FAILED if applicable)
+        const errorCode = result.error?.includes('Validation') 
+          ? ErrorCode.VALIDATION_FAILED 
+          : ErrorCode.OPERATION_FAILED;
+        next(new ApiError(errorCode, result.error || 'Failed to add comment.'));
       }
     } catch (error) {
-      logger.error('Error adding review comment:', error);
-      // Pass error to the central handler
-      next(error instanceof ApiError ? error : new ApiError({ statusCode: 500, message: 'Internal server error while adding comment.' }));
+      logger.error('Error adding comment:', error);
+      // Wrap unexpected errors
+      const apiError = error instanceof ApiError 
+        ? error 
+        : new ApiError(ErrorCode.INTERNAL_ERROR, 'Internal server error while adding comment.', undefined, error);
+      next(apiError);
     }
   },
 
@@ -115,34 +130,45 @@ export const reviewController = {
    * POST /api/review/:token/approve
    * Records an approval action for the review. Auth handled by reviewAuth middleware.
    */
-  async recordApproval(req: ReviewAuthenticatedRequest, res: Response, next: NextFunction) {
+  async recordApproval(req: ReviewAuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const reviewContext = req.reviewContext;
 
       if (!reviewContext) {
         logger.error('Review context missing after reviewAuth middleware');
-        // Use next for consistent error handling
-        return next(new ApiError({ statusCode: 401, message: 'Unauthorized or invalid token context.' }));
+        // Use new ApiError signature
+        return next(new ApiError(ErrorCode.AUTHENTICATION_REQUIRED, 'Unauthorized or invalid token context.'));
       }
 
-      // Add missing reviewVersionId argument
+      // Cast req.body to the expected payload type
+      const payload = req.body as ReviewApprovalPayload;
+
+      // Ensure the versionId from the context matches the one potentially in the payload
+      // (Payload should ideally drive this, but service expects it separately too)
+      if (payload.reviewVersionId && payload.reviewVersionId !== reviewContext.reviewVersionId) {
+          return next(new ApiError(ErrorCode.INVALID_INPUT, 'Version ID mismatch between context and payload.'));
+      }
+
       const result = await reviewService.recordApproval(
-        req.body,
-        reviewContext.reviewVersionId,
+        payload, // Pass the entire payload object
+        reviewContext.reviewVersionId, // Pass versionId separately as required by service
         reviewContext.reviewParticipantId
       );
 
       if (result.success) {
-        res.status(200).json({ message: 'Approval action recorded.' });
+        // Use ApiResponse.success
+        ApiResponse.success(res, result.data, 'Approval recorded successfully.');
       } else {
-        // Use next for consistent error handling
-        const statusCode = result.error?.includes('Validation') ? 400 : 500;
-        next(new ApiError({ statusCode, message: result.error || 'Failed to record approval.' }));
+        // Map service error to ApiError
+        next(new ApiError(ErrorCode.OPERATION_FAILED, result.error || 'Failed to record approval.'));
       }
     } catch (error) {
-      logger.error('Error recording review approval:', error);
-      // Pass error to the central handler
-      next(error instanceof ApiError ? error : new ApiError({ statusCode: 500, message: 'Internal server error while recording approval.' }));
+      logger.error('Error recording approval:', error);
+      // Wrap unexpected errors
+      const apiError = error instanceof ApiError 
+        ? error 
+        : new ApiError(ErrorCode.INTERNAL_ERROR, 'Internal server error while recording approval.', undefined, error);
+      next(apiError);
     }
   },
 
@@ -150,34 +176,41 @@ export const reviewController = {
    * GET /api/assets/:assetId/reviews
    * Fetches the review history for a specific asset. Requires internal authentication.
    */
-  async getAssetReviewHistory(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  async getAssetReviewHistory(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = req.user?.userId;
-      const { assetId } = req.params;
+      const assetId = req.params.assetId;
 
       if (!userId) {
-        // Use next for consistent error handling
-        return next(new ApiError({ statusCode: 401, message: 'User not authenticated' }));
+        // Use new ApiError signature
+        return next(new ApiError(ErrorCode.AUTHENTICATION_REQUIRED));
       }
 
       if (!assetId) {
-        // Use next for consistent error handling for missing parameters
-        return next(new ApiError({ statusCode: 400, message: 'Asset ID is missing in URL parameters.' }));
+        // Use new ApiError signature for missing parameter
+        return next(new ApiError(ErrorCode.INVALID_INPUT, 'Asset ID is required.'));
       }
 
-      // Assuming getAssetReviewHistory needs assetId and the requesting user's ID
       const result = await reviewService.getAssetReviewHistory(assetId, userId);
 
       if (result.success) {
-        res.status(200).json(result.data);
+        // Use ApiResponse.success
+        ApiResponse.success(res, result.data, 'Asset review history fetched successfully.');
       } else {
-        // Use next for consistent error handling
-        next(new ApiError({ statusCode: 500, message: result.error || 'Failed to fetch review history.' }));
+        // Map service error to ApiError
+        // Check if error indicates asset not found vs other operation failure
+        const errorCode = result.error?.includes('not found') 
+          ? ErrorCode.RESOURCE_NOT_FOUND 
+          : ErrorCode.OPERATION_FAILED;
+        next(new ApiError(errorCode, result.error || 'Failed to fetch asset review history.'));
       }
     } catch (error) {
       logger.error('Error fetching asset review history:', error);
-      // Pass error to the central handler
-      next(error instanceof ApiError ? error : new ApiError({ statusCode: 500, message: 'Internal server error while fetching review history.' }));
+      // Wrap unexpected errors
+      const apiError = error instanceof ApiError 
+        ? error 
+        : new ApiError(ErrorCode.INTERNAL_ERROR, 'Internal server error while fetching review history.', undefined, error);
+      next(apiError);
     }
   },
 };

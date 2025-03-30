@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { tokenService } from '../services/TokenService';
 import { supabase } from '../db/supabaseClient';
-import { ApiError } from './errorHandler';
-import { ErrorCode } from '../types/errorTypes';
+import { ApiError } from '@/utils/ApiError';
+import { ErrorCode } from '@/types/errorTypes';
 import { redis } from '../db/redisClient';
 import jwt from 'jsonwebtoken';
 
@@ -11,10 +11,10 @@ declare global {
   namespace Express {
     interface Request {
       user?: {
-        userId: string;
-        email: string;
-        role: string;
-        sessionId: string;
+        userId: string;        // User's unique identifier
+        email: string;         // User's email address
+        role: string;          // User's role (e.g., 'admin', 'user')
+        sessionId: string;     // Unique identifier for the session
         [key: string]: any;
       };
     }
@@ -34,16 +34,16 @@ export const AUTH_MODE = {
 };
 
 /**
- * Middleware to authenticate requests and attach user to request object
- * Supports both JWT and Supabase authentication methods
+ * Middleware to authenticate requests and attach user information to the request object.
+ * Supports JWT-based authentication.
+ * In non-production environments, authentication can be bypassed for development purposes.
  */
 export const checkAuth = async (req: Request, res: Response, next: NextFunction) => {
-  // Check for development mode with auth bypass
-  if (
-    (AUTH_MODE.CURRENT === 'development' || AUTH_MODE.CURRENT === 'prototype') && 
-    AUTH_MODE.BYPASS_AUTH
-  ) {
-    console.log('[DEV] Bypassing authentication check');
+  // Strict check: Only bypass authentication if NODE_ENV is explicitly *not* 'production'.
+  // Avoids relying on potentially misconfigured bypass flags (DEV_BYPASS_AUTH, PROTOTYPE_MODE).
+  if (process.env.NODE_ENV !== 'production') {
+    // Log clearly that bypass is active due to non-production environment.
+    console.warn('[AUTH BYPASS ACTIVE] Bypassing authentication check due to non-production environment.');
     
     // Set a mock user on the request
     req.user = {
@@ -73,11 +73,10 @@ export const checkAuth = async (req: Request, res: Response, next: NextFunction)
     
     // No token found
     if (!token) {
-      throw new ApiError({
-        statusCode: 401,
-        message: 'Authentication required',
-        code: ErrorCode.AUTHENTICATION_REQUIRED
-      });
+      throw new ApiError(
+        ErrorCode.AUTHENTICATION_REQUIRED,
+        'Authentication required'
+      );
     }
     
     try {
@@ -96,11 +95,10 @@ export const checkAuth = async (req: Request, res: Response, next: NextFunction)
       // Check for token in blocklist (logged out tokens)
       const isBlocked = await redis.exists(`blocklist:${token}`);
       if (isBlocked) {
-        throw new ApiError({
-          statusCode: 401,
-          message: 'Token has been revoked',
-          code: ErrorCode.INVALID_TOKEN
-        });
+        throw new ApiError(
+          ErrorCode.INVALID_TOKEN,
+          'Token has been revoked'
+        );
       }
       
       // Set CSRF token in header for the client
@@ -115,11 +113,10 @@ export const checkAuth = async (req: Request, res: Response, next: NextFunction)
         const { data, error } = await supabase.auth.getUser(token);
         
         if (error || !data.user) {
-          throw new ApiError({
-            statusCode: 401,
-            message: 'Invalid or expired token',
-            code: ErrorCode.INVALID_TOKEN
-          });
+          throw new ApiError(
+            ErrorCode.INVALID_TOKEN,
+            'Invalid or expired token'
+          );
         }
         
         // Get user role from Supabase
@@ -151,19 +148,17 @@ export const checkAuth = async (req: Request, res: Response, next: NextFunction)
         next();
       } catch (supabaseError) {
         console.error('Authentication error:', supabaseError);
-        throw new ApiError({
-          statusCode: 401,
-          message: 'Authentication failed',
-          code: ErrorCode.AUTHENTICATION_REQUIRED
-        });
+        throw new ApiError(
+          ErrorCode.AUTHENTICATION_REQUIRED,
+          'Authentication failed'
+        );
       }
     }
   } catch (error) {
-    next(error instanceof ApiError ? error : new ApiError({
-      statusCode: 500,
-      message: 'Authentication failed',
-      code: ErrorCode.INTERNAL_ERROR
-    }));
+    next(error instanceof ApiError ? error : new ApiError(
+      ErrorCode.INTERNAL_ERROR, 
+      'Authentication failed'
+    ));
   }
 };
 
