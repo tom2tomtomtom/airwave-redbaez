@@ -151,15 +151,24 @@ export class AssetRouter extends BaseRouter {
     // Convert string tags to array if needed
     if (typeof filters.tags === 'string') {
       try {
-        filters.tags = JSON.parse(filters.tags as string);
+        // Parse JSON string to array
+        const parsed = JSON.parse(filters.tags as string);
+        filters.tags = Array.isArray(parsed) ? parsed : [parsed];
       } catch (e) {
-        filters.tags = (filters.tags as string).split(',');
+        // Handle comma-separated list
+        filters.tags = (filters.tags as string).split(',').map(tag => tag.trim());
       }
     }
     
     // Convert string boolean to actual boolean
-    if (filters.isFavourite !== undefined) {
-      filters.isFavourite = filters.isFavourite === 'true';
+    if (filters.favourite !== undefined) {
+      // Handle both string and array cases
+      if (Array.isArray(filters.favourite)) {
+        // If it's an array, use the first element
+        filters.favourite = String(filters.favourite[0]) === 'true';
+      } else {
+        filters.favourite = String(filters.favourite) === 'true';
+      }
     }
     
     logger.debug('Getting assets with filters', { filters });
@@ -168,7 +177,7 @@ export class AssetRouter extends BaseRouter {
     if (result.success && result.data) {
       res.success(result.data, 'Assets retrieved successfully');
     } else {
-      throw new ApiError(500, result.message || 'Failed to retrieve assets');
+      throw ApiError.internal(result.message || 'Failed to retrieve assets', { clientId });
     }
   }
   
@@ -185,9 +194,9 @@ export class AssetRouter extends BaseRouter {
     if (result.success && result.data) {
       res.success(result.data, 'Asset retrieved successfully');
     } else if (!result.success && result.message?.includes('not found')) {
-      throw new ApiError(404, 'Asset not found');
+      throw ApiError.notFound('Asset not found', { id, clientId });
     } else {
-      throw new ApiError(500, result.message || 'Failed to retrieve asset');
+      throw ApiError.internal(result.message || 'Failed to retrieve asset', { id, clientId });
     }
   }
   
@@ -196,14 +205,14 @@ export class AssetRouter extends BaseRouter {
    */
   private async uploadAsset(req: Request, res: Response): Promise<void> {
     if (!req.file) {
-      throw new ApiError(400, 'No file uploaded');
+      throw ApiError.validation('No file uploaded');
     }
     
     const clientId = this.validateClientId(req);
     const userId = req.user?.id;
     
     if (!userId) {
-      throw new ApiError(401, 'User ID is required');
+      throw ApiError.unauthorized('User ID is required');
     }
     
     const { name, description, type, tags } = req.body;
@@ -238,7 +247,7 @@ export class AssetRouter extends BaseRouter {
     if (result.success && result.data) {
       res.success(result.data, 'Asset uploaded successfully', 201);
     } else {
-      throw new ApiError(500, result.message || 'Failed to upload asset');
+      throw ApiError.internal(result.message || 'Failed to upload asset', { clientId });
     }
   }
   
@@ -255,9 +264,9 @@ export class AssetRouter extends BaseRouter {
     if (result.success && result.data) {
       res.success(result.data, 'Asset updated successfully');
     } else if (!result.success && result.message?.includes('not found')) {
-      throw new ApiError(404, 'Asset not found');
+      throw ApiError.notFound('Asset not found', { id, clientId });
     } else {
-      throw new ApiError(500, result.message || 'Failed to update asset');
+      throw ApiError.internal(result.message || 'Failed to update asset', { id, clientId });
     }
   }
   
@@ -274,9 +283,9 @@ export class AssetRouter extends BaseRouter {
     if (result.success) {
       res.success(null, 'Asset deleted successfully');
     } else if (!result.success && result.message?.includes('not found')) {
-      throw new ApiError(404, 'Asset not found');
+      throw ApiError.notFound('Asset not found', { id, clientId });
     } else {
-      throw new ApiError(500, result.message || 'Failed to delete asset');
+      throw ApiError.internal(result.message || 'Failed to delete asset', { id, clientId });
     }
   }
   
@@ -289,7 +298,7 @@ export class AssetRouter extends BaseRouter {
     const { isFavourite } = req.body;
     
     if (isFavourite === undefined) {
-      throw new ApiError(400, 'isFavourite parameter is required');
+      throw ApiError.validation('isFavourite parameter is required');
     }
     
     logger.debug('Toggling asset favourite status', { id, clientId, isFavourite });
@@ -298,9 +307,9 @@ export class AssetRouter extends BaseRouter {
     if (result.success && result.data) {
       res.success(result.data, `Asset ${isFavourite ? 'added to' : 'removed from'} favourites`);
     } else if (!result.success && result.message?.includes('not found')) {
-      throw new ApiError(404, 'Asset not found');
+      throw ApiError.notFound('Asset not found', { id, clientId });
     } else {
-      throw new ApiError(500, result.message || 'Failed to update favourite status');
+      throw ApiError.internal(result.message || 'Failed to update favourite status', { id, clientId });
     }
   }
   

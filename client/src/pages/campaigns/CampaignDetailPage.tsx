@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
-import { AppDispatch } from '../../store';
+import { RootState, AppDispatch } from '../../store';
+import { Campaign, Execution } from '../../types/campaigns';
+import { 
+  selectCampaignById, 
+  fetchCampaignById,
+  updateCampaign
+} from '../../store/slices/campaignsSlice';
 import {
   Box,
   Typography,
@@ -18,8 +24,6 @@ import {
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
-import { RootState } from '../../store';
-import { fetchCampaignById, updateCampaign } from '../../store/slices/campaignsSlice';
 import PageHeader from '../../components/layout/PageHeader';
 import CampaignInfoForm from '../../components/campaigns/CampaignInfoForm';
 import ExecutionsList from '../../components/campaigns/ExecutionsList';
@@ -57,8 +61,9 @@ const CampaignDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch<AppDispatch>();
   
-  const { campaigns, loading, error } = useSelector((state: RootState) => state.campaigns);
-  const campaign = campaigns.find(c => c.id === id) || null;
+  // Use the selectCampaignById selector
+  const campaign = useSelector((state: RootState) => selectCampaignById(state, id || ''));
+  const { loading, error } = useSelector((state: RootState) => state.campaigns);
   
   const [tabValue, setTabValue] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
@@ -77,8 +82,7 @@ const CampaignDetailPage: React.FC = () => {
   const [matrixId, setMatrixId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    if (id && (!campaign || Object.keys(campaign).length === 0)) {
-      // @ts-ignore
+    if (id && !campaign) {
       dispatch(fetchCampaignById(id));
     }
   }, [dispatch, id, campaign]);
@@ -159,7 +163,6 @@ const CampaignDetailPage: React.FC = () => {
     setUpdateSuccess(false);
     
     try {
-      // @ts-ignore
       await dispatch(updateCampaign({ 
         id, 
         ...editFormData 
@@ -346,7 +349,7 @@ const CampaignDetailPage: React.FC = () => {
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
                   {campaign.platforms && campaign.platforms.length > 0 ? (
-                    campaign.platforms.map(platform => (
+                    campaign.platforms.map((platform: string) => (
                       <Chip key={platform} label={platform} />
                     ))
                   ) : (

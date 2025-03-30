@@ -37,6 +37,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
 import { logout } from '../store/slices/authSlice';
 import ClientSelector from './clients/ClientSelector';
+import { GenerationProvider } from '../features/generation/context/GenerationContext';
 
 const drawerWidth = 240;
 
@@ -249,11 +250,11 @@ const Layout: React.FC = () => {
         </Drawer>
       </Box>
 
-      <Main open={drawerOpen && !isMobile}>
-        <Toolbar /> {/* This is for spacing below the AppBar */}
-        <Box sx={{ mt: 2, p: 2 }}>
+      <Main open={drawerOpen} sx={{ flexGrow: 1 }}>
+        <Toolbar /> {/* Spacer for the fixed AppBar */}
+        <GenerationProvider>
           <Outlet />
-        </Box>
+        </GenerationProvider>
       </Main>
     </Box>
   );

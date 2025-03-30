@@ -1,20 +1,95 @@
 import { PostgrestError } from '@supabase/supabase-js';
+import { ErrorCategory, ErrorCode, ErrorMessages, statusCodeToErrorCategory, isTransientError } from './errorTypes';
 
 interface ErrorDetails {
   message: string;
   code?: string;
+  statusCode?: number;
   context?: Record<string, any>;
+  isOperational?: boolean;
+  isRetryable?: boolean;
+  retry?: {
+    count: number;
+    maxRetries: number;
+    delay: number;
+  };
 }
 
 export class AppError extends Error {
   public code: string;
+  public statusCode?: number;
   public context?: Record<string, any>;
+  public isOperational: boolean;
+  public isRetryable: boolean;
+  public retry?: {
+    count: number;
+    maxRetries: number;
+    delay: number;
+  };
+  public category: ErrorCategory;
+  public userMessage: string;
 
-  constructor({ message, code = 'UNKNOWN_ERROR', context }: ErrorDetails) {
+  constructor({
+    message,
+    code = ErrorCode.UNKNOWN_ERROR,
+    statusCode,
+    context,
+    isOperational = true,
+    isRetryable,
+    retry,
+  }: ErrorDetails) {
     super(message);
     this.name = 'AppError';
     this.code = code;
+    this.statusCode = statusCode;
     this.context = context;
+    this.isOperational = isOperational;
+    this.isRetryable = isRetryable ?? isTransientError({ code, status: statusCode, message });
+    this.retry = retry || (this.isRetryable ? { count: 0, maxRetries: 3, delay: 1000 } : undefined);
+    
+    // Determine error category from code prefix or status code
+    this.category = this.determineCategory();
+    
+    // Get user-friendly message
+    this.userMessage = ErrorMessages[code] || message;
+    
+    // Capture stack trace
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, AppError);
+    }
+  }
+  
+  private determineCategory(): ErrorCategory {
+    // First try to determine from error code
+    if (this.code) {
+      const codePrefix = this.code.split('_')[0];
+      const matchingCategory = Object.values(ErrorCategory).find(cat => codePrefix === cat);
+      if (matchingCategory) return matchingCategory as ErrorCategory;
+    }
+    
+    // Fall back to status code if available
+    if (this.statusCode) {
+      return statusCodeToErrorCategory(this.statusCode);
+    }
+    
+    return ErrorCategory.UNKNOWN;
+  }
+  
+  public shouldRetry(): boolean {
+    if (!this.isRetryable || !this.retry) return false;
+    return this.retry.count < this.retry.maxRetries;
+  }
+  
+  public incrementRetryCount(): void {
+    if (this.retry) {
+      this.retry.count += 1;
+    }
+  }
+  
+  public getRetryDelay(): number {
+    if (!this.retry) return 0;
+    // Implement exponential backoff
+    return this.retry.delay * Math.pow(2, this.retry.count - 1);
   }
 }
 

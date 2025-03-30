@@ -1,365 +1,365 @@
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { 
+  createSlice, 
+  createAsyncThunk, 
+  PayloadAction,
+  createEntityAdapter, 
+  EntityState 
+} from '@reduxjs/toolkit';
 import axios from 'axios';
+import { createSelector } from '@reduxjs/toolkit'; 
 import { Campaign, CampaignFormData, CampaignFilters, Execution } from '../../types/campaigns';
 import { supabase } from '../../lib/supabase';
+import { RootState } from '..'; 
 
-interface CampaignsState {
-  campaigns: Campaign[];
+interface CampaignsState extends EntityState<Campaign> {
   loading: boolean;
   error: string | null;
-  currentCampaign: Campaign | null;
+  currentCampaignId: string | null;
   filters: CampaignFilters;
 }
 
-const initialState: CampaignsState = {
-  campaigns: [],
+const campaignsAdapter = createEntityAdapter<Campaign>({ });
+
+const initialState: CampaignsState = campaignsAdapter.getInitialState({
   loading: false,
   error: null,
-  currentCampaign: null,
+  currentCampaignId: null,
   filters: {
     search: '',
     status: 'all',
   },
-};
+});
 
-// Helper function to get the current Supabase token
 const getAuthToken = async () => {
   const { data } = await supabase.auth.getSession();
-  return data?.session?.access_token || localStorage.getItem('airwave_auth_token');
+  return data?.session?.access_token || localStorage.getItem('airwave_auth_token'); 
 };
 
-// Async thunks
 export const fetchCampaigns = createAsyncThunk<Campaign[], string | undefined>(
   'campaigns/fetchCampaigns',
   async (clientId, { rejectWithValue }) => {
     try {
       const token = await getAuthToken();
-      
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-      
+      if (!token) throw new Error('Authentication required');
       const response = await axios.get('/api/campaigns', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Authorization': `Bearer ${token}` },
         params: clientId ? { clientId } : undefined
       });
-      return response.data;
+      return response.data as Campaign[]; 
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch campaigns');
     }
   }
 );
 
-export const fetchCampaignById = createAsyncThunk(
+export const fetchCampaignById = createAsyncThunk<Campaign, string>(
   'campaigns/fetchCampaignById',
   async (campaignId: string, { rejectWithValue }) => {
     try {
       const token = await getAuthToken();
-      
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-      
+      if (!token) throw new Error('Authentication required');
       const response = await axios.get(`/api/campaigns/${campaignId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      return response.data;
+      return response.data as Campaign;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch campaign');
     }
   }
 );
 
-export const createCampaign = createAsyncThunk(
+export const createCampaign = createAsyncThunk<Campaign, CampaignFormData>(
   'campaigns/createCampaign',
   async (campaignData: CampaignFormData, { rejectWithValue }) => {
     try {
       const token = await getAuthToken();
-      
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-      
+      if (!token) throw new Error('Authentication required');
       const response = await axios.post('/api/campaigns', campaignData, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      return response.data;
+      return response.data as Campaign;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to create campaign');
     }
   }
 );
 
-export const updateCampaign = createAsyncThunk(
+export const updateCampaign = createAsyncThunk<Campaign, { id: string; data: Partial<CampaignFormData> }>(
   'campaigns/updateCampaign',
-  async ({ id, data }: { id: string; data: Partial<CampaignFormData> }, { rejectWithValue }) => {
+  async ({ id, data }, { rejectWithValue }) => {
     try {
       const token = await getAuthToken();
-      
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-      
+      if (!token) throw new Error('Authentication required');
       const response = await axios.put(`/api/campaigns/${id}`, data, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      return response.data;
+      return response.data as Campaign;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update campaign');
     }
   }
 );
 
-export const deleteCampaign = createAsyncThunk(
+export const deleteCampaign = createAsyncThunk<string, string>(
   'campaigns/deleteCampaign',
   async (campaignId: string, { rejectWithValue }) => {
     try {
       const token = await getAuthToken();
-      
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-      
+      if (!token) throw new Error('Authentication required');
       await axios.delete(`/api/campaigns/${campaignId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      return campaignId;
+      return campaignId; 
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to delete campaign');
     }
   }
 );
 
-export const addExecutionToCampaign = createAsyncThunk(
+export const addExecutionToCampaign = createAsyncThunk<
+  { campaignId: string; execution: Execution }, 
+  { campaignId: string; execution: Execution }, 
+  { state: RootState } 
+>(
   'campaigns/addExecution',
-  async ({ campaignId, execution }: { campaignId: string; execution: Execution }, { rejectWithValue }) => {
+  async ({ campaignId, execution }, { rejectWithValue }) => {
     try {
       const token = await getAuthToken();
-      
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-      
+      if (!token) throw new Error('Authentication required');
       const response = await axios.post(`/api/campaigns/${campaignId}/executions`, execution, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      return { campaignId, execution: response.data };
+      return { campaignId, execution: response.data as Execution }; 
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to add execution');
     }
   }
 );
 
-export const generateExecutionPreview = createAsyncThunk(
+export const generateExecutionPreview = createAsyncThunk<
+  { campaignId: string; executionId: string; preview: any }, 
+  { campaignId: string; executionId: string },
+  { state: RootState }
+>(
   'campaigns/generatePreview',
-  async ({ campaignId, executionId }: { campaignId: string; executionId: string }, { rejectWithValue }) => {
+  async ({ campaignId, executionId }, { rejectWithValue }) => {
     try {
       const token = await getAuthToken();
-      
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-      
-      const response = await axios.post(`/api/creatomate/preview`, {
-        campaignId,
-        executionId
-      }, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      return { campaignId, executionId, preview: response.data };
+      if (!token) throw new Error('Authentication required');
+      const response = await axios.post(`/api/creatomate/preview`, 
+        { campaignId, executionId }, 
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      return { campaignId, executionId, preview: response.data }; 
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to generate preview');
     }
   }
 );
 
-export const startCampaignRender = createAsyncThunk(
+export const startCampaignRender = createAsyncThunk<
+  { campaignId: string; renderData: any }, 
+  string, 
+  { state: RootState }
+>(
   'campaigns/startRender',
-  async (campaignId: string, { rejectWithValue }) => {
+  async (campaignId, { rejectWithValue }) => {
     try {
       const token = await getAuthToken();
-      
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-      
+      if (!token) throw new Error('Authentication required');
       const response = await axios.post(`/api/campaigns/${campaignId}/render`, null, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      return { campaignId, renders: response.data };
+      return { campaignId, renderData: response.data }; 
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to start campaign render');
+      return rejectWithValue(error.response?.data?.message || 'Failed to start render');
     }
   }
 );
 
-// Slice
 const campaignsSlice = createSlice({
   name: 'campaigns',
   initialState,
   reducers: {
-    setCampaignFilters: (state, action: PayloadAction<CampaignFilters>) => {
+    setCampaignFilters(state, action: PayloadAction<Partial<CampaignFilters>>) {
       state.filters = { ...state.filters, ...action.payload };
     },
-    clearCampaignFilters: (state) => {
-      state.filters = { search: '', status: 'all' };
+    clearCampaignFilters(state) {
+      state.filters = initialState.filters; 
     },
-    setCurrentCampaign: (state, action: PayloadAction<Campaign | null>) => {
-      state.currentCampaign = action.payload;
+    setCurrentCampaignId(state, action: PayloadAction<string | null>) {
+      state.currentCampaignId = action.payload;
     },
   },
   extraReducers: (builder) => {
-    // Fetch campaigns
-    builder.addCase(fetchCampaigns.pending, (state) => {
-      state.loading = true;
-      state.error = null;
-    });
-    builder.addCase(fetchCampaigns.fulfilled, (state, action: PayloadAction<Campaign[]>) => {
-      state.campaigns = action.payload;
-      state.loading = false;
-    });
-    builder.addCase(fetchCampaigns.rejected, (state, action) => {
-      state.loading = false;
-      state.error = action.payload as string;
-    });
-
-    // Fetch campaign by ID
-    builder.addCase(fetchCampaignById.pending, (state) => {
-      state.loading = true;
-      state.error = null;
-    });
-    builder.addCase(fetchCampaignById.fulfilled, (state, action: PayloadAction<Campaign>) => {
-      state.currentCampaign = action.payload;
-      const index = state.campaigns.findIndex(c => c.id === action.payload.id);
-      if (index !== -1) {
-        state.campaigns[index] = action.payload;
-      }
-      state.loading = false;
-    });
-    builder.addCase(fetchCampaignById.rejected, (state, action) => {
-      state.loading = false;
-      state.error = action.payload as string;
-    });
-
-    // Create campaign
-    builder.addCase(createCampaign.pending, (state) => {
-      state.loading = true;
-      state.error = null;
-    });
-    builder.addCase(createCampaign.fulfilled, (state, action: PayloadAction<Campaign>) => {
-      state.campaigns.unshift(action.payload);
-      state.currentCampaign = action.payload;
-      state.loading = false;
-    });
-    builder.addCase(createCampaign.rejected, (state, action) => {
-      state.loading = false;
-      state.error = action.payload as string;
-    });
-
-    // Update campaign
-    builder.addCase(updateCampaign.pending, (state) => {
-      state.loading = true;
-      state.error = null;
-    });
-    builder.addCase(updateCampaign.fulfilled, (state, action: PayloadAction<Campaign>) => {
-      const index = state.campaigns.findIndex(c => c.id === action.payload.id);
-      if (index !== -1) {
-        state.campaigns[index] = action.payload;
-      }
-      if (state.currentCampaign?.id === action.payload.id) {
-        state.currentCampaign = action.payload;
-      }
-      state.loading = false;
-    });
-    builder.addCase(updateCampaign.rejected, (state, action) => {
-      state.loading = false;
-      state.error = action.payload as string;
-    });
-
-    // Delete campaign
-    builder.addCase(deleteCampaign.pending, (state) => {
-      state.loading = true;
-      state.error = null;
-    });
-    builder.addCase(deleteCampaign.fulfilled, (state, action: PayloadAction<string>) => {
-      state.campaigns = state.campaigns.filter(c => c.id !== action.payload);
-      if (state.currentCampaign?.id === action.payload) {
-        state.currentCampaign = null;
-      }
-      state.loading = false;
-    });
-    builder.addCase(deleteCampaign.rejected, (state, action) => {
-      state.loading = false;
-      state.error = action.payload as string;
-    });
-
-    // Add execution to campaign
-    builder.addCase(addExecutionToCampaign.fulfilled, (state, action) => {
-      const { campaignId, execution } = action.payload;
-      
-      // Update in campaigns array
-      const campaignIndex = state.campaigns.findIndex(c => c.id === campaignId);
-      if (campaignIndex !== -1) {
-        state.campaigns[campaignIndex].executions.push(execution);
-      }
-      
-      // Update in current campaign if it's the same
-      if (state.currentCampaign?.id === campaignId) {
-        state.currentCampaign.executions.push(execution);
-      }
-    });
-
-    // Generate execution preview
-    builder.addCase(generateExecutionPreview.fulfilled, (state, action) => {
-      const { campaignId, executionId, preview } = action.payload;
-      
-      // Update campaign and execution
-      if (state.currentCampaign?.id === campaignId) {
-        const executionIndex = state.currentCampaign.executions.findIndex(e => e.id === executionId);
-        if (executionIndex !== -1) {
-          state.currentCampaign.executions[executionIndex].thumbnailUrl = preview.thumbnailUrl;
-          state.currentCampaign.executions[executionIndex].renderUrl = preview.url;
+    builder
+      .addCase(fetchCampaigns.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchCampaigns.fulfilled, (state, action: PayloadAction<Campaign[]>) => {
+        campaignsAdapter.setAll(state, action.payload); 
+        state.loading = false;
+      })
+      .addCase(fetchCampaigns.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string || 'Failed to fetch campaigns';
+      })
+      .addCase(fetchCampaignById.pending, (state) => {
+        state.loading = true; 
+        state.error = null;
+      })
+      .addCase(fetchCampaignById.fulfilled, (state, action: PayloadAction<Campaign>) => {
+        campaignsAdapter.upsertOne(state, action.payload); 
+        state.currentCampaignId = action.payload.id; 
+        state.loading = false;
+      })
+      .addCase(fetchCampaignById.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string || 'Failed to fetch campaign';
+      })
+      .addCase(createCampaign.pending, (state) => {
+        state.loading = true; 
+        state.error = null;
+      })
+      .addCase(createCampaign.fulfilled, (state, action: PayloadAction<Campaign>) => {
+        campaignsAdapter.addOne(state, action.payload); 
+        state.loading = false;
+      })
+      .addCase(createCampaign.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string || 'Failed to create campaign';
+      })
+      .addCase(updateCampaign.pending, (state) => {
+        state.loading = true; 
+        state.error = null;
+      })
+      .addCase(updateCampaign.fulfilled, (state, action: PayloadAction<Campaign>) => {
+        campaignsAdapter.upsertOne(state, action.payload); 
+        if (state.currentCampaignId === action.payload.id) {
         }
-      }
-    });
-
-    // Start campaign render
-    builder.addCase(startCampaignRender.fulfilled, (state, action) => {
-      const { campaignId } = action.payload;
-      
-      // Update campaign status
-      const campaignIndex = state.campaigns.findIndex(c => c.id === campaignId);
-      if (campaignIndex !== -1) {
-        state.campaigns[campaignIndex].status = 'rendering';
-      }
-      
-      if (state.currentCampaign?.id === campaignId) {
-        state.currentCampaign.status = 'rendering';
-      }
-    });
+        state.loading = false;
+      })
+      .addCase(updateCampaign.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string || 'Failed to update campaign';
+      })
+      .addCase(deleteCampaign.pending, (state) => {
+        state.loading = true; 
+        state.error = null;
+      })
+      .addCase(deleteCampaign.fulfilled, (state, action: PayloadAction<string>) => {
+        campaignsAdapter.removeOne(state, action.payload); 
+        if (state.currentCampaignId === action.payload) {
+          state.currentCampaignId = null; 
+        }
+        state.loading = false;
+      })
+      .addCase(deleteCampaign.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string || 'Failed to delete campaign';
+      })
+      .addCase(addExecutionToCampaign.fulfilled, (state, action) => {
+        const { campaignId, execution } = action.payload;
+        const campaign = state.entities[campaignId];
+        if (campaign) {
+          const existingExecutions = campaign.executions || []; 
+          campaignsAdapter.updateOne(state, {
+            id: campaignId,
+            changes: { executions: [...existingExecutions, execution] }, 
+          });
+        }
+      })
+      .addCase(generateExecutionPreview.fulfilled, (state, action) => {
+        const { campaignId, executionId, preview } = action.payload;
+        const campaign = state.entities[campaignId];
+        if (campaign && campaign.executions) {
+          const executionIndex = campaign.executions.findIndex(ex => ex.id === executionId);
+          if (executionIndex !== -1) {
+            const updatedExecution = { 
+              ...campaign.executions[executionIndex], 
+              previewUrl: preview.url 
+            };
+            const updatedExecutions = [...campaign.executions];
+            updatedExecutions[executionIndex] = updatedExecution;
+            
+            campaignsAdapter.updateOne(state, {
+              id: campaignId,
+              changes: { executions: updatedExecutions },
+            });
+          }
+        }
+      })
+      .addCase(startCampaignRender.fulfilled, (state, action) => {
+        const { campaignId, renderData } = action.payload;
+        campaignsAdapter.updateOne(state, {
+          id: campaignId,
+          changes: { 
+            status: 'rendering', 
+          },
+        });
+      });
   },
 });
 
 export const { 
   setCampaignFilters, 
   clearCampaignFilters,
-  setCurrentCampaign 
+  setCurrentCampaignId 
 } = campaignsSlice.actions;
+
+const campaignsSelectors = campaignsAdapter.getSelectors<RootState>(
+  (state) => state.campaigns 
+);
+
+export const selectAllCampaigns = campaignsSelectors.selectAll;
+export const selectCampaignEntities = campaignsSelectors.selectEntities;
+export const selectCampaignIds = campaignsSelectors.selectIds;
+export const selectTotalCampaigns = campaignsSelectors.selectTotal;
+
+export const selectCampaignById = campaignsSelectors.selectById; 
+
+export const selectCurrentCampaignId = (state: RootState): string | null => state.campaigns.currentCampaignId;
+
+export const selectCampaignFilters = (state: RootState): CampaignFilters => state.campaigns.filters;
+
+export const selectCampaignsLoading = (state: RootState): boolean => state.campaigns.loading;
+
+export const selectCampaignsError = (state: RootState): string | null => state.campaigns.error;
+
+export const selectCurrentCampaign = createSelector(
+  [selectCampaignEntities, selectCurrentCampaignId], 
+  (entities, currentId) => (currentId ? entities[currentId] : null) 
+);
+
+export const selectFilteredCampaigns = createSelector(
+  [selectAllCampaigns, selectCampaignFilters], 
+  (campaigns, filters) => { 
+    const { search, status } = filters;
+    if (!search && status === 'all') {
+      return campaigns; 
+    }
+    return campaigns.filter(campaign => {
+      const searchMatch = search 
+        ? campaign.name.toLowerCase().includes(search.toLowerCase()) 
+        : true;
+      const statusMatch = status !== 'all' ? campaign.status === status : true;
+      return searchMatch && statusMatch;
+    });
+  }
+);
+
+export const selectActiveCampaigns = createSelector(
+  [selectAllCampaigns],
+  (campaigns) => campaigns.filter(c => c.status === 'active') 
+);
+
+export const selectCampaignsByClientId = createSelector(
+  [selectAllCampaigns, (state: RootState, clientId: string | null) => clientId], 
+  (campaigns, clientId) => {
+    if (!clientId) return campaigns; 
+    return campaigns.filter(c => c.client === clientId); 
+  }
+);
 
 export default campaignsSlice.reducer;

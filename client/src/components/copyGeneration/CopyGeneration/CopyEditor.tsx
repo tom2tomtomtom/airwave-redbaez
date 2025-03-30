@@ -25,8 +25,8 @@ import ErrorIcon from '@mui/icons-material/Error';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 
-import { CopyVariation, CopyQualityCheck } from '../../../services/copyGeneration/types';
-import PromptEngineeringService from '../../../services/copyGeneration/PromptEngineeringService';
+import { CopyVariation, CopyType, CopyStatus, QualityScore } from '../../../services/copyGeneration/types';
+import { PromptEngineeringService } from '../../../services/copyGeneration/PromptEngineeringService';
 
 interface CopyEditorProps {
   variation: CopyVariation;
@@ -48,7 +48,6 @@ const CopyEditor: React.FC<CopyEditorProps> = ({
   const [editedText, setEditedText] = useState<string>(variation.text || '');
   const [editedFrames, setEditedFrames] = useState<string[]>(variation.frames || []);
   const [hasFrames, setHasFrames] = useState<boolean>(!!variation.frames);
-  const [qualityChecks, setQualityChecks] = useState<CopyQualityCheck[]>([]);
   const [isChecking, setIsChecking] = useState<boolean>(false);
   const [changesDetected, setChangesDetected] = useState<boolean>(false);
   
@@ -101,8 +100,7 @@ const CopyEditor: React.FC<CopyEditorProps> = ({
         : editedText;
       
       // Use prompt engineering service to check copy quality
-      const checks = await PromptEngineeringService.checkCopyQuality(textToCheck);
-      setQualityChecks(checks);
+      await PromptEngineeringService.checkCopyQuality(textToCheck);
     } catch (error) {
       console.error('Error checking copy quality:', error);
     } finally {
@@ -118,7 +116,6 @@ const CopyEditor: React.FC<CopyEditorProps> = ({
       modifiedAt: new Date(),
       text: hasFrames ? '' : editedText,
       frames: hasFrames ? editedFrames : undefined,
-      qualityChecks
     };
     
     onSave(updatedVariation);
@@ -242,60 +239,6 @@ const CopyEditor: React.FC<CopyEditorProps> = ({
           />
         )}
       </Box>
-      
-      {/* Quality checks */}
-      {qualityChecks.length > 0 && (
-        <Box sx={{ mb: 3 }}>
-          <Divider sx={{ my: 3 }} />
-          
-          <Typography variant="subtitle1" gutterBottom>
-            Quality Checks
-          </Typography>
-          
-          <List>
-            {qualityChecks.map((check, index) => (
-              <ListItem key={index} alignItems="flex-start">
-                <ListItemIcon>
-                  {getSeverityIcon(check.severity)}
-                </ListItemIcon>
-                <ListItemText
-                  primary={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {check.category}
-                      <Chip 
-                        label={check.severity} 
-                        size="small" 
-                        color={
-                          check.severity === 'error' 
-                            ? 'error' 
-                            : check.severity === 'warning' 
-                              ? 'warning' 
-                              : 'success'
-                        }
-                        sx={{ textTransform: 'capitalize' }}
-                      />
-                    </Box>
-                  }
-                  secondary={
-                    <>
-                      <Typography variant="body2" component="span">
-                        {check.description}
-                      </Typography>
-                      {check.suggestion && (
-                        <Alert severity="info" sx={{ mt: 1 }}>
-                          <Typography variant="body2">
-                            <strong>Suggestion:</strong> {check.suggestion}
-                          </Typography>
-                        </Alert>
-                      )}
-                    </>
-                  }
-                />
-              </ListItem>
-            ))}
-          </List>
-        </Box>
-      )}
       
       {/* Action buttons */}
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2 }}>

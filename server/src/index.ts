@@ -18,7 +18,7 @@ import { logger } from './utils/logger';
 
 // Routes
 import authRoutes from './routes/auth.routes';
-import assetRoutes from './routes/assetRoutes';
+// import assetRoutes from './routes/assetRoutes'; // Removed unused legacy import
 import templateRoutes from './routes/templateRoutes';
 import campaignRoutes from './routes/campaignRoutes';
 import creatomateRoutes from './routes/creatomate.routes';
@@ -165,20 +165,20 @@ app.use('/api/briefs', briefRoutes);
 app.use('/api/mcp', mcpRoutes);
 
 // v2 API Routes - new slug-based design
-app.use('/api/v2', v2Routes);
+// app.use('/api/v2', v2Routes); // Removed direct mount - using registry for consistency
 
 // Import router classes
 import { AssetRouter } from './routes/assets.routes';
 import { ClientRouter } from './routes/clients.routes';
 import { CampaignRouter } from './routes/campaigns.routes';
-import { V2AssetRouter } from './routes/v2/assets.routes';
+// import { V2AssetRouter } from './routes/v2/assets.routes'; // Removed redundant V2 router
 import { V2ClientRouter } from './routes/v2/clients.routes';
 
 // Register route handlers with the registry
 RouteRegistry.register(new AssetRouter());
 RouteRegistry.register(new ClientRouter());
 RouteRegistry.register(new CampaignRouter());
-RouteRegistry.register(new V2AssetRouter());
+// RouteRegistry.register(new V2AssetRouter()); // Removed redundant V2 registration
 RouteRegistry.register(new V2ClientRouter());
 
 // Initialize all registered routes

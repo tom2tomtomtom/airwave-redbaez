@@ -39,7 +39,11 @@ import ShareIcon from '@mui/icons-material/Share';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 
 import { RootState, AppDispatch } from '../../store';
-import { fetchCampaigns } from '../../store/slices/campaignsSlice';
+import { Campaign } from '../../types/campaigns';
+import { 
+  selectAllCampaigns, 
+  fetchCampaigns 
+} from '../../store/slices/campaignsSlice';
 
 // Mock data for analytics (in a real app, this would come from an API)
 const mockViewsData = [
@@ -90,7 +94,8 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
 const AnalyticsPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const { campaigns } = useSelector((state: RootState) => state.campaigns);
+  // Use selector
+  const campaigns = useSelector(selectAllCampaigns);
   
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
   const [tabValue, setTabValue] = useState(0);
@@ -101,8 +106,11 @@ const AnalyticsPage: React.FC = () => {
   
   // Load campaigns on component mount
   useEffect(() => {
-    dispatch(fetchCampaigns());
-  }, [dispatch]);
+    // Fetch campaigns if not already loaded
+    if (campaigns.length === 0) {
+      dispatch(fetchCampaigns());
+    }
+  }, [dispatch, campaigns.length]);
   
   // Simulated data loading effect
   useEffect(() => {
@@ -171,7 +179,8 @@ const AnalyticsPage: React.FC = () => {
                 <MenuItem value="">
                   <em>Select a campaign</em>
                 </MenuItem>
-                {campaigns.map(campaign => (
+                {/* Add Campaign type */}
+                {campaigns.map((campaign: Campaign) => (
                   <MenuItem key={campaign.id} value={campaign.id}>
                     {campaign.name}
                   </MenuItem>

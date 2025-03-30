@@ -19,8 +19,13 @@ import {
   Palette as PaletteIcon
 } from '@mui/icons-material';
 import { RootState, AppDispatch } from '../../store';
-import { fetchTemplates } from '../../store/slices/templatesSlice';
-import { fetchCampaigns } from '../../store/slices/campaignsSlice';
+import { Template } from '../../types/templates';
+import { Campaign } from '../../types/campaigns';
+import { 
+  selectAllCampaigns,
+  fetchCampaigns 
+} from '../../store/slices/campaignsSlice';
+import { fetchTemplates, selectAllTemplates } from '../../store/slices/templatesSlice';
 import CopyGenerationPage from './CopyGenerationPage';
 import ImageGenerationPage from './ImageGenerationPage';
 import VideoGenerationPage from './VideoGenerationPage';
@@ -59,17 +64,25 @@ const GeneratePage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  const { templates, loading: templatesLoading } = useSelector((state: RootState) => state.templates);
-  const { campaigns, loading: campaignsLoading } = useSelector((state: RootState) => state.campaigns);
+  const templates = useSelector(selectAllTemplates);
+  const { loading: templatesLoading } = useSelector((state: RootState) => state.templates);
+  const campaigns = useSelector(selectAllCampaigns);
+  const campaignsLoading = useSelector((state: RootState) => state.campaigns.loading);
   const { selectedClientId } = useSelector((state: RootState) => state.clients);
   
   useEffect(() => {
     // Fetch templates and campaigns for the selected client
     if (selectedClientId) {
       dispatch(fetchTemplates());
-      dispatch(fetchCampaigns());
     }
-  }, [dispatch, selectedClientId]);
+    // Fetch campaigns if needed
+    if (selectedClientId && campaigns.length === 0) {
+      dispatch(fetchCampaigns(selectedClientId));
+    }
+  }, [dispatch, templates.length, campaigns.length, selectedClientId]);
+
+  // Filter campaigns based on selected client
+  const clientCampaigns = campaigns.filter(campaign => campaign.client === selectedClientId);
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);

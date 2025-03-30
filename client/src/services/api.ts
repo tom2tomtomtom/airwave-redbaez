@@ -2,6 +2,8 @@ import { supabase } from '../supabaseClient';
 import { security } from './security';
 import { monitoring } from './monitoring';
 import { caching } from './caching';
+import { AppError } from '../utils/errorHandling';
+import { ErrorCode } from '../utils/errorTypes';
 import {
   ApiResponse,
   PaginationParams,
@@ -36,17 +38,36 @@ class ApiService {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    retryConfig?: {
+      maxRetries?: number;
+      initialDelay?: number;
+      currentAttempt?: number;
+    }
   ): Promise<ApiResponse<T>> {
+    // Initialize retry configuration
+    const maxRetries = retryConfig?.maxRetries || 3;
+    const initialDelay = retryConfig?.initialDelay || 1000;
+    const currentAttempt = retryConfig?.currentAttempt || 1;
+    
     try {
       const { data, error } = await supabase.auth.getSession();
       
       if (error) {
-        throw new Error(`Authentication error: ${error.message}`);
+        throw new AppError({
+          message: `Authentication error: ${error.message}`,
+          code: ErrorCode.INVALID_TOKEN,
+          statusCode: 401,
+          context: { error }
+        });
       }
       
       if (!data.session) {
-        throw new Error('No active session');
+        throw new AppError({
+          message: 'No active session',
+          code: ErrorCode.SESSION_EXPIRED,
+          statusCode: 401
+        });
       }
       
       const session = data.session;
@@ -54,26 +75,124 @@ class ApiService {
       const headers = new Headers(this.DEFAULT_HEADERS);
       headers.append('Authorization', `Bearer ${session.access_token}`);
 
-      const response = await fetch(`${this.BASE_URL}${endpoint}`, {
-        ...options,
-        headers,
-      });
+      try {
+        // Track request start time for telemetry
+        const startTime = performance.now();
+        
+        const response = await fetch(`${this.BASE_URL}${endpoint}`, {
+          ...options,
+          headers,
+        });
+        
+        // Track request duration
+        const duration = performance.now() - startTime;
+        
+        // Log successful requests for telemetry
+        if (response.ok) {
+          monitoring.logInfo('API request successful', {
+            endpoint,
+            method: options.method || 'GET',
+            status: response.status,
+            duration
+          });
+        }
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new AppError({
+            message: errorData.message || `HTTP error! status: ${response.status}`,
+            code: errorData.code || this.mapStatusCodeToErrorCode(response.status),
+            statusCode: response.status,
+            context: { errorData, endpoint, method: options.method || 'GET' }
+          });
+        }
+
+        const responseData = await response.json();
+        return { data: responseData, status: response.status };
+      } catch (fetchError) {
+        // Handle network errors
+        if (fetchError instanceof TypeError && fetchError.message.includes('fetch')) {
+          throw new AppError({
+            message: 'Network connection issue',
+            code: ErrorCode.NETWORK_UNAVAILABLE,
+            context: { originalError: fetchError.message },
+            isRetryable: true
+          });
+        }
+        throw fetchError;
       }
-
-      const responseData = await response.json();
-      return { data: responseData, status: response.status };
     } catch (error) {
-      monitoring.logError(error as Error, {
+      // Handle the error with proper logging and retry logic
+      const appError = error instanceof AppError 
+        ? error 
+        : new AppError({
+            message: (error as Error).message,
+            code: ErrorCode.UNKNOWN_ERROR,
+            statusCode: 500,
+            context: { originalError: error }
+          });
+      
+      // Log error with monitoring service
+      monitoring.logError(appError, {
         action: 'apiRequest',
-        context: { endpoint, options },
+        context: { 
+          endpoint, 
+          options,
+          attempt: currentAttempt,
+          maxRetries
+        },
       });
+      
+      // Determine if we should retry the request
+      if (appError.shouldRetry() && currentAttempt < maxRetries) {
+        // Calculate delay with exponential backoff
+        const delay = initialDelay * Math.pow(2, currentAttempt - 1);
+        
+        // Log retry attempt
+        monitoring.logInfo('Retrying failed request', {
+          endpoint,
+          attempt: currentAttempt,
+          maxRetries,
+          delay
+        });
+        
+        // Wait for the calculated delay
+        await new Promise(resolve => setTimeout(resolve, delay));
+        
+        // Increment retry count on the error object
+        appError.incrementRetryCount();
+        
+        // Retry the request
+        return this.request<T>(endpoint, options, {
+          maxRetries,
+          initialDelay,
+          currentAttempt: currentAttempt + 1
+        });
+      }
+      
+      // No more retries or not retryable, return error response
       return {
-        error: (error as Error).message,
-        status: 500,
+        error: appError.userMessage,
+        status: appError.statusCode || 500,
       };
+    }
+  }
+  
+  // Map HTTP status codes to our error codes
+  private mapStatusCodeToErrorCode(status: number): string {
+    switch (status) {
+      case 400: return ErrorCode.VALIDATION_FAILED;
+      case 401: return ErrorCode.NOT_AUTHENTICATED;
+      case 403: return ErrorCode.INSUFFICIENT_PERMISSIONS;
+      case 404: return ErrorCode.RESOURCE_NOT_FOUND;
+      case 409: return ErrorCode.RESOURCE_ALREADY_EXISTS;
+      case 408: return ErrorCode.REQUEST_TIMEOUT;
+      case 429: return ErrorCode.REQUEST_TIMEOUT; // Too many requests
+      case 500: return ErrorCode.INTERNAL_SERVER_ERROR;
+      case 502: return ErrorCode.EXTERNAL_SERVICE_ERROR;
+      case 503: return ErrorCode.SERVICE_UNAVAILABLE;
+      case 504: return ErrorCode.REQUEST_TIMEOUT; // Gateway timeout
+      default: return ErrorCode.UNKNOWN_ERROR;
     }
   }
 

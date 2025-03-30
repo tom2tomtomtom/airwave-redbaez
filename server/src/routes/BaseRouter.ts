@@ -57,7 +57,7 @@ export abstract class BaseRouter {
       try {
         await handler(req, res, next);
       } catch (error) {
-        next(error instanceof ApiError ? error : new ApiError(500, 'Internal server error'));
+        next(error instanceof ApiError ? error : ApiError.internal('Internal server error'));
       }
     };
   }
@@ -98,7 +98,8 @@ export abstract class BaseRouter {
         query: req.query,
         bodyKeys: req.body ? Object.keys(req.body) : 'no body' 
       });
-      throw new ApiError(400, 'Client ID is required for this operation');
+      throw ApiError.validation('Client ID is required for this operation', undefined, { path: req.path });
+
     }
     
     return clientId as string;

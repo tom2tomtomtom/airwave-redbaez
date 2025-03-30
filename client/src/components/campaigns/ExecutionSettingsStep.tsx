@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useSelector } from 'react-redux';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import {
   Box,
   Typography,
@@ -37,9 +37,11 @@ import {
   Save as SaveIcon,
   Settings as SettingsIcon
 } from '@mui/icons-material';
-import { RootState } from '../../store';
+import { RootState, AppDispatch } from '../../store';
 import { Template } from '../../types/templates';
 import { Asset } from '../../types/assets';
+import { selectAllAssets } from '../../store/slices/assetsSlice';
+import { selectAllTemplates, fetchTemplates } from '../../store/slices/templatesSlice';
 
 interface ExecutionSettingsStepProps {
   executions: any[];
@@ -71,8 +73,12 @@ const ExecutionSettingsStep: React.FC<ExecutionSettingsStepProps> = ({
   assets,
   onChange
 }) => {
-  const { templates: templateEntities } = useSelector((state: RootState) => state.templates);
-  const { assets: assetEntities } = useSelector((state: RootState) => state.assets);
+  const dispatch = useDispatch<AppDispatch>();
+  
+  const templateEntities = useSelector(selectAllTemplates);
+  const templatesLoading = useSelector((state: RootState) => state.templates.loading);
+  const templatesError = useSelector((state: RootState) => state.templates.error);
+  const allAssets = useSelector(selectAllAssets);
   
   const [localExecutions, setLocalExecutions] = useState<Execution[]>([]);
   const [openDialog, setOpenDialog] = useState(false);
@@ -83,7 +89,13 @@ const ExecutionSettingsStep: React.FC<ExecutionSettingsStepProps> = ({
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
   
-  // Initialize from props
+  useEffect(() => {
+    // Fetch templates if they are not loaded
+    if (templateEntities.length === 0) {
+        dispatch(fetchTemplates());
+    }
+  }, [dispatch, templateEntities.length]);
+
   useEffect(() => {
     if (executions.length > 0) {
       setLocalExecutions(executions);
@@ -260,13 +272,13 @@ const ExecutionSettingsStep: React.FC<ExecutionSettingsStepProps> = ({
   
   const getAssetName = (assetId?: string) => {
     if (!assetId) return 'None';
-    const asset = assetEntities.find(a => a.id === assetId);
+    const asset = allAssets.find(a => a.id === assetId);
     return asset ? asset.name : 'Unknown';
   };
   
   const getTemplateName = (templateId: string) => {
     const template = templateEntities.find(t => t.id === templateId);
-    return template ? template.name : 'Unknown Template';
+    return template ? template.name : 'Unknown';
   };
   
   return (
@@ -292,7 +304,7 @@ const ExecutionSettingsStep: React.FC<ExecutionSettingsStepProps> = ({
         </Alert>
       ) : null}
       
-      {assets.length === 0 ? (
+      {allAssets.length === 0 ? (
         <Alert severity="info" sx={{ mb: 2 }}>
           You haven't selected any assets. You can still create executions, but you'll need to manually enter values for template parameters.
         </Alert>
@@ -549,10 +561,10 @@ const ExecutionSettingsStep: React.FC<ExecutionSettingsStepProps> = ({
                       {(parameterType === 'image' || parameterType === 'video' || parameterType === 'audio') && (
                         <Autocomplete
                           fullWidth
-                          options={assetEntities.filter(a => a.type === parameterType)}
+                          options={allAssets.filter(a => a.type === parameterType)}
                           getOptionLabel={(option) => option.name}
                           isOptionEqualToValue={(option, value) => option.id === value.id}
-                          value={assetEntities.find(a => a.id === mapping.assetId) || null}
+                          value={allAssets.find(a => a.id === mapping.assetId) || null}
                           onChange={(_, newValue) => {
                             handleAssetMappingChange(index, 'assetId', newValue?.id || undefined);
                           }}

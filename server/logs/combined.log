@@ -1,0 +1,36 @@
+2025-03-30T06:52:13.583Z [[32minfo[39m]: V2 API routes initialized
+2025-03-30T06:52:13.727Z [[32minfo[39m]: Initializing 5 route handlers...
+2025-03-30T06:52:13.728Z [[32minfo[39m]: [1/5] Registered route: /api/assets
+2025-03-30T06:52:13.728Z [[32minfo[39m]: [2/5] Registered route: /api/clients
+2025-03-30T06:52:13.728Z [[32minfo[39m]: [3/5] Registered route: /api/campaigns
+2025-03-30T06:52:13.729Z [[32minfo[39m]: [4/5] Registered route: /api/assets
+2025-03-30T06:52:13.729Z [[32minfo[39m]: [5/5] Registered route: /api/clients
+2025-03-30T06:52:13.729Z [[32minfo[39m]: All routes initialized successfully
+2025-03-30T06:52:13.733Z [[32minfo[39m]: Server running on port 3002
+2025-03-30T06:52:13.734Z [[32minfo[39m]: Environment: development
+2025-03-30T06:52:13.734Z [[32minfo[39m]: Root URL: http://localhost:3002/
+2025-03-30T06:52:13.734Z [[32minfo[39m]: Health check: http://localhost:3002/health
+2025-03-30T06:52:13.734Z [[32minfo[39m]: WebSocket endpoint: ws://localhost:3002/ws
+2025-03-30T06:52:13.734Z [[32minfo[39m]: Available API endpoints:
+2025-03-30T06:52:13.734Z [[32minfo[39m]: - Auth: http://localhost:3002/api/auth
+2025-03-30T06:52:13.734Z [[32minfo[39m]: - Assets: http://localhost:3002/api/assets
+2025-03-30T06:52:13.734Z [[32minfo[39m]: - Templates: http://localhost:3002/api/templates
+2025-03-30T06:52:13.734Z [[32minfo[39m]: - Campaigns: http://localhost:3002/api/campaigns
+2025-03-30T06:52:13.734Z [[32minfo[39m]: - Creatomate: http://localhost:3002/api/creatomate
+2025-03-30T06:52:13.734Z [[32minfo[39m]: - Runway: http://localhost:3002/api/runway
+2025-03-30T06:52:13.734Z [[32minfo[39m]: - Exports: http://localhost:3002/api/exports
+2025-03-30T06:52:13.734Z [[32minfo[39m]: - LLM: http://localhost:3002/api/llm
+2025-03-30T06:52:13.734Z [[32minfo[39m]: - Sign-off: http://localhost:3002/api/signoff
+2025-03-30T06:52:13.734Z [[32minfo[39m]: - Matrix: http://localhost:3002/api/matrix
+2025-03-30T06:52:13.734Z [[32minfo[39m]: - Clients: http://localhost:3002/api/clients
+2025-03-30T06:52:13.734Z [[32minfo[39m]: - MCP: http://localhost:3002/api/mcp
+2025-03-30T06:52:13.734Z [[32minfo[39m]: - V2 API: http://localhost:3002/api/v2
+2025-03-30T06:52:13.734Z [[32minfo[39m]: Server initialization complete
+2025-03-30T07:16:18.442Z [[32minfo[39m]: V2 API routes initialized
+2025-03-30T07:16:18.481Z [[32minfo[39m]: Initializing 5 route handlers...
+2025-03-30T07:16:18.482Z [[32minfo[39m]: [1/5] Registered route: /api/assets
+2025-03-30T07:16:18.482Z [[32minfo[39m]: [2/5] Registered route: /api/clients
+2025-03-30T07:16:18.482Z [[32minfo[39m]: [3/5] Registered route: /api/campaigns
+2025-03-30T07:16:18.482Z [[32minfo[39m]: [4/5] Registered route: /api/assets
+2025-03-30T07:16:18.482Z [[32minfo[39m]: [5/5] Registered route: /api/clients
+2025-03-30T07:16:18.482Z [[32minfo[39m]: All routes initialized successfully

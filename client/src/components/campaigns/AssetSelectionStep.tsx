@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
   Box,
@@ -27,9 +27,10 @@ import {
   CheckCircle as CheckCircleIcon,
   CollectionsBookmark as CollectionsBookmarkIcon
 } from '@mui/icons-material';
-import { fetchAssets } from '../../store/slices/assetsSlice';
+import { fetchAssets, selectAllAssets } from '../../store/slices/assetsSlice';
 import { RootState, AppDispatch } from '../../store';
 import { Asset } from '../../types/assets';
+import { selectSelectedClient } from '../../store/slices/clientSlice';
 
 interface AssetSelectionStepProps {
   selectedAssets: string[];
@@ -75,13 +76,15 @@ const AssetSelectionStep: React.FC<AssetSelectionStepProps> = ({
   onChange
 }) => {
   const dispatch = useDispatch<AppDispatch>();
-  const { assets, loading, error } = useSelector((state: RootState) => state.assets);
-  
+  const assets = useSelector(selectAllAssets);
+  const { loading, error } = useSelector((state: RootState) => state.assets);
+  const selectedClient = useSelector(selectSelectedClient);
+
   const [tabValue, setTabValue] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [assetType, setAssetType] = useState('all');
   const [selectedAssetsMap, setSelectedAssetsMap] = useState<Record<string, boolean>>({});
-  
+
   // Initialize selected assets map from props
   useEffect(() => {
     const initialMap: Record<string, boolean> = {};
@@ -90,83 +93,99 @@ const AssetSelectionStep: React.FC<AssetSelectionStepProps> = ({
     });
     setSelectedAssetsMap(initialMap);
   }, []);
-  
-  // Fetch assets if not already loaded
+
+  // Fetch assets for the selected client if not already loaded
   useEffect(() => {
-    if (assets.length === 0 && !loading && !error) {
-      dispatch(fetchAssets());
+    // Only fetch if a client is selected and assets aren't already loaded/loading
+    if (selectedClient?.id && assets.length === 0 && !loading && !error) {
+      console.log(`AssetSelectionStep: Fetching assets for client ${selectedClient.id}`);
+      dispatch(fetchAssets({ clientId: selectedClient.id }));
+    } else if (!selectedClient?.id) {
+      console.warn('AssetSelectionStep: No client selected, cannot fetch assets.');
+      // Optionally clear assets state if client becomes null/undefined?
     }
-  }, [dispatch, assets.length, loading, error]);
-  
+  }, [dispatch, assets.length, loading, error, selectedClient?.id]);
+
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
-  
+
   const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(event.target.value);
   };
-  
+
   const handleAssetTypeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setAssetType(event.target.value);
   };
-  
+
   const handleAssetSelect = (assetId: string) => {
     const newSelectedAssetsMap = {
       ...selectedAssetsMap,
       [assetId]: !selectedAssetsMap[assetId]
     };
-    
+
     setSelectedAssetsMap(newSelectedAssetsMap);
-    
+
     // Convert the map back to an array of selected asset IDs
     const newSelectedAssets = Object.keys(newSelectedAssetsMap).filter(
       id => newSelectedAssetsMap[id]
     );
-    
+
     onChange(newSelectedAssets);
   };
-  
+
   const handleSelectAll = (selected: boolean) => {
     const newSelectedAssetsMap: Record<string, boolean> = {};
-    
+
+    const filteredAssets = useMemo(() => assets.filter(asset => {
+      const matchesSearch = asset.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesType = assetType === 'all' || asset.type === assetType;
+      const matchesTab = tabValue === 0 || // All assets tab
+        (tabValue === 1 && asset.isFavourite); // Favourites tab
+
+      return matchesSearch && matchesType && matchesTab;
+    }), [assets, searchQuery, assetType, tabValue]);
+
     filteredAssets.forEach(asset => {
       newSelectedAssetsMap[asset.id] = selected;
     });
-    
+
     // Keep previously selected assets that aren't in the current filtered view
     Object.keys(selectedAssetsMap).forEach(id => {
       if (!filteredAssets.some(asset => asset.id === id) && selectedAssetsMap[id]) {
         newSelectedAssetsMap[id] = true;
       }
     });
-    
+
     setSelectedAssetsMap(newSelectedAssetsMap);
-    
+
     // Convert the map back to an array of selected asset IDs
     const newSelectedAssets = Object.keys(newSelectedAssetsMap).filter(
       id => newSelectedAssetsMap[id]
     );
-    
+
     onChange(newSelectedAssets);
   };
-  
+
   // Filter assets based on search query, type, and tab
-  const filteredAssets = assets.filter(asset => {
+  const filteredAssets = useMemo(() => assets.filter(asset => {
     const matchesSearch = asset.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = assetType === 'all' || asset.type === assetType;
     const matchesTab = tabValue === 0 || // All assets tab
       (tabValue === 1 && asset.isFavourite); // Favourites tab
-    
+
     return matchesSearch && matchesType && matchesTab;
-  });
-  
+  }), [assets, searchQuery, assetType, tabValue]);
+
   // Check if all filtered assets are selected
-  const allSelected = filteredAssets.length > 0 && 
-    filteredAssets.every(asset => selectedAssetsMap[asset.id]);
-  
+  const allSelected = useMemo(() => filteredAssets.length > 0 && 
+    filteredAssets.every(asset => selectedAssetsMap[asset.id]), 
+    [filteredAssets, selectedAssetsMap]);
+
   // Count the total number of selected assets
-  const selectedCount = Object.values(selectedAssetsMap).filter(Boolean).length;
-  
+  const selectedCount = useMemo(() => Object.values(selectedAssetsMap).filter(Boolean).length, 
+    [selectedAssetsMap]);
+
   // Get asset thumbnail based on type
   const getAssetThumbnail = (asset: Asset) => {
     if (asset.type === 'image' && asset.url) {
@@ -180,7 +199,7 @@ const AssetSelectionStep: React.FC<AssetSelectionStepProps> = ({
     }
     return '/assets/generic-placeholder.png'; // Replace with actual placeholder
   };
-  
+
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -195,7 +214,7 @@ const AssetSelectionStep: React.FC<AssetSelectionStepProps> = ({
           Upload New Assets
         </Button>
       </Box>
-      
+
       <Paper sx={{ mb: 3 }}>
         <Tabs
           value={tabValue}
@@ -205,7 +224,7 @@ const AssetSelectionStep: React.FC<AssetSelectionStepProps> = ({
           <Tab label="All Assets" />
           <Tab label="Favorites" />
         </Tabs>
-        
+
         <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
           <TextField
             placeholder="Search assets..."
@@ -236,9 +255,9 @@ const AssetSelectionStep: React.FC<AssetSelectionStepProps> = ({
             <FilterIcon />
           </IconButton>
         </Box>
-        
+
         <Divider />
-        
+
         <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <FormControlLabel
             control={
@@ -250,7 +269,7 @@ const AssetSelectionStep: React.FC<AssetSelectionStepProps> = ({
             }
             label={`Select All${selectedCount > 0 ? ` (${selectedCount} selected)` : ''}`}
           />
-          
+
           <Chip
             icon={<CollectionsBookmarkIcon />}
             label={`${selectedCount} assets selected`}
@@ -259,7 +278,7 @@ const AssetSelectionStep: React.FC<AssetSelectionStepProps> = ({
           />
         </Box>
       </Paper>
-      
+
       <TabPanel value={tabValue} index={0}>
         <AssetGrid
           assets={filteredAssets}
@@ -270,7 +289,7 @@ const AssetSelectionStep: React.FC<AssetSelectionStepProps> = ({
           getAssetThumbnail={getAssetThumbnail}
         />
       </TabPanel>
-      
+
       <TabPanel value={tabValue} index={1}>
         <AssetGrid
           assets={filteredAssets}
@@ -309,7 +328,7 @@ const AssetGrid: React.FC<AssetGridProps> = ({
       </Box>
     );
   }
-  
+
   if (error) {
     return (
       <Box sx={{ p: 2 }}>
@@ -317,7 +336,7 @@ const AssetGrid: React.FC<AssetGridProps> = ({
       </Box>
     );
   }
-  
+
   if (assets.length === 0) {
     return (
       <Box sx={{ p: 4, textAlign: 'center' }}>
@@ -325,7 +344,7 @@ const AssetGrid: React.FC<AssetGridProps> = ({
       </Box>
     );
   }
-  
+
   return (
     <Grid container spacing={2}>
       {assets.map((asset) => (
@@ -364,7 +383,7 @@ const AssetGrid: React.FC<AssetGridProps> = ({
                 <CheckCircleIcon sx={{ color: 'white', fontSize: 20 }} />
               </Box>
             )}
-            
+
             <CardMedia
               component="img"
               height="120"
@@ -375,12 +394,12 @@ const AssetGrid: React.FC<AssetGridProps> = ({
                 bgcolor: asset.type === 'text' ? 'grey.100' : 'black'
               }}
             />
-            
+
             <CardContent sx={{ flexGrow: 1, p: 1.5 }}>
               <Typography variant="subtitle2" noWrap title={asset.name}>
                 {asset.name}
               </Typography>
-              
+
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 0.5 }}>
                 <Chip
                   label={asset.type}
@@ -388,7 +407,7 @@ const AssetGrid: React.FC<AssetGridProps> = ({
                   variant="outlined"
                   sx={{ height: 20, fontSize: '0.65rem' }}
                 />
-                
+
                 {asset.type === 'text' && (
                   <Typography variant="caption" color="text.secondary">
                     {asset.content && asset.content.length > 0 
@@ -396,19 +415,19 @@ const AssetGrid: React.FC<AssetGridProps> = ({
                       : 'No content'}
                   </Typography>
                 )}
-                
+
                 {asset.type === 'image' && asset.metadata?.width && asset.metadata?.height && (
                   <Typography variant="caption" color="text.secondary">
                     {`${asset.metadata.width}×${asset.metadata.height}`}
                   </Typography>
                 )}
-                
+
                 {asset.type === 'video' && asset.metadata?.duration && (
                   <Typography variant="caption" color="text.secondary">
                     {asset.metadata.duration}
                   </Typography>
                 )}
-                
+
                 {asset.type === 'audio' && asset.metadata?.duration && (
                   <Typography variant="caption" color="text.secondary">
                     {asset.metadata.duration}

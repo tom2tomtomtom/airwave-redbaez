@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSelector } from 'react-redux';
 import { assetService } from '../api/services/assets/asset.service';
 import { Asset, AssetFilters } from '../api/types/asset.types';
-import { clientService } from '../api/services/clients/client.service';
+import { RootState } from '../store';
 
 /**
  * Custom hook for asset operations with proper error handling
@@ -16,26 +17,29 @@ export function useAssets(initialFilters?: AssetFilters) {
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<AssetFilters>(initialFilters || {});
 
-  // Ensure we have a client ID
-  const ensureClientId = useCallback((currentFilters: AssetFilters): AssetFilters => {
-    if (!currentFilters.clientId) {
-      const clientId = clientService.getSelectedClientId();
-      return { ...currentFilters, clientId: clientId || undefined };
-    }
-    return currentFilters;
-  }, []);
+  // Get selectedClientId from Redux store
+  const selectedClientId = useSelector((state: RootState) => state.clients.selectedClientId);
 
   /**
    * Load assets with filters
    * @param customFilters - Optional custom filters to apply for this request only
    */
   const loadAssets = useCallback(async (customFilters?: AssetFilters) => {
+    if (!selectedClientId) {
+      console.warn('useAssets: Cannot load assets, no client selected.');
+      setAssets([]); // Clear assets if no client
+      return; // Prevent API call if no client ID
+    }
+    
     setLoading(true);
     setError(null);
     
     try {
-      // Use custom filters or current state
-      const filtersToUse = ensureClientId(customFilters || filters);
+      // Use custom filters or current state, ensuring clientId is from Redux
+      const filtersToUse: AssetFilters = { 
+        ...(customFilters || filters),
+        clientId: selectedClientId
+      };
       
       // Log for debugging purposes
       console.log('🔄 useAssets: Loading assets with filters:', filtersToUse);
@@ -56,23 +60,30 @@ export function useAssets(initialFilters?: AssetFilters) {
     } finally {
       setLoading(false);
     }
-  }, [filters, ensureClientId]);
+  // Depend on selectedClientId now
+  }, [filters, selectedClientId]); 
 
-  // Load assets on mount and when filters change
+  // Load assets on mount and when filters or selectedClientId change
   useEffect(() => {
     loadAssets();
-  }, [loadAssets]);
+  // Depend on selectedClientId
+  }, [loadAssets, selectedClientId]);
 
   /**
    * Toggle favourite status of an asset
    * @param asset - The asset to toggle favourite status for
    */
   const toggleFavourite = useCallback(async (asset: Asset) => {
+    if (!selectedClientId) {
+      console.warn('useAssets: Cannot toggle favourite, no client selected.');
+      return false;
+    }
+    
     try {
       const updatedAsset = await assetService.toggleFavourite(
         asset.id, 
         !asset.favourite,
-        filters.clientId
+        selectedClientId // Use Redux client ID
       );
       
       // Update the asset in the local state
@@ -93,17 +104,23 @@ export function useAssets(initialFilters?: AssetFilters) {
       setError(err instanceof Error ? err.message : 'Failed to update favourite status');
       return false;
     }
-  }, [filters, selectedAsset]);
+  // Depend on selectedClientId
+  }, [selectedAsset, selectedClientId]); 
 
   /**
    * Delete an asset
    * @param assetId - ID of the asset to delete
    */
   const deleteAsset = useCallback(async (assetId: string) => {
+    if (!selectedClientId) {
+      console.warn('useAssets: Cannot delete asset, no client selected.');
+      return false;
+    }
+    
     try {
       const success = await assetService.deleteAsset(
         assetId,
-        filters.clientId
+        selectedClientId // Use Redux client ID
       );
       
       if (success) {
@@ -123,16 +140,23 @@ export function useAssets(initialFilters?: AssetFilters) {
       setError(err instanceof Error ? err.message : 'Failed to delete asset');
       return false;
     }
-  }, [filters, selectedAsset]);
+  // Depend on selectedClientId
+  }, [selectedAsset, selectedClientId]);
 
   /**
    * Update filters and reload assets
    * @param newFilters - New filters to apply
    */
   const updateFilters = useCallback((newFilters: Partial<AssetFilters>) => {
-    const updatedFilters = { ...filters, ...newFilters };
+    // Ensure clientId from Redux is preserved
+    const updatedFilters = { 
+      ...filters, 
+      ...newFilters,
+      clientId: selectedClientId || undefined // Keep Redux clientId 
+    };
     loadAssets(updatedFilters);
-  }, [filters, loadAssets]);
+  // Depend on selectedClientId and loadAssets
+  }, [filters, selectedClientId, loadAssets]);
   
   /**
    * Select an asset
@@ -147,29 +171,21 @@ export function useAssets(initialFilters?: AssetFilters) {
    * @param id - ID of the asset to get
    */
   const getAssetById = useCallback(async (id: string) => {
+    if (!selectedClientId) {
+      console.warn('useAssets: Cannot get asset by ID, no client selected.');
+      return null;
+    }
+    
     try {
-      return await assetService.getAsset(id, filters.clientId);
+      return await assetService.getAsset(id, selectedClientId); // Use Redux client ID
     } catch (err) {
       console.error(`❌ useAssets: Error getting asset ${id}:`, err);
       setError(err instanceof Error ? err.message : `Failed to get asset ${id}`);
       return null;
     }
-  }, [filters]);
+  // Depend on selectedClientId
+  }, [selectedClientId]);
   
-  // Listen for client changes
-  useEffect(() => {
-    const handleClientChange = () => {
-      // Reload assets when client changes
-      loadAssets();
-    };
-    
-    window.addEventListener('clientChanged', handleClientChange);
-    
-    return () => {
-      window.removeEventListener('clientChanged', handleClientChange);
-    };
-  }, [loadAssets]);
-
   return {
     // State
     assets,

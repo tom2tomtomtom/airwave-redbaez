@@ -161,7 +161,7 @@ const ClientSelectionPage: React.FC = () => {
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Page header with back button */}
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        {selectedClientId && (
+        {selectedClient && (
           <Button 
             startIcon={<ArrowBackIcon />} 
             onClick={handleBackClick}
@@ -408,7 +408,7 @@ const ClientSelectionPage: React.FC = () => {
                   Clear Filters
                 </Button>
               </Box>
-            )
+            )}
           </Paper>
         </Grid>
 

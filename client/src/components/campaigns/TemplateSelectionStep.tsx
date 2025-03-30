@@ -30,7 +30,7 @@ import {
   Refresh as RefreshIcon,
   Info as InfoIcon
 } from '@mui/icons-material';
-import { fetchTemplates } from '../../store/slices/templatesSlice';
+import { fetchTemplates, selectAllTemplates } from '../../store/slices/templatesSlice';
 import { RootState, AppDispatch } from '../../store';
 import { Template } from '../../types/templates';
 import TemplateDetailDialog from '../templates/TemplateDetailDialog';
@@ -55,7 +55,8 @@ const TemplateSelectionStep: React.FC<TemplateSelectionStepProps> = ({
   onChange
 }) => {
   const dispatch = useDispatch<AppDispatch>();
-  const { templates, loading, error } = useSelector((state: RootState) => state.templates);
+  const templates = useSelector(selectAllTemplates);
+  const { loading, error } = useSelector((state: RootState) => state.templates);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFormat, setSelectedFormat] = useState('all');
@@ -107,13 +108,13 @@ const TemplateSelectionStep: React.FC<TemplateSelectionStepProps> = ({
   const handleSelectAll = (selected: boolean) => {
     const newSelectedTemplatesMap: Record<string, boolean> = {};
     
-    filteredTemplates.forEach(template => {
+    filteredTemplates.forEach((template: Template) => {
       newSelectedTemplatesMap[template.id] = selected;
     });
     
     // Keep previously selected templates that aren't in the current filtered view
     Object.keys(selectedTemplatesMap).forEach(id => {
-      if (!filteredTemplates.some(template => template.id === id) && selectedTemplatesMap[id]) {
+      if (!filteredTemplates.some((template: Template) => template.id === id) && selectedTemplatesMap[id]) {
         newSelectedTemplatesMap[id] = true;
       }
     });
@@ -144,7 +145,7 @@ const TemplateSelectionStep: React.FC<TemplateSelectionStepProps> = ({
   };
   
   // Filter templates based on search query, format, and platform compatibility
-  const filteredTemplates = templates.filter(template => {
+  const filteredTemplates = templates.filter((template: Template) => {
     const matchesSearch = template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           template.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFormat = selectedFormat === 'all' || template.format === selectedFormat;
@@ -155,7 +156,7 @@ const TemplateSelectionStep: React.FC<TemplateSelectionStepProps> = ({
   
   // Check if all filtered templates are selected
   const allSelected = filteredTemplates.length > 0 && 
-    filteredTemplates.every(template => selectedTemplatesMap[template.id]);
+    filteredTemplates.every((template: Template) => selectedTemplatesMap[template.id]);
   
   // Count the total number of selected templates
   const selectedCount = Object.values(selectedTemplatesMap).filter(Boolean).length;
@@ -269,7 +270,7 @@ const TemplateSelectionStep: React.FC<TemplateSelectionStepProps> = ({
         </Box>
       ) : (
         <Grid container spacing={2}>
-          {filteredTemplates.map((template) => {
+          {filteredTemplates.map((template: Template) => {
             const isCompatible = isTemplateCompatible(template);
             
             return (
@@ -343,7 +344,7 @@ const TemplateSelectionStep: React.FC<TemplateSelectionStepProps> = ({
                         sx={{ height: 20, fontSize: '0.65rem' }}
                       />
                       
-                      {template.platforms.slice(0, 2).map(platform => (
+                      {template.platforms.slice(0, 2).map((platform: string) => (
                         <Chip
                           key={platform}
                           label={platform}

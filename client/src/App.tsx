@@ -34,12 +34,14 @@ import AnalyticsPage from './pages/exports/AnalyticsPage';
 import BriefList from './pages/briefs/BriefList';
 import BriefForm from './pages/briefs/BriefForm';
 import BriefDetail from './pages/briefs/BriefDetail';
+import UnifiedGenerationPage from './pages/generate/UnifiedGenerationPage';
 
 // Redux
 import { RootState } from './store';
 import { checkAuth } from './store/slices/authSlice';
 import { fetchClients } from './store/slices/clientSlice';
 import { AppDispatch } from './store';
+import { initializeGenerationPlugins } from './features/generation/plugins';
 
 const AppContent: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -55,6 +57,9 @@ const AppContent: React.FC = () => {
     wsClient.onConnect(() => {
       console.log('WebSocket client connected successfully');
     });
+    
+    // Initialize Generation Plugins
+    initializeGenerationPlugins();
     
     // Update authentication state if we have a session from AuthProvider
     if (session && !isAuthenticated) {
@@ -156,6 +161,9 @@ const AppContent: React.FC = () => {
         <Route path="generate" element={<ClientProtectedRoute><GeneratePage /></ClientProtectedRoute>} />
         <Route path="generate/copy" element={<ClientProtectedRoute><CopyGenerationPage /></ClientProtectedRoute>} />
         <Route path="matrix" element={<ClientProtectedRoute><MatrixPage /></ClientProtectedRoute>} />
+        
+        {/* Add the new unified generation route */}
+        <Route path="generate/unified" element={<ClientProtectedRoute><UnifiedGenerationPage /></ClientProtectedRoute>} />
         
         {/* Strategy Development routes */}
         <Route path="briefs" element={<ClientProtectedRoute><BriefList /></ClientProtectedRoute>} />

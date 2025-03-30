@@ -1,16 +1,18 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Asset, AssetFilters, AssetType } from '../types/assets';
 import { useAssetOperations } from './useAssetOperations';
+import { useSelector } from 'react-redux';
+import { RootState } from '../store';
 
-// Known working client ID from SQL database
-const KNOWN_WORKING_CLIENT_ID = 'fe418478-806e-411a-ad0b-1b9a537a8081';
+// Fallback client ID might still be needed if nothing is selected
+const FALLBACK_CLIENT_ID = 'fe418478-806e-411a-ad0b-1b9a537a8081';
 
 /**
  * Custom hook for managing asset selection state and operations
  * @param initialType Initial asset type filter
  * @param initialFavourite Whether to show only favourites initially
- * @param sortBy Field to sort by (date, name, type)
- * @param sortDirection Sort direction (asc, desc)
+ * @param initialSortBy Field to sort by (date, name, type)
+ * @param initialSortDirection Sort direction (asc, desc)
  * @param showFilters Whether to display filtering options
  */
 export const useAssetSelectionState = (
@@ -18,8 +20,7 @@ export const useAssetSelectionState = (
   initialFavourite: boolean = false,
   initialSortBy: string = 'date',
   initialSortDirection: 'asc' | 'desc' = 'desc',
-  showFilters: boolean = true,
-  initialClientId?: string
+  showFilters: boolean = true
 ) => {
   // State for assets list and selection
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -27,22 +28,25 @@ export const useAssetSelectionState = (
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sortedAssets, setSortedAssets] = useState<Asset[]>([]);
-  
+
+  // Get selected client ID from Redux
+  const selectedClientIdFromStore = useSelector((state: RootState) => state.clients.selectedClientId);
+
   // State for filtering, sorting and pagination
-  const [filters, setFilters] = useState<AssetFilters>({
-    type: 'all',
+  const [filters, setFilters] = useState<AssetFilters>(() => ({
+    type: initialType,
     search: '',
-    favourite: false,
-    sortBy: 'date',
-    sortDirection: 'desc',
-    client_id: initialClientId || KNOWN_WORKING_CLIENT_ID,
-    clientId: initialClientId || KNOWN_WORKING_CLIENT_ID
-  });
-  
+    favourite: initialFavourite,
+    sortBy: initialSortBy,
+    sortDirection: initialSortDirection,
+    // Initialize clientId using Redux state or fallback
+    clientId: selectedClientIdFromStore || FALLBACK_CLIENT_ID
+  }));
+
   // Use the asset operations hook
   const assetOperations = useAssetOperations();
-  
-  // Initialize filters with props
+
+  // Update internal filters if initial props change (excluding clientId)
   useEffect(() => {
     setFilters(prev => ({
       ...prev,
@@ -50,12 +54,79 @@ export const useAssetSelectionState = (
       favourite: initialFavourite,
       sortBy: initialSortBy,
       sortDirection: initialSortDirection,
-      client_id: initialClientId || KNOWN_WORKING_CLIENT_ID,
-      clientId: initialClientId || KNOWN_WORKING_CLIENT_ID
+      // Keep clientId managed by the Redux state listener below
     }));
-  }, [initialType, initialFavourite, initialSortBy, initialSortDirection, initialClientId]);
+  }, [initialType, initialFavourite, initialSortBy, initialSortDirection]);
 
-  // Sort assets when they change or when sort options change
+  /**
+   * Load assets using the current filters state.
+   * This function now relies on the clientId being correctly set in the filters state.
+   */
+  const loadAssets = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Determine the client ID to use for the request
+      const clientIdForRequest = filters.clientId || FALLBACK_CLIENT_ID;
+      console.log(`useAssetSelectionState: Fetching assets for client ID: ${clientIdForRequest} with filters:`, filters);
+
+      const requestFilters = {
+        ...filters, // Pass all current filters
+        clientId: clientIdForRequest, // Ensure correct clientId is set
+        _timestamp: new Date().getTime(), // Prevent caching
+        debug: true
+      };
+
+      // Remove potential undefined/null values that might interfere with API query params
+      Object.keys(requestFilters).forEach(key => {
+        const K = key as keyof typeof requestFilters;
+        if (requestFilters[K] === undefined || requestFilters[K] === null || requestFilters[K] === '') {
+          delete requestFilters[K];
+        }
+      });
+      // Explicitly ensure type='all' isn't sent if it's the filter
+      if (requestFilters.type === 'all') {
+        delete requestFilters.type;
+      }
+
+      console.log('useAssetSelectionState: Sending request filters:', requestFilters);
+      let assetData = await assetOperations.fetchAssets(requestFilters);
+      console.log(`useAssetSelectionState: Received ${assetData.length} assets.`);
+
+      setAssets(assetData);
+
+      // Clear selection if the selected asset is no longer in the filtered list
+      if (selectedAssetId && !assetData.some(asset => asset.id === selectedAssetId)) {
+        setSelectedAssetId(null);
+      }
+    } catch (err: any) {
+      console.error('useAssetSelectionState: Error loading assets:', err);
+      setError(getErrorMessage(err)); // Use helper to get message
+    } finally {
+      setLoading(false);
+    }
+  }, [filters, selectedAssetId, assetOperations]); // Depend on filters state
+
+  // Effect to update filters.clientId when Redux selectedClientId changes
+  useEffect(() => {
+    const newClientId = selectedClientIdFromStore || FALLBACK_CLIENT_ID;
+    if (newClientId !== filters.clientId) {
+      console.log(`useAssetSelectionState: Redux client ID changed to ${newClientId}. Updating filters.`);
+      setFilters(prevFilters => ({
+        ...prevFilters,
+        clientId: newClientId
+      }));
+      // Do NOT call loadAssets here, let the next effect handle it when filters change
+    }
+  }, [selectedClientIdFromStore, filters.clientId]); // Depend on Redux state and internal filter state
+
+  // Effect to load assets when filters (including clientId) change
+  useEffect(() => {
+    console.log('useAssetSelectionState: Filters changed, reloading assets...', filters);
+    loadAssets();
+  }, [loadAssets]); // Depend on the memoized loadAssets function which depends on filters
+
+  // Sort assets when they change or when sort options change (moved after loadAssets)
   useEffect(() => {
     const sortAssets = () => {
       // Ensure assets is an array before attempting to sort
@@ -63,11 +134,11 @@ export const useAssetSelectionState = (
         setSortedAssets([]);
         return;
       }
-      
+
       // Create a copy to avoid mutating original array
       const sorted = [...assets].sort((a, b) => {
         const { sortBy, sortDirection } = filters;
-        
+
         // Handle different sorting fields
         if (sortBy === 'date') {
           // Convert dates to timestamps for comparison
@@ -75,118 +146,56 @@ export const useAssetSelectionState = (
           const dateB = new Date(b.updatedAt || b.createdAt).getTime();
           return sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
         }
-        
+
         if (sortBy === 'name') {
           const nameA = a.name.toLowerCase();
           const nameB = b.name.toLowerCase();
-          return sortDirection === 'asc' 
-            ? nameA.localeCompare(nameB) 
+          return sortDirection === 'asc'
+            ? nameA.localeCompare(nameB)
             : nameB.localeCompare(nameA);
         }
-        
+
         if (sortBy === 'type') {
           const typeA = a.type;
           const typeB = b.type;
-          return sortDirection === 'asc' 
-            ? typeA.localeCompare(typeB) 
+          return sortDirection === 'asc'
+            ? typeA.localeCompare(typeB)
             : typeB.localeCompare(typeA);
         }
-        
+
         return 0;
       });
-      
+
       setSortedAssets(sorted);
     };
-    
+
     sortAssets();
   }, [assets, filters.sortBy, filters.sortDirection]);
 
   /**
-   * Load assets with current filters
-   */
-  const loadAssets = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      console.log('Fetching assets with filters:', filters);
-      // Add a timestamp parameter to prevent caching
-      const timestamp = new Date().getTime();
-      
-      // Create a detailed request object for debugging
-      const requestFilters = {
-        type: filters.type !== 'all' ? filters.type : undefined,
-        search: filters.search || undefined,
-        favourite: filters.favourite || undefined,
-        sortBy: filters.sortBy || undefined,
-        sortDirection: filters.sortDirection || undefined,
-        clientId: filters.clientId || filters.client_id || KNOWN_WORKING_CLIENT_ID, // Use clientId with fallback to known working ID
-        _timestamp: timestamp, // Add timestamp to force fresh data
-        debug: true // Request detailed response for debugging
-      };
-      
-      // Debug client ID filtering
-      const clientId = filters.clientId || filters.client_id;
-      if (clientId) {
-        console.log(`⚠️ Filtering assets for client ID: ${clientId}`);
-        
-        // Special handling for Juniper client which we know has ID issues
-        if (clientId === 'fd790d19-6610-4cd5-b90f-214808e94a19' || 
-            clientId.includes('fd790d19')) {
-          console.log('⚠️ Special handling for Juniper client');
-        }
-      }
-      
-      console.log('Sending exact request filters:', JSON.stringify(requestFilters));
-      
-      // Fetch assets from API
-      let assetData = await assetOperations.fetchAssets(requestFilters);
-      
-      console.log('Received assets count:', assetData.length);
-      console.log('First asset data sample:', assetData.length > 0 ? assetData[0] : 'No assets');
-      console.log('Asset URLs:', assetData.map(asset => asset.url));
-      // Double-check filtering on the client side if type filter is set
-      // This ensures we only show exactly what was requested
-      if (filters.type !== 'all' && filters.type) {
-        console.log(`Applying strict filtering for type: ${filters.type}`);
-        assetData = assetData.filter(asset => asset.type === filters.type);
-        console.log(`After strict filtering: ${assetData.length} assets remain`);
-      }
-      
-      setAssets(assetData);
-      
-      // Clear selection if the selected asset is no longer in the filtered list
-      if (selectedAssetId && !assetData.some(asset => asset.id === selectedAssetId)) {
-        setSelectedAssetId(null);
-      }
-    } catch (err) {
-      console.error('Error loading assets:', err);
-      setError('Failed to load assets. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [filters, selectedAssetId, assetOperations]);
-  
-  /**
-   * Update filters and reload assets
+   * Update specific filters and trigger reload
    */
   const updateFilters = useCallback((newFilters: Partial<AssetFilters>) => {
+    // Don't allow updating clientId directly via this function
+    const { clientId, ...otherNewFilters } = newFilters;
+    if (clientId !== undefined) {
+      console.warn("useAssetSelectionState: Attempted to update clientId via updateFilters. Ignoring.");
+    }
+
     setFilters(prevFilters => ({
       ...prevFilters,
-      ...newFilters
+      ...otherNewFilters
     }));
-    // We need to manually load assets here since we removed loadAssets from the effect dependency
-    // array to prevent infinite loops
-    setTimeout(() => loadAssets(), 0);
-  }, [loadAssets]);
-  
+    // No need to call loadAssets here anymore, the useEffect depending on filters will handle it.
+  }, []);
+
   /**
    * Select an asset by ID
    */
   const selectAsset = useCallback((assetId: string | null) => {
     setSelectedAssetId(assetId);
   }, []);
-  
+
   /**
    * Get the currently selected asset
    */
@@ -194,24 +203,17 @@ export const useAssetSelectionState = (
     if (!selectedAssetId) return null;
     return assets.find(asset => asset.id === selectedAssetId) || null;
   }, [assets, selectedAssetId]);
-  
+
   /**
    * Handle asset changes (update, delete, etc.) and refresh the list
    */
   const handleAssetChanged = useCallback(async () => {
-    await loadAssets();
+    console.log('useAssetSelectionState: Asset changed, reloading...');
+    await loadAssets(); // Reload assets after changes
   }, [loadAssets]);
-  
-  // Effect to load assets when component mounts or filters change
-  // Using an empty dependency array to ensure it only runs once on mount
-  // We'll rely on explicit calls to loadAssets when filters change
-  useEffect(() => {
-    loadAssets();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return {
-    assets: sortedAssets,
+    assets: sortedAssets, // Return sorted assets
     rawAssets: assets,
     selectedAssetId,
     loading: loading || assetOperations.loading,
@@ -219,9 +221,20 @@ export const useAssetSelectionState = (
     filters,
     selectAsset,
     updateFilters,
-    loadAssets,
+    loadAssets, // Expose loadAssets for potential manual refresh
     handleAssetChanged,
     getSelectedAsset,
     showFilters
   };
+};
+
+// Helper function to get error message (add if not already present)
+const getErrorMessage = (error: any): string => {
+  if (error.response?.data?.message) {
+    return error.response.data.message;
+  } else if (error.message) {
+    return error.message;
+  } else {
+    return 'An unknown error occurred while handling assets';
+  }
 };

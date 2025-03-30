@@ -1,18 +1,22 @@
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, PayloadAction, createEntityAdapter, EntityState } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { Template, TemplateFilters } from '../../types/templates';
 import { supabase } from '../../lib/supabase';
+import { RootState } from '../index';
 
-interface TemplatesState {
-  templates: Template[];
+// Create entity adapter
+const templateAdapter = createEntityAdapter<Template>();
+
+// Define state using EntityState
+interface TemplatesState extends EntityState<Template> {
   loading: boolean;
   error: string | null;
   currentTemplate: Template | null;
   filters: TemplateFilters;
 }
 
-const initialState: TemplatesState = {
-  templates: [],
+// Define initial state using the adapter
+const initialState: TemplatesState = templateAdapter.getInitialState({
   loading: false,
   error: null,
   currentTemplate: null,
@@ -22,7 +26,7 @@ const initialState: TemplatesState = {
     platform: 'all',
     favorites: false,
   },
-};
+});
 
 // Helper function to get the current Supabase token
 const getAuthToken = async () => {
@@ -103,7 +107,7 @@ export const toggleFavoriteTemplate = createAsyncThunk(
   async (templateId: string, { getState, rejectWithValue }) => {
     try {
       const state = getState() as { templates: TemplatesState };
-      const template = state.templates.templates.find(t => t.id === templateId);
+      const template = state.templates.entities[templateId];
       
       if (!template) {
         return rejectWithValue('Template not found');
@@ -128,16 +132,16 @@ export const toggleFavoriteTemplate = createAsyncThunk(
   }
 );
 
-// Slice
+// Slice definition
 const templatesSlice = createSlice({
   name: 'templates',
   initialState,
   reducers: {
-    setTemplateFilters: (state, action: PayloadAction<TemplateFilters>) => {
+    setTemplateFilters: (state, action: PayloadAction<Partial<TemplateFilters>>) => {
       state.filters = { ...state.filters, ...action.payload };
     },
     clearTemplateFilters: (state) => {
-      state.filters = { search: '', format: 'all', platform: 'all', favorites: false };
+      state.filters = { ...initialState.filters }; // Reset to initial filters
     },
     setCurrentTemplate: (state, action: PayloadAction<Template | null>) => {
       state.currentTemplate = action.payload;
@@ -150,7 +154,7 @@ const templatesSlice = createSlice({
       state.error = null;
     });
     builder.addCase(fetchTemplates.fulfilled, (state, action: PayloadAction<Template[]>) => {
-      state.templates = action.payload;
+      templateAdapter.setAll(state, action.payload); // Use adapter's setAll
       state.loading = false;
     });
     builder.addCase(fetchTemplates.rejected, (state, action) => {
@@ -164,14 +168,8 @@ const templatesSlice = createSlice({
       state.error = null;
     });
     builder.addCase(fetchTemplateById.fulfilled, (state, action: PayloadAction<Template>) => {
+      templateAdapter.upsertOne(state, action.payload); // Use adapter's upsertOne
       state.currentTemplate = action.payload;
-      // Also update in templates array if exists
-      const index = state.templates.findIndex(t => t.id === action.payload.id);
-      if (index !== -1) {
-        state.templates[index] = action.payload;
-      } else {
-        state.templates.push(action.payload);
-      }
       state.loading = false;
     });
     builder.addCase(fetchTemplateById.rejected, (state, action) => {
@@ -181,26 +179,27 @@ const templatesSlice = createSlice({
 
     // Toggle favorite
     builder.addCase(toggleFavoriteTemplate.fulfilled, (state, action: PayloadAction<Template>) => {
-      const index = state.templates.findIndex(t => t.id === action.payload.id);
-      if (index !== -1) {
-        state.templates[index] = action.payload;
-      }
+      // Update using adapter's updateOne or upsertOne if the full object is returned
+      templateAdapter.updateOne(state, { id: action.payload.id, changes: { isFavorite: action.payload.isFavorite } }); 
       if (state.currentTemplate?.id === action.payload.id) {
-        state.currentTemplate = action.payload;
+        state.currentTemplate = { ...state.currentTemplate, ...action.payload };
       }
     });
-    
+    builder.addCase(toggleFavoriteTemplate.rejected, (state, action) => {
+      // Handle potential error display if needed
+      state.error = action.payload as string;
+    });
+
     // Delete template
     builder.addCase(deleteTemplate.pending, (state) => {
-      state.loading = true;
-      state.error = null;
+      // Optional: handle intermediate state if needed
     });
     builder.addCase(deleteTemplate.fulfilled, (state, action: PayloadAction<string>) => {
-      state.templates = state.templates.filter(t => t.id !== action.payload);
+      templateAdapter.removeOne(state, action.payload); // Use adapter's removeOne
       if (state.currentTemplate?.id === action.payload) {
         state.currentTemplate = null;
       }
-      state.loading = false;
+      state.loading = false; // Ensure loading is set to false
     });
     builder.addCase(deleteTemplate.rejected, (state, action) => {
       state.loading = false;
@@ -214,5 +213,12 @@ export const {
   clearTemplateFilters, 
   setCurrentTemplate 
 } = templatesSlice.actions;
+
+// Export adapter selectors
+export const { 
+  selectAll: selectAllTemplates, 
+  selectById: selectTemplateById, 
+  selectIds: selectTemplateIds 
+} = templateAdapter.getSelectors((state: RootState) => state.templates);
 
 export default templatesSlice.reducer;

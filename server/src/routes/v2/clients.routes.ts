@@ -97,7 +97,7 @@ export class V2ClientRouter extends BaseRouter {
     
     if (error) {
       logger.error('Error fetching clients', { error });
-      throw new ApiError(500, 'Failed to retrieve clients');
+      throw ApiError.internal('Failed to retrieve clients', { error });
     }
     
     res.success(clients, 'Clients retrieved successfully');
@@ -119,7 +119,7 @@ export class V2ClientRouter extends BaseRouter {
     
     if (error) {
       logger.error('Error fetching client', { slug, error });
-      throw new ApiError(404, 'Client not found');
+      throw ApiError.notFound('Client not found', { slug });
     }
     
     res.success(client, 'Client retrieved successfully');
@@ -139,7 +139,7 @@ export class V2ClientRouter extends BaseRouter {
       .single();
     
     if (existingClient) {
-      throw new ApiError(409, `Client with slug "${slug}" already exists`);
+      throw ApiError.conflict(`Client with slug "${slug}" already exists`, { slug });
     }
     
     logger.debug('Creating new client', { name, slug });
@@ -161,7 +161,7 @@ export class V2ClientRouter extends BaseRouter {
     
     if (error) {
       logger.error('Error creating client', { error });
-      throw new ApiError(500, 'Failed to create client');
+      throw ApiError.internal('Failed to create client', { error });
     }
     
     res.success(client, 'Client created successfully', 201);
@@ -184,7 +184,7 @@ export class V2ClientRouter extends BaseRouter {
       .single();
     
     if (fetchError || !existingClient) {
-      throw new ApiError(404, 'Client not found');
+      throw ApiError.notFound('Client not found', { slug });
     }
     
     // Update the client
@@ -203,7 +203,7 @@ export class V2ClientRouter extends BaseRouter {
     
     if (error) {
       logger.error('Error updating client', { slug, error });
-      throw new ApiError(500, 'Failed to update client');
+      throw ApiError.internal('Failed to update client', { slug, error });
     }
     
     res.success(client, 'Client updated successfully');
@@ -225,7 +225,7 @@ export class V2ClientRouter extends BaseRouter {
       .single();
     
     if (fetchError || !existingClient) {
-      throw new ApiError(404, 'Client not found');
+      throw ApiError.notFound('Client not found', { slug });
     }
     
     // Delete the client
@@ -236,7 +236,7 @@ export class V2ClientRouter extends BaseRouter {
     
     if (error) {
       logger.error('Error deleting client', { slug, error });
-      throw new ApiError(500, 'Failed to delete client');
+      throw ApiError.internal('Failed to delete client', { slug, error });
     }
     
     res.success(null, 'Client deleted successfully');

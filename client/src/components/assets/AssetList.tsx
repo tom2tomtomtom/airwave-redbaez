@@ -1,5 +1,4 @@
-import React, { useEffect, forwardRef, useImperativeHandle, useState } from 'react';
-import axios from 'axios';
+import React, { useEffect, forwardRef, useImperativeHandle } from 'react';
 import { 
   Grid, 
   Typography, 
@@ -24,9 +23,6 @@ import { Asset, AssetType } from '../../types/assets';
 import AssetCard from './AssetCard';
 import { useAssetSelectionState } from '../../hooks/useAssetSelectionState';
 
-// Known working client ID from SQL database
-const KNOWN_WORKING_CLIENT_ID = 'fe418478-806e-411a-ad0b-1b9a537a8081';
-
 interface AssetListProps {
   initialType?: AssetType | 'all';
   showFilters?: boolean;
@@ -35,23 +31,12 @@ interface AssetListProps {
   initialFavourite?: boolean;
   sortBy?: string;
   sortDirection?: 'asc' | 'desc';
-  initialClientId?: string | null;
-  directlyLoadedAssets?: Asset[]; // Allow passing directly loaded assets
 }
 
 /**
- * Component for displaying and filtering a list of assets
+ * Component for displaying and filtering a list of assets using the useAssetSelectionState hook.
  */
 const AssetList = forwardRef<{ loadAssets: () => void }, AssetListProps>((props, ref) => {
-  console.log('👀 AssetList received props:', { 
-    initialClientId: props.initialClientId,
-    hasDirectAssets: props.directlyLoadedAssets && props.directlyLoadedAssets.length > 0,
-    directAssetCount: props.directlyLoadedAssets?.length
-  });
-  // Add direct state for assets that bypasses the complex hook chain
-  const [directAssets, setDirectAssets] = useState<Asset[]>([]);
-  const [directLoading, setDirectLoading] = useState<boolean>(false);
-  const [directError, setDirectError] = useState<string | null>(null);
   const { 
     initialType = 'all', 
     showFilters = true,
@@ -60,8 +45,8 @@ const AssetList = forwardRef<{ loadAssets: () => void }, AssetListProps>((props,
     initialFavourite = false,
     sortBy = 'date',
     sortDirection = 'desc',
-    initialClientId = null
   } = props;
+
   const {
     assets,
     loading,
@@ -80,21 +65,14 @@ const AssetList = forwardRef<{ loadAssets: () => void }, AssetListProps>((props,
     showFilters
   );
   
-  // No need for the useEffect to load assets - it's now handled in the hook
-  
-  // Set initial type filter - now handled in the hook via props
-  
-  // Update selection when selectedAssetId prop changes
   useEffect(() => {
     if (selectedAssetId !== undefined) {
       selectAsset(selectedAssetId);
     }
   }, [selectedAssetId, selectAsset]);
   
-  // Handle asset selection
   const handleAssetClick = (asset: Asset) => {
     if (onAssetSelect) {
-      // If the same asset is clicked again, deselect it
       if (selectedAssetId === asset.id) {
         onAssetSelect(null);
         selectAsset(null);
@@ -105,90 +83,21 @@ const AssetList = forwardRef<{ loadAssets: () => void }, AssetListProps>((props,
     }
   };
   
-  // Clear search input
   const handleClearSearch = () => {
     updateFilters({ search: '' });
   };
   
-  // Direct asset loading function that bypasses the complex hooks
-  const loadDirectAssets = async () => {
-    try {
-      setDirectLoading(true);
-      setDirectError(null);
-      
-      console.log('⚠️ Directly fetching assets using the known working client ID:', KNOWN_WORKING_CLIENT_ID);
-      
-      const response = await axios.get('/api/v2/assets', {
-        params: {
-          clientId: KNOWN_WORKING_CLIENT_ID,
-          debug: true,
-          _timestamp: Date.now()
-        }
-      });
-      
-      console.log('✅ Direct asset fetch response:', response.data);
-      
-      let assetArray: Asset[] = [];
-      
-      if (response.data.assets && Array.isArray(response.data.assets)) {
-        assetArray = response.data.assets;
-      } else if (Array.isArray(response.data)) {
-        assetArray = response.data;
-      } else if (response.data.data && Array.isArray(response.data.data)) {
-        assetArray = response.data.data;
-      } else if (response.data.data?.assets && Array.isArray(response.data.data.assets)) {
-        assetArray = response.data.data.assets;
-      }
-      
-      console.log('🔢 Extracted assets count:', assetArray.length);
-      setDirectAssets(assetArray);
-    } catch (err: any) {
-      console.error('❌ Error directly fetching assets:', err);
-      setDirectError(err.message || 'Failed to fetch assets directly');
-    } finally {
-      setDirectLoading(false);
-    }
-  };
-  
-  // Load direct assets on component mount
-  useEffect(() => {
-    console.log('🚀 AssetList component mounted - loading direct assets');
-    loadDirectAssets();
-  }, []);
-  
-  // Expose both loadAssets functions through the ref
   useImperativeHandle(ref, () => ({
-    loadAssets: () => {
-      loadAssets();
-      loadDirectAssets();
-    },
+    loadAssets: loadAssets,
   }));
   
-  // Decide which assets to display - prioritize directly loaded assets from props
-  const displayAssets = props.directlyLoadedAssets && props.directlyLoadedAssets.length > 0 
-    ? props.directlyLoadedAssets   // Use assets passed from parent
-    : directAssets.length > 0      // Fall back to direct assets loaded in component
-      ? directAssets 
-      : assets;                    // Last resort: use assets from hooks
-  
-  const isLoading = loading || directLoading;
-  const displayError = error || directError;
-  
-  // Debug UI rendering with final asset selection
-  console.log('🎨 AssetList rendering with:', {
-    propsAssetCount: props.directlyLoadedAssets?.length || 0,
-    directAssetCount: directAssets.length,
-    hookAssetCount: assets.length,
-    finalCount: displayAssets.length,
-    usingDirectProps: props.directlyLoadedAssets && props.directlyLoadedAssets.length > 0,
-    usingDirectAssets: directAssets.length > 0 && (!props.directlyLoadedAssets || props.directlyLoadedAssets.length === 0),
-    isLoading,
-    hasError: !!displayError
-  });
+  const displayAssets = assets;
+  const isLoading = loading;
+  const displayError = error;
   
   return (
     <Box sx={{ width: '100%' }}>
-      {showFilters && (
+      {displayFilters && (
         <Paper sx={{ p: 2, mb: 3 }}>
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} md={4}>
@@ -284,9 +193,9 @@ const AssetList = forwardRef<{ loadAssets: () => void }, AssetListProps>((props,
         </Paper>
       )}
       
-      {error && (
+      {displayError && (
         <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
+          {displayError}
         </Alert>
       )}
       
@@ -294,7 +203,7 @@ const AssetList = forwardRef<{ loadAssets: () => void }, AssetListProps>((props,
         <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
           <CircularProgress />
         </Box>
-      ) : assets.length === 0 ? (
+      ) : displayAssets.length === 0 ? (
         <Box sx={{ py: 6, textAlign: 'center' }}>
           <Typography variant="h6" color="text.secondary">
             No assets found
@@ -311,7 +220,7 @@ const AssetList = forwardRef<{ loadAssets: () => void }, AssetListProps>((props,
             <Typography variant="body2" color="text.secondary">
               Showing {displayAssets.length} assets{displayAssets.length >= 48 ? " (more may be available)" : ""}
             </Typography>
-            {assets.some(asset => asset.status === 'processing') && (
+            {displayAssets.some(asset => asset.status === 'processing') && (
               <Typography variant="body2" color="secondary" sx={{ display: 'flex', alignItems: 'center' }}>
                 <CircularProgress size={12} color="secondary" sx={{ mr: 1 }} />
                 Some assets are still processing

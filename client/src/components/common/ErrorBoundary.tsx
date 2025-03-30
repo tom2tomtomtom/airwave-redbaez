@@ -1,6 +1,8 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { Box, Button, Typography, Alert } from '@mui/material';
-import { Refresh as RefreshIcon } from '@mui/icons-material';
+import { monitoring } from '../../services/monitoring';
+import { AppError } from '../../utils/errorHandling';
+import { ErrorCode } from '../../utils/errorTypes';
+import { getErrorFallback } from './ErrorFallbacks';
 
 interface Props {
   children: ReactNode;
@@ -34,12 +36,34 @@ export class ErrorBoundary extends Component<Props, State> {
       errorInfo,
     });
 
-    // Log error to your error reporting service
-    console.error('Uncaught error:', error, errorInfo);
+    // Transform standard error to AppError if needed
+    const appError = error instanceof AppError
+      ? error
+      : new AppError({
+          message: error.message || 'An unexpected error occurred',
+          code: ErrorCode.RENDER_ERROR,
+          isOperational: false,
+          context: {
+            componentStack: errorInfo.componentStack,
+            name: error.name,
+            stack: error.stack
+          }
+        });
+
+    // Log error using our monitoring service
+    monitoring.logError(appError, {
+      component: 'ErrorBoundary',
+      action: 'componentDidCatch',
+      context: { componentStack: errorInfo.componentStack }
+    });
   }
 
-  private handleRefresh = () => {
-    window.location.reload();
+  private handleReset = () => {
+    this.setState({
+      hasError: false,
+      error: null,
+      errorInfo: null
+    });
   };
 
   public render() {
@@ -47,48 +71,11 @@ export class ErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) {
         return this.props.fallback;
       }
-
-      return (
-        <Box
-          display="flex"
-          flexDirection="column"
-          alignItems="center"
-          justifyContent="center"
-          minHeight="400px"
-          p={3}
-        >
-          <Alert severity="error" sx={{ mb: 3, width: '100%', maxWidth: 600 }}>
-            <Typography variant="h6" gutterBottom>
-              Something went wrong
-            </Typography>
-            <Typography variant="body2" sx={{ mb: 2 }}>
-              We apologise for the inconvenience. Please try refreshing the page or contact support if the problem persists.
-            </Typography>
-            {process.env.NODE_ENV === 'development' && this.state.error && (
-              <Typography
-                component="pre"
-                sx={{
-                  mt: 2,
-                  p: 2,
-                  bgcolor: 'grey.100',
-                  borderRadius: 1,
-                  overflow: 'auto',
-                }}
-              >
-                {this.state.error.toString()}
-                {this.state.errorInfo?.componentStack}
-              </Typography>
-            )}
-          </Alert>
-          <Button
-            variant="contained"
-            startIcon={<RefreshIcon />}
-            onClick={this.handleRefresh}
-          >
-            Refresh Page
-          </Button>
-        </Box>
-      );
+      
+      // Use our error fallback system to display appropriate UI
+      if (this.state.error) {
+        return getErrorFallback(this.state.error, this.handleReset);
+      }
     }
 
     return this.props.children;

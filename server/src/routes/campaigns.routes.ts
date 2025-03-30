@@ -169,7 +169,7 @@ export class CampaignRouter extends BaseRouter {
     
     if (error) {
       logger.error('Error fetching campaigns', { error });
-      throw new ApiError(500, 'Failed to fetch campaigns');
+      throw ApiError.internal('Failed to fetch campaigns', { error });
     }
     
     // Transform to camelCase for response
@@ -218,7 +218,7 @@ export class CampaignRouter extends BaseRouter {
     
     if (error) {
       logger.error('Error fetching campaign', { id, error });
-      throw new ApiError(404, 'Campaign not found');
+      throw ApiError.notFound('Campaign not found', { id });
     }
     
     // Transform to camelCase for response
@@ -262,7 +262,7 @@ export class CampaignRouter extends BaseRouter {
     const userId = req.user?.id;
     
     if (!userId) {
-      throw new ApiError(401, 'User ID is required');
+      throw ApiError.unauthorized('User ID is required');
     }
     
     logger.debug('Creating new campaign', { name, clientId });
@@ -293,7 +293,7 @@ export class CampaignRouter extends BaseRouter {
     
     if (error) {
       logger.error('Error creating campaign', { error });
-      throw new ApiError(500, 'Failed to create campaign');
+      throw ApiError.internal('Failed to create campaign', { error });
     }
     
     // Transform to camelCase for response
@@ -360,11 +360,11 @@ export class CampaignRouter extends BaseRouter {
     
     if (error) {
       logger.error('Error updating campaign', { id, error });
-      throw new ApiError(500, 'Failed to update campaign');
+      throw ApiError.internal('Failed to update campaign', { id, error });
     }
     
     if (!campaign) {
-      throw new ApiError(404, 'Campaign not found');
+      throw ApiError.notFound('Campaign not found', { id });
     }
     
     // Transform to camelCase for response
@@ -404,7 +404,7 @@ export class CampaignRouter extends BaseRouter {
       .single();
     
     if (!existingCampaign) {
-      throw new ApiError(404, 'Campaign not found');
+      throw ApiError.notFound('Campaign not found', { id });
     }
     
     // Delete the campaign
@@ -415,7 +415,7 @@ export class CampaignRouter extends BaseRouter {
     
     if (error) {
       logger.error('Error deleting campaign', { id, error });
-      throw new ApiError(500, 'Failed to delete campaign');
+      throw ApiError.internal('Failed to delete campaign', { id, error });
     }
     
     res.success(null, 'Campaign deleted successfully');
@@ -429,7 +429,7 @@ export class CampaignRouter extends BaseRouter {
     const { assetIds } = req.body;
     
     if (!assetIds || !Array.isArray(assetIds) || assetIds.length === 0) {
-      throw new ApiError(400, 'Asset IDs are required');
+      throw ApiError.validation('Asset IDs are required');
     }
     
     logger.debug('Adding assets to campaign', { campaignId: id, assetIds });
@@ -442,7 +442,7 @@ export class CampaignRouter extends BaseRouter {
       .single();
     
     if (campaignError || !campaign) {
-      throw new ApiError(404, 'Campaign not found');
+      throw ApiError.notFound('Campaign not found', { id });
     }
     
     // Create campaign_assets entries
@@ -459,7 +459,7 @@ export class CampaignRouter extends BaseRouter {
     
     if (error) {
       logger.error('Error adding assets to campaign', { campaignId: id, error });
-      throw new ApiError(500, 'Failed to add assets to campaign');
+      throw ApiError.internal('Failed to add assets to campaign', { campaignId: id, error });
     }
     
     res.success(null, 'Assets added to campaign successfully');
@@ -481,7 +481,7 @@ export class CampaignRouter extends BaseRouter {
       .single();
     
     if (campaignError || !campaign) {
-      throw new ApiError(404, 'Campaign not found');
+      throw ApiError.notFound('Campaign not found', { id });
     }
     
     // Get campaign assets with join
@@ -496,7 +496,7 @@ export class CampaignRouter extends BaseRouter {
     
     if (error) {
       logger.error('Error fetching campaign assets', { campaignId: id, error });
-      throw new ApiError(500, 'Failed to fetch campaign assets');
+      throw ApiError.internal('Failed to fetch campaign assets', { campaignId: id, error });
     }
     
     // Transform response

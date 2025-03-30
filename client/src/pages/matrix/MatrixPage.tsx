@@ -26,10 +26,11 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { AppDispatch, RootState } from '../../store';
 import { fetchClients } from '../../store/slices/clientSlice';
-import { fetchCampaigns } from '../../store/slices/campaignsSlice';
+import { selectAllCampaigns, fetchCampaigns } from '../../store/slices/campaignsSlice';
 import { Campaign as CampaignType, Execution } from '../../types/campaigns';
 import apiClient from '../../api/apiClient';
 import TemplateCard from '../../components/templates/TemplateCard';
+import { VirtualizedAssetGrid } from '../../components/matrix/VirtualizedAssetGrid';
 
 interface Asset {
   id: string;
@@ -61,7 +62,9 @@ interface TemplateVariable {
 const MatrixPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { selectedClientId, clients } = useSelector((state: RootState) => state.clients);
-  const reduxCampaigns = useSelector((state: RootState) => state.campaigns.campaigns) as CampaignType[];
+
+  // Use the selector for campaigns
+  const reduxCampaigns = useSelector(selectAllCampaigns); 
   const campaignsLoading = useSelector((state: RootState) => state.campaigns.loading);
   
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
@@ -111,6 +114,13 @@ const MatrixPage: React.FC = () => {
     }
   }, [reduxCampaigns, selectedClientId]);
   
+  useEffect(() => {
+    // Fetch campaigns if not already loaded
+    if (reduxCampaigns.length === 0 && selectedClientId) {
+      dispatch(fetchCampaigns(selectedClientId));
+    }
+  }, [dispatch, reduxCampaigns.length, selectedClientId]);
+
   const handleTemplateSelect = async (templateId: string) => {
     try {
       console.log('Template selected:', templateId);
@@ -605,62 +615,12 @@ const MatrixPage: React.FC = () => {
                   </FormControl>
                 </Box>
                 
-                <Box sx={{ maxHeight: 300, overflowY: 'auto' }}>
-                  <Grid container spacing={1}>
-                    {Array.isArray(assetsByType[variable.type]) ? assetsByType[variable.type].map(asset => (
-                      <Grid item xs={6} key={asset.id}>
-                        <Card 
-                          sx={{ 
-                            cursor: 'pointer',
-                            border: selectedAssets[variable.name] === asset.id ? '2px solid #1976d2' : '1px solid #e0e0e0',
-                            transition: 'all 0.2s ease-in-out',
-                            '&:hover': {
-                              boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
-                              borderColor: selectedAssets[variable.name] === asset.id ? '#1976d2' : '#bbdefb'
-                            }
-                          }}
-                          onClick={() => handleAssetSelect(variable.name, asset.id)}
-                        >
-                          {variable.type === 'image' || variable.type === 'video' ? (
-                            <CardMedia
-                              component="img"
-                              height="80"
-                              image={asset.thumbnailUrl || '/placeholder-asset.jpg'}
-                              alt={asset.name}
-                              sx={{
-                                backgroundColor: '#f5f5f5'
-                              }}
-                            />
-                          ) : (
-                            <Box sx={{ 
-                              p: 2, 
-                              height: 80, 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'center', 
-                              bgcolor: selectedAssets[variable.name] === asset.id ? '#e3f2fd' : '#f5f5f5',
-                              transition: 'background-color 0.2s ease-in-out'
-                            }}>
-                              <Typography variant="body2" 
-                                sx={{ 
-                                  fontWeight: selectedAssets[variable.name] === asset.id ? 'bold' : 'normal',
-                                  color: selectedAssets[variable.name] === asset.id ? '#1976d2' : 'inherit'
-                                }}
-                              >
-                                {asset.content || asset.name}
-                              </Typography>
-                            </Box>
-                          )}
-                          <CardContent sx={{ py: 1, bgcolor: selectedAssets[variable.name] === asset.id ? '#f5f5f5' : 'transparent' }}>
-                            <Typography variant="caption" noWrap sx={{ fontWeight: selectedAssets[variable.name] === asset.id ? 'bold' : 'normal' }}>
-                              {asset.name}
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                    )) : <Grid item xs={12}><Typography variant="body2" sx={{ p: 2, textAlign: 'center' }}>No assets available</Typography></Grid>}
-                  </Grid>
-                </Box>
+                <VirtualizedAssetGrid 
+                  assets={assetsByType[variable.type] || []} 
+                  selectedAssetId={selectedAssets[variable.name]}
+                  onAssetSelect={(assetId) => handleAssetSelect(variable.name, assetId)} // Pass handler bound to variable
+                  assetType={variable.type}
+                />
               </Grid>
             ))}
           </Grid>

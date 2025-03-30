@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { 
   Box, 
   Typography, 
@@ -27,14 +27,15 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { RootState, AppDispatch } from '../../store';
 import { fetchClients } from '../../store/slices/clientSlice';
-import { fetchAssets } from '../../store/slices/assetsSlice';
-import { fetchTemplates } from '../../store/slices/templatesSlice';
+import { selectAllAssets, fetchAssets } from '../../store/slices/assetsSlice';
+import { fetchTemplates, selectAllTemplates } from '../../store/slices/templatesSlice';
 import ClientSelector from '../../components/clients/ClientSelector';
 import ClientDialog from '../../components/clients/ClientDialog';
 import { useClients } from '../../hooks/useClients';
 import { Client as ApiClient } from '../../api/types/client.types';
 import { Client as ReduxClient } from '../../types/client';
 import { Asset } from '../../api/types/asset.types';
+import { Template } from '../../types/templates';
 import DirectAssetDisplay from '../../components/assets/DirectAssetDisplay';
 
 interface TabPanelProps {
@@ -70,8 +71,10 @@ const ClientDashboardPage: React.FC = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   
   const { clients, selectedClientId, loading: clientsLoading } = useSelector((state: RootState) => state.clients);
-  const { assets, loading: assetsLoading } = useSelector((state: RootState) => state.assets);
-  const { templates, loading: templatesLoading } = useSelector((state: RootState) => state.templates);
+  const { loading: assetsLoading } = useSelector((state: RootState) => state.assets);
+  const assets = useSelector(selectAllAssets);
+  const templates = useSelector(selectAllTemplates);
+  const { loading: templatesLoading } = useSelector((state: RootState) => state.templates);
   
   // Use the new client hook in parallel with Redux during migration
   const { clients: serviceClients, selectedClient: serviceSelectedClient } = useClients();
@@ -109,21 +112,14 @@ const ClientDashboardPage: React.FC = () => {
   // ==== MULTIPLE FILTERING APPROACHES ====
   
   // 1. Standard approach with strict string comparison
-  const clientAssetsStrict = selectedClientId 
+  const clientAssetsStrict = useMemo(() => selectedClientId 
     ? assets.filter(asset => {
         // Convert both to strings for strict comparison
         const assetClientIdStr = String(asset.clientId || "");
         const selectedClientIdStr = String(selectedClientId || "");
-        const matches = assetClientIdStr === selectedClientIdStr;
-        
-        // Log details for the first few assets to understand what's happening
-        if (assets.indexOf(asset) < 3) {
-          console.log(`[Standard] Asset ${asset.id} - clientId: [${asset.clientId}] (${typeof asset.clientId}), selectedId: [${selectedClientId}] (${typeof selectedClientId}), match: ${matches}`);
-        }
-        
-        return matches;
+        return assetClientIdStr === selectedClientIdStr;
       })
-    : assets;
+    : [], [assets, selectedClientId]);
   
   // 2. UUID format normalization approach
   const normalizeUuid = (id: string | null | undefined): string => {
@@ -132,7 +128,7 @@ const ClientDashboardPage: React.FC = () => {
     return id.toString().replace(/[\s-]/g, '').toLowerCase();
   };
   
-  const clientAssetsNormalized = selectedClientId 
+  const clientAssetsNormalized = useMemo(() => selectedClientId 
     ? assets.filter(asset => {
         const normalizedAssetId = normalizeUuid(asset.clientId);
         const normalizedSelectedId = normalizeUuid(selectedClientId);
@@ -144,10 +140,10 @@ const ClientDashboardPage: React.FC = () => {
         
         return matches;
       })
-    : assets;
+    : [], [assets, selectedClientId]);
     
   // 3. Partial matching approach - match just the start of the UUID
-  const clientAssetsPartial = selectedClientId && selectedClientId.length > 8
+  const clientAssetsPartial = useMemo(() => selectedClientId && selectedClientId.length > 8
     ? assets.filter(asset => {
         // Match first 8 characters of the UUID
         const partialMatch = asset.clientId?.toString().substring(0, 8) === selectedClientId.toString().substring(0, 8);
@@ -158,11 +154,11 @@ const ClientDashboardPage: React.FC = () => {
         
         return partialMatch;
       })
-    : assets;
+    : [], [assets, selectedClientId]);
     
   // 4. Hard-coded Juniper client ID approach (primary approach for Juniper)
   const JUNIPER_CLIENT_ID = 'fd790d19-6610-4cd5-b90f-214808e94a19';
-  const clientAssetsHardcoded = selectedClient?.name === 'Juniper'
+  const clientAssetsHardcoded = useMemo(() => selectedClient?.name === 'Juniper'
     ? assets.filter(asset => {
         // Check against the Juniper client ID directly
         const hardcodedMatch = asset.clientId === JUNIPER_CLIENT_ID;
@@ -179,25 +175,27 @@ const ClientDashboardPage: React.FC = () => {
         
         return match;
       })
-    : [];
+    : [], [assets, selectedClient]);
   
   // 5. Direct database ID comparison - this is the most reliable approach overall
-  const clientAssetsDirect = selectedClientId
+  const clientAssetsDirect = useMemo(() => selectedClientId
     ? assets.filter(asset => {
         // This handles the case where the client ID in the asset might be stored in different formats
         const directMatch = asset.clientId && (
           asset.clientId === selectedClientId || // Exact match
-          asset.clientId.replace(/-/g, '') === selectedClientId.replace(/-/g, '') // Without hyphens
+          asset.clientId.toString() === selectedClientId.toString() || // String match
+          asset.clientId.toString().includes(selectedClientId.toString()) || // Includes check
+          normalizeUuid(asset.clientId) === normalizeUuid(selectedClientId) // Normalized match
         );
         
         if (assets.indexOf(asset) < 3) {
-          console.log(`[Direct] Asset ${asset.id} - clientId: [${asset.clientId}], selectedId: [${selectedClientId}], match: ${directMatch}`);
+          console.log(`[Direct] Asset ${asset.id} - clientId: [${asset.clientId}], selectedId: [${selectedClientId}], match: ${!!directMatch}`);
         }
         
         return directMatch;
       })
-    : [];
-  
+    : [], [assets, selectedClientId]);
+
   // Direct asset loading approach
   // This code uses the DirectAssetDisplay component which makes direct API calls
   // and reliably loads assets with the working client ID
@@ -295,7 +293,7 @@ const ClientDashboardPage: React.FC = () => {
   );
     
   const clientTemplates = selectedClientId 
-    ? templates.filter(template => template.client_id === selectedClientId)
+    ? templates.filter((template: Template) => template.client_id === selectedClientId)
     : templates;
   
   useEffect(() => {
@@ -594,7 +592,7 @@ const ClientDashboardPage: React.FC = () => {
                 </Typography>
               ) : (
                 <Grid container spacing={2}>
-                  {clientTemplates.slice(0, 6).map(template => (
+                  {clientTemplates.slice(0, 6).map((template: Template) => (
                     <Grid item xs={12} sm={6} md={4} key={template.id}>
                       <Card>
                         <CardMedia

@@ -31,16 +31,16 @@ import SendIcon from '@mui/icons-material/Send';
 
 import { RootState, AppDispatch } from '../../store';
 import { fetchCampaignExports, downloadExport } from '../../store/slices/exportsSlice';
-import { fetchCampaigns } from '../../store/slices/campaignsSlice';
+import { selectAllCampaigns, fetchCampaigns } from '../../store/slices/campaignsSlice';
+import { Campaign } from '../../types/campaigns';
 
-// Import custom components
-import ExportDetailsDialog from '../../components/exports/ExportDetailsDialog';
-import ExportToPlatformDialog from '../../components/exports/ExportToPlatformDialog';
+import { ExportDetailsDialog } from '../../components/exports/ExportDetailsDialog';
+import { ExportToPlatformDialog } from '../../components/exports/ExportToPlatformDialog';
 
 const ExportsPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { exports, loading, error } = useSelector((state: RootState) => state.exports);
-  const { campaigns } = useSelector((state: RootState) => state.campaigns);
+  const campaigns = useSelector(selectAllCampaigns);
   
   const [tabValue, setTabValue] = useState(0);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
@@ -54,12 +54,10 @@ const ExportsPage: React.FC = () => {
   const [platformDialogOpen, setPlatformDialogOpen] = useState(false);
   const [selectedExport, setSelectedExport] = useState<any>(null);
 
-  // Load campaigns on component mount
   useEffect(() => {
     dispatch(fetchCampaigns());
   }, [dispatch]);
 
-  // Load exports when a campaign is selected
   useEffect(() => {
     if (selectedCampaignId) {
       dispatch(fetchCampaignExports(selectedCampaignId));
@@ -172,7 +170,7 @@ const ExportsPage: React.FC = () => {
                 <MenuItem value="">
                   <em>Select a campaign</em>
                 </MenuItem>
-                {campaigns.map(campaign => (
+                {campaigns.map((campaign: Campaign) => (
                   <MenuItem key={campaign.id} value={campaign.id}>
                     {campaign.name}
                   </MenuItem>

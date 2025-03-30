@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import { RootState, AppDispatch } from '../../store';
+import { Campaign } from '../../types/campaigns';
 import { 
   Box, 
   Typography, 
@@ -18,23 +20,22 @@ import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { RootState } from '../../store';
-import { fetchCampaigns, deleteCampaign } from '../../store/slices/campaignsSlice';
+import { selectAllCampaigns, deleteCampaign, fetchCampaigns } from '../../store/slices/campaignsSlice';
 import PageHeader from '../../components/layout/PageHeader';
 import LoadingScreen from '../../components/common/LoadingScreen';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 
 const CampaignsPage: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
-  const { campaigns, loading, error } = useSelector((state: RootState) => state.campaigns);
+  const dispatch = useDispatch<AppDispatch>();
+  const campaigns = useSelector(selectAllCampaigns);
+  const { loading, error } = useSelector((state: RootState) => state.campaigns);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [campaignToDelete, setCampaignToDelete] = useState<string | null>(null);
 
   useEffect(() => {
-    // @ts-ignore
     dispatch(fetchCampaigns());
   }, [dispatch]);
 
@@ -57,7 +58,6 @@ const CampaignsPage: React.FC = () => {
 
   const confirmDelete = () => {
     if (campaignToDelete) {
-      // @ts-ignore
       dispatch(deleteCampaign(campaignToDelete));
       setDeleteDialogOpen(false);
       setCampaignToDelete(null);
@@ -69,9 +69,9 @@ const CampaignsPage: React.FC = () => {
     setCampaignToDelete(null);
   };
 
-  const filteredCampaigns = campaigns.filter(campaign => 
+  const filteredCampaigns = campaigns.filter((campaign: Campaign) => 
     campaign.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (campaign.client && campaign.client.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (campaign.clientId && campaign.clientId.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (campaign.description && campaign.description.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
@@ -127,16 +127,16 @@ const CampaignsPage: React.FC = () => {
             </Typography>
           </Grid>
         ) : (
-          filteredCampaigns.map(campaign => (
+          filteredCampaigns.map((campaign: Campaign) => (
             <Grid item xs={12} sm={6} md={4} key={campaign.id}>
               <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <CardContent sx={{ flexGrow: 1 }}>
                   <Typography variant="h6" component="div" gutterBottom>
                     {campaign.name}
                   </Typography>
-                  {campaign.client && (
+                  {campaign.clientId && (
                     <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-                      Client: {campaign.client}
+                      Client: {campaign.clientId}
                     </Typography>
                   )}
                   {campaign.description && (
@@ -145,7 +145,7 @@ const CampaignsPage: React.FC = () => {
                     </Typography>
                   )}
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
-                    {campaign.platforms && campaign.platforms.map(platform => (
+                    {campaign.platforms && campaign.platforms.map((platform: string) => (
                       <Chip 
                         key={platform} 
                         label={platform} 

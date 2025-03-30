@@ -167,12 +167,6 @@ const ClientSelector: React.FC<ClientSelectorProps> = ({
       console.log('🔄 ClientSelector - No clients found, initiating fetch...');
       loadClients();
     }
-    
-    // Always ensure we have a valid client ID available for assets
-    if (!localStorage.getItem('selectedClientId')) {
-      console.log('⚠️ ClientSelector - No client ID in localStorage, setting default', KNOWN_WORKING_CLIENT_ID);
-      fixWorkingClientId();
-    }
   }, [clients.length, loading, loadClients, clientsLoaded]);
 
   const handleClientChange = (event: SelectChangeEvent) => {

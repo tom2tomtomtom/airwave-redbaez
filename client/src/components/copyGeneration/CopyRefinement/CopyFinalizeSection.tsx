@@ -22,9 +22,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import FormatQuoteIcon from '@mui/icons-material/FormatQuote';
 import SaveIcon from '@mui/icons-material/Save';
 
-import CopyScoreCard from './CopyScoreCard';
-import { CopyVariation, CopyScore } from '../../../services/copyGeneration/types';
-import CopyGenerationMediator from '../../../services/copyGeneration/CopyGenerationMediator';
+import { CopyVariation } from '../../../services/copyGeneration/types';
 
 interface CopyFinalizeSectionProps {
   variation: CopyVariation;
@@ -46,15 +44,6 @@ const CopyFinalizeSection: React.FC<CopyFinalizeSectionProps> = ({
   onEdit
 }) => {
   const [activeStep, setActiveStep] = useState<number>(0);
-  const [score, setScore] = useState<CopyScore>(
-    variation.score || {
-      clarity: 0,
-      persuasiveness: 0,
-      engagement: 0,
-      brandAlignment: 0,
-      actionability: 0
-    }
-  );
   const [comment, setComment] = useState<string>('');
   const [feedback, setFeedback] = useState<{
     strengths: string[];
@@ -67,38 +56,6 @@ const CopyFinalizeSection: React.FC<CopyFinalizeSectionProps> = ({
   });
   const [isLoading, setIsLoading] = useState<boolean>(false);
   
-  // Calculate overall score
-  const calculateOverallScore = (): number => {
-    const weights = {
-      clarity: 0.25,
-      persuasiveness: 0.2,
-      engagement: 0.2,
-      brandAlignment: 0.15,
-      actionability: 0.2
-    };
-    
-    let weightedSum = 0;
-    let totalWeight = 0;
-    
-    Object.entries(weights).forEach(([category, weight]) => {
-      const categoryScore = score[category as keyof CopyScore];
-      if (categoryScore > 0) {
-        weightedSum += categoryScore * weight;
-        totalWeight += weight;
-      }
-    });
-    
-    return totalWeight > 0 ? weightedSum / totalWeight : 0;
-  };
-  
-  // Handler for score changes
-  const handleScoreChange = (category: keyof CopyScore, value: number) => {
-    setScore(prevScore => ({
-      ...prevScore,
-      [category]: value
-    }));
-  };
-  
   // Handler for comment changes
   const handleCommentChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setComment(event.target.value);
@@ -110,8 +67,13 @@ const CopyFinalizeSection: React.FC<CopyFinalizeSectionProps> = ({
     
     try {
       const text = variation.frames ? variation.frames.join('\n\n') : variation.text;
-      const feedbackAnalysis = await CopyGenerationMediator.analyseScoreFeedback(text, score);
-      setFeedback(feedbackAnalysis);
+      // Removed call to CopyGenerationMediator.analyseScoreFeedback
+      // const feedbackAnalysis = await CopyGenerationMediator.analyseScoreFeedback(text, score);
+      setFeedback({
+        strengths: [],
+        weaknesses: [],
+        suggestions: []
+      });
     } catch (error) {
       console.error('Error analysing feedback:', error);
     } finally {
@@ -137,8 +99,6 @@ const CopyFinalizeSection: React.FC<CopyFinalizeSectionProps> = ({
     const updatedVariation: CopyVariation = {
       ...variation,
       status: 'approved',
-      score,
-      qualityScore: calculateOverallScore() / 5,
       modifiedAt: new Date()
     };
     
@@ -150,24 +110,17 @@ const CopyFinalizeSection: React.FC<CopyFinalizeSectionProps> = ({
     const updatedVariation: CopyVariation = {
       ...variation,
       status: 'rejected',
-      score,
-      qualityScore: calculateOverallScore() / 5,
       modifiedAt: new Date()
     };
     
     onReject(updatedVariation, comment);
   };
   
-  // Check if all scores are completed
-  const isScoreComplete = (): boolean => {
-    return Object.values(score).every(value => value > 0);
-  };
-  
   // Steps for the stepper
   const steps = [
     {
-      label: 'Score Copy',
-      description: 'Rate the copy against key criteria',
+      label: 'Review Copy',
+      description: 'Review the copy for approval or rejection',
       content: (
         <Box>
           <Paper sx={{ p: 3, mb: 3 }}>
@@ -206,24 +159,12 @@ const CopyFinalizeSection: React.FC<CopyFinalizeSectionProps> = ({
               Edit Copy
             </Button>
           </Paper>
-          
-          <CopyScoreCard 
-            score={score} 
-            onScoreChange={handleScoreChange}
-            qualityChecks={variation.qualityChecks}
-          />
-          
-          {!isScoreComplete() && (
-            <Alert severity="info" sx={{ mt: 2 }}>
-              Please rate the copy in all categories before proceeding.
-            </Alert>
-          )}
         </Box>
       )
     },
     {
       label: 'Review Feedback',
-      description: 'Review AI-generated feedback based on your scoring',
+      description: 'Review AI-generated feedback based on your review',
       content: (
         <Box>
           <Paper sx={{ p: 3, mb: 3 }}>
@@ -232,7 +173,7 @@ const CopyFinalizeSection: React.FC<CopyFinalizeSectionProps> = ({
             </Typography>
             
             <Typography variant="body2" paragraph>
-              Based on your scoring, here's an analysis of the copy:
+              Based on your review, here's an analysis of the copy:
             </Typography>
             
             <Grid container spacing={3}>
@@ -297,21 +238,6 @@ const CopyFinalizeSection: React.FC<CopyFinalizeSectionProps> = ({
               </Grid>
             </Grid>
           </Paper>
-          
-          <Alert 
-            severity={calculateOverallScore() >= 4 ? "success" : "warning"}
-            sx={{ mb: 3 }}
-          >
-            <Typography variant="subtitle1">
-              Overall Score: {calculateOverallScore().toFixed(1)}/5
-            </Typography>
-            
-            <Typography variant="body2">
-              {calculateOverallScore() >= 4
-                ? "This copy meets or exceeds quality standards and is ready for approval."
-                : "This copy may need some improvement before approval."}
-            </Typography>
-          </Alert>
         </Box>
       )
     },
@@ -339,7 +265,7 @@ const CopyFinalizeSection: React.FC<CopyFinalizeSectionProps> = ({
             <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
               <Chip 
                 icon={<ThumbUpIcon />} 
-                label={`Approve (${calculateOverallScore().toFixed(1)}/5)`} 
+                label="Approve" 
                 color="success" 
                 variant="outlined" 
                 onClick={handleApprove}
@@ -391,7 +317,6 @@ const CopyFinalizeSection: React.FC<CopyFinalizeSectionProps> = ({
                     <Button
                       variant="contained"
                       onClick={handleNext}
-                      disabled={index === 0 && !isScoreComplete()}
                     >
                       Continue
                     </Button>

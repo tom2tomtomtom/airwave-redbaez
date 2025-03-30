@@ -7,6 +7,16 @@ interface ErrorMetadata {
   component?: string;
   action?: string;
   context?: Record<string, unknown>;
+  endpoint?: string;
+  method?: string;
+  attempt?: number;
+  maxRetries?: number;
+  delay?: number;
+  duration?: number;
+  status?: number;
+  retryable?: boolean;
+  errorCode?: string;
+  errorCategory?: string;
 }
 
 interface LogMetadata extends ErrorMetadata {
@@ -59,6 +69,12 @@ class MonitoringService {
       return {
         ...sanitizedError,
         code: error.code,
+        statusCode: error.statusCode,
+        category: error.category,
+        userMessage: error.userMessage,
+        isOperational: error.isOperational,
+        isRetryable: error.isRetryable,
+        retry: error.retry ? { ...error.retry } : undefined,
         context: this.sanitizeContext(error.context || {}),
       };
     }
