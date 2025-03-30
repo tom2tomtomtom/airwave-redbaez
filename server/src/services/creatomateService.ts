@@ -64,7 +64,7 @@ class CreatomateService {
       }
 
       console.log('Making real API call to Creatomate for image generation');
-      console.log('Using API key:', this.apiKey ? `${this.apiKey.substring(0, 5)}...` : 'Missing');
+      // console.log('Using API key:', this.apiKey ? `${this.apiKey.substring(0, 5)}...` : 'Missing'); // Security: Removed API key logging
       console.log('Template ID:', options.templateId);
       console.log('Using modifications:', JSON.stringify(options.modifications));
 
@@ -129,7 +129,7 @@ class CreatomateService {
       }
 
       console.log('Making real API call to Creatomate for video generation');
-      console.log('Using API key:', this.apiKey ? `${this.apiKey.substring(0, 5)}...` : 'Missing');
+      // console.log('Using API key:', this.apiKey ? `${this.apiKey.substring(0, 5)}...` : 'Missing'); // Security: Removed API key logging
       console.log('Template ID:', options.templateId);
       console.log('Using modifications:', JSON.stringify(options.modifications));
 

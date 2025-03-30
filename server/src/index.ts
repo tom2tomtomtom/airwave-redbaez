@@ -18,7 +18,6 @@ import { logger } from './utils/logger';
 
 // Routes
 import authRoutes from './routes/auth.routes';
-// import assetRoutes from './routes/assetRoutes'; // Removed unused legacy import
 import templateRoutes from './routes/templateRoutes';
 import campaignRoutes from './routes/campaignRoutes';
 import creatomateRoutes from './routes/creatomate.routes';
@@ -135,7 +134,6 @@ app.get('/', (req, res) => {
       '/health',
       '/api/auth/login',
       '/api/auth/register',
-      '/api/assets',
       '/api/templates',
       '/api/campaigns',
       '/api/creatomate',
@@ -148,10 +146,10 @@ app.get('/', (req, res) => {
   });
 });
 
-// Register routes - Legacy approach (to be migrated to route registry)
+// Register routes
 app.use('/api/auth', authRoutes);
 app.use('/api/templates', templateRoutes);
-// app.use('/api/campaigns', campaignRoutes); // Migrated to route registry pattern
+app.use('/api/campaigns', campaignRoutes);
 app.use('/api/creatomate', creatomateRoutes);
 app.use('/api/runway', runwayRoutes);
 app.use('/api/exports', exportsRoutes);
@@ -162,26 +160,7 @@ app.use('/api/signoff-sessions', signoffSessionsRoutes);
 app.use('/api/matrix', matrixRoutes);
 app.use('/api/briefs', briefRoutes);
 app.use('/api/mcp', mcpRoutes);
-
-// v2 API Routes - new slug-based design
-// app.use('/api/v2', v2Routes); // Removed direct mount - using registry for consistency
-
-// Import router classes
-import { AssetRouter } from './routes/assets.routes';
-import { ClientRouter } from './routes/clients.routes';
-import { CampaignRouter } from './routes/campaigns.routes';
-// import { V2AssetRouter } from './routes/v2/assets.routes'; // Removed redundant V2 router
-import { V2ClientRouter } from './routes/v2/clients.routes';
-
-// Register route handlers with the registry
-RouteRegistry.register(new AssetRouter());
-RouteRegistry.register(new ClientRouter());
-RouteRegistry.register(new CampaignRouter());
-// RouteRegistry.register(new V2AssetRouter()); // Removed redundant V2 registration
-RouteRegistry.register(new V2ClientRouter());
-
-// Initialize all registered routes
-RouteRegistry.initializeRoutes(app);
+app.use('/api/v2', v2Routes);
 
 // Apply error handling middleware (must be after all routes)
 app.use(notFoundHandler);
@@ -198,7 +177,6 @@ server.listen(PORT, () => {
   // Log route information
   const routeInfo = [
     { name: 'Auth', path: '/api/auth' },
-    { name: 'Assets', path: '/api/assets' },
     { name: 'Templates', path: '/api/templates' },
     { name: 'Campaigns', path: '/api/campaigns' },
     { name: 'Creatomate', path: '/api/creatomate' },
@@ -207,7 +185,7 @@ server.listen(PORT, () => {
     { name: 'LLM', path: '/api/llm' },
     { name: 'Sign-off', path: '/api/signoff' },
     { name: 'Matrix', path: '/api/matrix' },
-    { name: 'Clients', path: '/api/clients' },
+    { name: 'Briefs', path: '/api/briefs' },
     { name: 'MCP', path: '/api/mcp' },
     { name: 'V2 API', path: '/api/v2' }
   ];
