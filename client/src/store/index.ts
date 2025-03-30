@@ -8,6 +8,7 @@ import llmReducer from './slices/llmSlice';
 import briefsReducer from './slices/briefsSlice';
 import approvalReducer from '../features/approval/approvalSlice';
 import clientReducer from './slices/clientSlice';
+import { assetsApi } from './api/assetsApi';
 
 export const store = configureStore({
   reducer: {
@@ -20,18 +21,16 @@ export const store = configureStore({
     briefs: briefsReducer,
     approval: approvalReducer,
     clients: clientReducer,
+    [assetsApi.reducerPath]: assetsApi.reducer,
   },
-  // Add middleware or other config here if needed
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: {
-        // Ignore non-serializable values in specific action types
-        ignoredActions: ['assets/uploadAsset/fulfilled'],
+        ignoredActions: ['assets/uploadAsset/fulfilled', 'assetsApi/executeQuery/fulfilled'],
       },
-    }),
+    }).concat(assetsApi.middleware),
 });
 
-// Infer the `RootState` and `AppDispatch` types from the store itself
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
 
