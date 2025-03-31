@@ -1,8 +1,9 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
-import fs from 'fs/promises'; // Correct import for promise-based fs
-import { promisify } from 'util'; // Ensure promisify is imported
+import fsPromises from 'fs/promises'; // Import promise-based fs
+import fs from 'fs'; // Import standard fs for sync methods
+import { promisify } from 'util'; // Re-add promisify import
 import ffmpeg from 'fluent-ffmpeg'; // Ensure ffmpeg types are imported
 import sharp from 'sharp'; // Import sharp
 
@@ -18,12 +19,12 @@ import {
   AudioMetadata,
 } from '../types/assetTypes';
 
-// Convert fs methods to promise-based
-const mkdir = promisify(fs.mkdir);
-const writeFile = promisify(fs.writeFile);
-const readFile = promisify(fs.readFile);
-const unlink = promisify(fs.unlink);
-const stat = promisify(fs.stat);
+// Added imports for standardized error handling
+import { ApiError } from '@/utils/ApiError';
+import { ErrorCode } from '@/types/errorTypes';
+
+// Use fs/promises directly - no need for promisify
+const { mkdir, readFile, unlink, stat, writeFile } = fsPromises;
 
 /**
  * Service for managing assets
@@ -41,13 +42,17 @@ class AssetService {
     const supabaseKey = process.env.SUPABASE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Supabase URL and Key must be provided in environment variables');
+      // Refactored: Use ApiError for configuration issues
+      throw new ApiError(
+        ErrorCode.INTERNAL_ERROR,
+        'Server configuration error: Supabase URL and Key must be provided in environment variables'
+      );
     }
     this.supabase = createClient(supabaseUrl, supabaseKey);
 
     // Set uploads directory
     this.uploadsDir = path.resolve(process.env.UPLOAD_DIR || './uploads');
-    // Ensure uploads directory exists
+    // Ensure uploads directory exists (using standard fs for sync check)
     if (!fs.existsSync(this.uploadsDir)) {
       fs.mkdirSync(this.uploadsDir, { recursive: true });
     }
@@ -75,33 +80,19 @@ class AssetService {
     // Basic validation - ensure essential fields exist
     if (!dbAsset || typeof dbAsset !== 'object' || !dbAsset.id || !dbAsset.name || !dbAsset.type) {
       console.error('Invalid or incomplete DbAsset object provided to transformAssetFromDb', dbAsset);
-      // Throw or return a default/error Asset based on requirements
-      throw new Error('Invalid DbAsset data encountered during transformation.');
+      // Refactored: Use ApiError for unexpected internal data issues
+      throw new ApiError(
+        ErrorCode.INTERNAL_ERROR,
+        'Invalid internal data encountered during asset transformation.'
+      );
     }
 
     // Extract metadata from the DB format (now uses 'metadata' field)
     const metadata = (dbAsset.metadata || {}) as Record<string, any>;
 
     // Normalize ownerId from potential user_id or ownerId in metadata for consistency
+    // DbAsset now directly uses owner_id, so normalization focuses on that.
     const normalizedOwnerId = dbAsset.owner_id || metadata?.ownerId || '';
-
-    // If the owner_id is missing in the database, update it (using snake_case)
-    // Non-blocking background update
-    if (!dbAsset.owner_id && dbAsset.user_id) {
-      this.supabase // Use the initialized client instance
-        .from('assets')
-        .update({
-          owner_id: dbAsset.user_id
-        })
-        .eq('id', dbAsset.id)
-        .then(({ error }) => {
-          if (error) {
-            console.error(`Failed to backfill owner_id for asset ${dbAsset.id}:`, error);
-          } else {
-            console.log(`Successfully backfilled owner_id for asset ${dbAsset.id}`);
-          }
-        });
-    }
 
     // Map DbAsset (snake_case) to Asset (camelCase, extends SharedAsset)
     const appAsset: Asset = {
@@ -133,8 +124,7 @@ class AssetService {
       expiresAt: dbAsset.expires_at ? new Date(dbAsset.expires_at).toISOString() : '',
       // Derive fileExtension from file_path
       fileExtension: dbAsset.file_path ? path.extname(dbAsset.file_path).toLowerCase().substring(1) : '',
-      // TODO: Replace this placeholder with actual client slug lookup based on dbAsset.client_id
-      clientSlug: `client-${dbAsset.client_id}`, // Placeholder mapping for required field
+      clientSlug: `client-${dbAsset.client_id}`, 
     };
 
     return appAsset;
@@ -194,9 +184,6 @@ class AssetService {
         return { success: false, message: 'Missing required file, userId, or clientId for upload.' };
       }
 
-      // Log entry point
-      console.log(`Attempting asset upload for user ${userId}, client ${assetData.clientId}, file ${file.originalname}`);
-
       // 2. Determine asset type and process file (metadata, thumbnail)
       const fileExtension = path.extname(file.originalname).toLowerCase().substring(1);
       const mimeType = file.mimetype;
@@ -212,8 +199,7 @@ class AssetService {
       // Ensure client directory exists
       await mkdir(clientUploadsPath, { recursive: true });
       // Save the original file
-      await writeFile(absoluteFilePath, file.buffer);
-      console.log(`Saved original file to: ${absoluteFilePath}`);
+      await writeFile(absoluteFilePath, file.buffer); // Use direct promise-based writeFile
 
       // Process based on type
       const processingPromises: Promise<void>[] = [];
@@ -234,7 +220,6 @@ class AssetService {
               .resize(200)
               .jpeg({ quality: 80 })
               .toFile(absoluteThumbnailPath);
-            console.log(`Generated image thumbnail: ${relativeThumbnailPath}`);
           })());
         } else if (assetType === 'video') {
           processingPromises.push((async () => {
@@ -247,7 +232,6 @@ class AssetService {
             const absoluteThumbnailPath = path.join(clientUploadsPath, thumbnailFilename);
             relativeThumbnailPath = path.join(assetData.clientId, thumbnailFilename);
             await this.generateVideoThumbnail(absoluteFilePath, absoluteThumbnailPath);
-            console.log(`Generated video thumbnail: ${relativeThumbnailPath}`);
           })());
         }
 
@@ -258,7 +242,6 @@ class AssetService {
 
         // Wait for all processing (metadata, thumbnail) to complete
         await Promise.all(processingPromises);
-        console.log(`File processing complete for ${assetId}`);
 
         // 3. Construct DbAsset object (using imported DbAsset type with snake_case)
         const finalMetadata = {
@@ -268,23 +251,21 @@ class AssetService {
           ...(assetData.metadata || {}),
           // Ensure some standard fields are present from options
           description: assetData.description || fileMetadata.description || '',
-          clientSlug: assetData.clientSlug || '', // Store client slug if provided
           originalName: file.originalname, // Always store original name
         };
 
         const dbAssetPayload: Omit<DbAsset, 'created_at' | 'updated_at'> = {
           id: assetId,
           name: assetData.name || path.parse(file.originalname).name, // Use provided name or base filename
-          type: assetType,
-          mime_type: mimeType,
-          file_path: relativeFilePath, // Store relative path
-          thumbnail_path: relativeThumbnailPath,
-          size: fileMetadata.size || 0,
-          width: fileMetadata.width,
-          height: fileMetadata.height,
-          duration: fileMetadata.duration,
-          user_id: userId, // FK to users table
-          owner_id: userId, // Assume uploader is owner
+          type: assetType, // corrected: align with DbAsset type
+          mime_type: mimeType, // corrected: align with DbAsset type
+          file_path: relativeFilePath, // corrected: align with DbAsset type
+          thumbnail_path: relativeThumbnailPath, // corrected: align with DbAsset type
+          size: fileMetadata.size || 0, // corrected: align with DbAsset type
+          width: fileMetadata.width, // corrected: align with DbAsset type
+          height: fileMetadata.height, // corrected: align with DbAsset type
+          duration: fileMetadata.duration, // corrected: align with DbAsset type
+          owner_id: userId, // Assume uploader is owner - corrected: Use owner_id as per DbAsset
           client_id: assetData.clientId, // FK to clients table
           tags: assetData.tags || [], // Use tags from options
           categories: assetData.categories || [], // Use categories from options
@@ -297,7 +278,6 @@ class AssetService {
 
         // 4. Save to database using the initialized Supabase client
         try {
-          console.log(`Inserting asset ${assetId} into database for user ${userId}`);
           const { data, error } = await this.supabase
             .from('assets')
             .insert(dbAssetPayload)
@@ -308,9 +288,9 @@ class AssetService {
             console.error(`Supabase insert error for asset ${assetId}:`, error);
             // Attempt cleanup: delete the saved file
             try {
-              await fs.unlink(absoluteFilePath);
+              fs.unlinkSync(absoluteFilePath); // Use synchronous unlink
               if (relativeThumbnailPath) {
-                await fs.unlink(path.join(this.uploadsDir, relativeThumbnailPath));
+                fs.unlinkSync(path.join(this.uploadsDir, relativeThumbnailPath)); // Use synchronous unlink
               }
             } catch (cleanupError) {
               console.error(`Failed to cleanup files for failed upload ${assetId}:`, cleanupError);
@@ -322,9 +302,9 @@ class AssetService {
             console.error(`Supabase insert error: No data returned for asset ${assetId}`);
             // Attempt cleanup
             try {
-              await fs.unlink(absoluteFilePath);
+              fs.unlinkSync(absoluteFilePath); // Use synchronous unlink
               if (relativeThumbnailPath) {
-                await fs.unlink(path.join(this.uploadsDir, relativeThumbnailPath));
+                fs.unlinkSync(path.join(this.uploadsDir, relativeThumbnailPath)); // Use synchronous unlink
               }
             } catch (cleanupError) {
               console.error(`Failed to cleanup files for failed upload ${assetId}:`, cleanupError);
@@ -332,7 +312,6 @@ class AssetService {
             return { success: false, message: 'Database insert failed: No data returned.' };
           }
 
-          console.log(`Asset ${assetId} successfully inserted into database.`);
           // 5. Transform DbAsset to Asset for the response
           const createdAsset = this.transformAssetFromDb(data as DbAsset); // data is already DbAsset
 
@@ -343,9 +322,9 @@ class AssetService {
           console.error(`Unexpected database operation error for asset ${assetId}:`, dbError);
           // Attempt cleanup
           try {
-            await fs.unlink(absoluteFilePath);
+            fs.unlinkSync(absoluteFilePath); // Use synchronous unlink
             if (relativeThumbnailPath) {
-              await fs.unlink(path.join(this.uploadsDir, relativeThumbnailPath));
+              fs.unlinkSync(path.join(this.uploadsDir, relativeThumbnailPath)); // Use synchronous unlink
             }
           } catch (cleanupError) {
             console.error(`Failed to cleanup files for failed upload ${assetId}:`, cleanupError);
@@ -356,9 +335,9 @@ class AssetService {
         console.error('Error processing file:', processError);
         // Attempt cleanup
         try {
-          await fs.unlink(absoluteFilePath);
+          fs.unlinkSync(absoluteFilePath); // Use synchronous unlink
           if (relativeThumbnailPath) {
-            await fs.unlink(path.join(this.uploadsDir, relativeThumbnailPath));
+            fs.unlinkSync(path.join(this.uploadsDir, relativeThumbnailPath)); // Use synchronous unlink
           }
         } catch (cleanupError) {
           console.error(`Failed to cleanup files for failed upload ${assetId}:`, cleanupError);
@@ -388,15 +367,15 @@ class AssetService {
     } else if (mimetype.includes('pdf')) {
       return 'document';
     } else if (
-      mimetype.includes('text/') ||
-      mimetype.includes('application/json') ||
-      mimetype.includes('xml')
-    ) {
-      return 'copy';
-    } else {
-      return 'other';
+        mimetype.includes('text/') ||
+        mimetype.includes('application/json') ||
+        mimetype.includes('xml')
+      ) {
+        return 'copy';
+      } else {
+        return 'other';
+      }
     }
-  }
 
   /**
    * Helper method to get video metadata
@@ -432,7 +411,10 @@ class AssetService {
         console.error('FFprobe stderr:', error.stderr);
       }
       // Re-throw a more specific error or return a default object
-      throw new Error(`Failed to get video metadata for ${path.basename(filePath)}`);
+      throw new ApiError(
+        ErrorCode.OPERATION_FAILED,
+        `Failed to extract video metadata for ${path.basename(filePath)}`
+      );
     }
   }
 
@@ -443,12 +425,14 @@ class AssetService {
     return new Promise<void>((resolve, reject) => {
       ffmpeg(videoPath)
         .on('end', () => {
-          console.log(`Thumbnail generated successfully: ${outputPath}`);
           resolve();
         })
         .on('error', (err: Error) => {
           console.error(`Error generating thumbnail for ${videoPath}:`, err.message);
-          reject(new Error(`Failed to generate video thumbnail: ${err.message}`));
+          reject(new ApiError(
+            ErrorCode.OPERATION_FAILED,
+            `Failed to generate video thumbnail: ${err.message}`
+          ));
         })
         .screenshots({
           count: 1,
@@ -641,7 +625,7 @@ class AssetService {
         if (dbSortField === 'createdAt') dbSortField = 'created_at';
         if (dbSortField === 'updatedAt') dbSortField = 'updated_at';
         if (dbSortField === 'date') dbSortField = 'created_at'; // Map 'date' to 'created_at'
-        if (dbSortField === 'usageCount') dbSortField = 'meta->>usageCount';
+        if (dbSortField === 'usageCount') dbSortField = 'metadata->>usageCount';
         if (dbSortField === 'name') dbSortField = 'name';
         
         const sortDirection = filters.sortDirection || 'desc';
@@ -680,9 +664,9 @@ class AssetService {
       query = query.eq('client_id', filters.clientId);
     }
     
-    // User Filter (if provided)
-    if (filters.userId) {
-      query = query.eq('user_id', filters.userId); // Assuming user_id column
+    // Owner Filter
+    if (filters.ownerId) {
+      query = query.eq('owner_id', filters.ownerId);
     }
     
     // Type Filter
@@ -734,11 +718,6 @@ class AssetService {
       query = query.eq('status', filters.status);
     }
     
-    // Owner Filter
-    if (filters.ownerId) {
-      query = query.eq('owner_id', filters.ownerId); // Corrected: use ownerId
-    }
-    
     return query;
   }
 
@@ -757,7 +736,7 @@ class AssetService {
       
       // Only restrict by user ID if specified and not bypassing auth
       if (userId) {
-        query = query.eq('user_id', userId);
+        query = query.eq('owner_id', userId);
       }
       
       // Execute as single query
@@ -800,8 +779,8 @@ class AssetService {
       // This query gets all unique categories from the assets
       const { data, error } = await this.supabase
         .from('assets')
-        .select('meta->categories')
-        .not('meta->categories', 'is', null);
+        .select('metadata->categories')
+        .not('metadata->categories', 'is', null);
       
       if (error) {
         console.error('Error fetching categories:', error);
@@ -812,8 +791,10 @@ class AssetService {
       const allCategories: string[] = [];
       
       data.forEach(item => {
-        if (item.meta && item.meta.categories && Array.isArray(item.meta.categories)) {
-          item.meta.categories.forEach((category: string) => {
+        // Use type assertion (as any) to access nested metadata correctly
+        const typedItem = item as any;
+        if (typedItem.metadata && typedItem.metadata.categories && Array.isArray(typedItem.metadata.categories)) {
+          typedItem.metadata.categories.forEach((category: string) => {
             if (category && !allCategories.includes(category)) {
               allCategories.push(category);
             }
@@ -832,18 +813,35 @@ class AssetService {
    * Deletes an asset, including its database record and associated files.
    */
   public async deleteAsset(id: string, clientId: string): Promise<ServiceResult<boolean>> {
+    // 1. Add Supabase configuration check
     if (!this.isSupabaseConfigured()) {
-      return { success: false, error: 'Supabase client not configured.', message: 'Service configuration error.', data: false };
+      return {
+        success: false,
+        // Use ApiError for consistency
+        error: new ApiError(ErrorCode.CONFIGURATION_ERROR, 'Supabase client not configured.'),
+        message: 'Service configuration error.',
+        data: false,
+      };
     }
+
+    // 2. Validate input
     if (!id || !clientId) {
-      return { success: false, error: 'Asset ID and Client ID are required.', message: 'Missing required parameters.', data: false };
+      const message = 'Asset ID and Client ID are required.';
+      // 3. Replace logger.warn with console.warn
+      console.warn(message, { id, clientId });
+      return {
+        success: false,
+        error: new ApiError(ErrorCode.INVALID_INPUT, message),
+        message: message,
+        data: false,
+      };
     }
 
     let filePathToDelete: string | undefined;
     let thumbPathToDelete: string | undefined;
 
     try {
-      // 1. Get asset details first to know which files to delete
+      // 4. Get asset details first to know which files to delete
       const { data: assetData, error: fetchError } = await this.supabase
         .from('assets')
         .select('file_path, thumbnail_path')
@@ -853,7 +851,13 @@ class AssetService {
 
       if (fetchError) {
         console.error(`Error fetching asset ${id} before deletion:`, fetchError);
-        return { success: false, error: fetchError.message, message: `Database error checking asset before delete: ${fetchError.message}`, data: false };
+        // Use ApiError for database errors
+        return {
+          success: false,
+          error: new ApiError(ErrorCode.DATABASE_ERROR, `Database error checking asset before delete: ${fetchError.message}`, fetchError),
+          message: `Database error checking asset before delete: ${fetchError.message}`,
+          data: false,
+        };
       }
 
       if (!assetData) {
@@ -862,70 +866,91 @@ class AssetService {
         return { success: true, message: 'Asset not found, assumed already deleted.', data: true };
       }
 
-      filePathToDelete = assetData.file_path;
-      thumbPathToDelete = assetData.thumbnail_path;
+      // Resolve full paths based on uploadsDir
+      filePathToDelete = assetData.file_path ? path.resolve(this.uploadsDir, assetData.file_path) : undefined;
+      thumbPathToDelete = assetData.thumbnail_path ? path.resolve(this.uploadsDir, assetData.thumbnail_path) : undefined;
 
-      // 2. Delete the database record
+      // 5. Delete the database record
       const { error: deleteError } = await this.supabase
         .from('assets')
         .delete()
-        .eq('id', id)
-        .eq('client_id', clientId);
+        .match({ id: id, client_id: clientId });
 
       if (deleteError) {
         // Check if it was a 'not found' error again (e.g., race condition)
         if (deleteError.code === 'PGRST204') { // Not found or RLS failed
           console.log(`Asset ${id} not found during delete confirmation (PGRST204). Assuming deleted.`);
-          // Proceed to file cleanup anyway, in case DB delete failed but files exist
+          // Use ApiError for consistency, even though we proceed to file cleanup
+          // Note: We still proceed to file cleanup, but log this specific condition.
         } else {
           console.error(`Error deleting asset ${id} from database:`, deleteError);
-          return { success: false, error: deleteError.message, message: `Database error deleting asset: ${deleteError.message}`, data: false };
+          // Standardize error reporting using ApiError
+          return {
+            success: false,
+            error: new ApiError(
+              ErrorCode.DATABASE_ERROR,
+              `Failed to delete asset record for ID: ${id}. Reason: ${deleteError.message}`,
+              deleteError
+            ),
+            message: `Database error deleting asset: ${deleteError.message}`,
+            data: false,
+          };
         }
+      } else {
+        console.log(`Asset ${id} deleted from database.`);
       }
 
-      console.log(`Asset ${id} deleted from database.`);
+      // 6. Delete files from filesystem asynchronously using Promise.allSettled
+      const fileDeletePromises: Promise<void>[] = [];
+      const filesToDelete: { path: string | undefined, type: string }[] = [
+        { path: filePathToDelete, type: 'asset file' },
+        { path: thumbPathToDelete, type: 'thumbnail file' },
+      ];
 
-      // 3. Delete files from filesystem (attempt even if DB delete had PGRST204)
-      let fileDeleted = false;
-      let thumbDeleted = false;
-      const fileDeleteErrors: string[] = [];
-
-      if (filePathToDelete) {
-        try {
-          await fs.unlink(filePathToDelete);
-          console.log(`Deleted asset file: ${filePathToDelete}`);
-          fileDeleted = true;
-        } catch (fsError: unknown) {
-          const errorMsg = `Failed to delete asset file ${filePathToDelete}: ${fsError instanceof Error ? fsError.message : String(fsError)}`;
-          console.error(errorMsg);
-          fileDeleteErrors.push(errorMsg);
+      filesToDelete.forEach(({ path: currentPath, type }) => {
+        if (currentPath) {
+          fileDeletePromises.push(
+            unlink(currentPath).then(() => { // Use the promisified unlink
+              console.log(`Deleted ${type}: ${currentPath}`);
+            }).catch((fsError: unknown) => {
+              // Throw a specific error object to capture details in allSettled
+              const errorMsg = `Failed to delete ${type} ${currentPath}: ${fsError instanceof Error ? fsError.message : String(fsError)}`;
+              console.error(errorMsg);
+              throw new Error(errorMsg); // Throw to mark as rejected
+            })
+          );
         }
-      }
+      });
 
-      if (thumbPathToDelete) {
-        try {
-          await fs.unlink(thumbPathToDelete);
-          console.log(`Deleted thumbnail file: ${thumbPathToDelete}`);
-          thumbDeleted = true;
-        } catch (fsError: unknown) {
-          const errorMsg = `Failed to delete thumbnail file ${thumbPathToDelete}: ${fsError instanceof Error ? fsError.message : String(fsError)}`;
-          console.error(errorMsg);
-          fileDeleteErrors.push(errorMsg);
-        }
-      }
+      const results = await Promise.allSettled(fileDeletePromises);
+      const fileDeleteErrors = results
+        .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+        .map(result => result.reason?.message || 'Unknown file deletion error');
 
       if (fileDeleteErrors.length > 0) {
         // Return success=true because the DB record is gone (primary goal),
         // but include a message about the file cleanup issues.
-        return { success: true, message: `Asset record deleted, but encountered errors cleaning up files: ${fileDeleteErrors.join('; ')}`, data: true };
+        return {
+          success: true,
+          message: `Asset record deleted, but encountered errors cleaning up files: ${fileDeleteErrors.join('; ')}`,
+          // Optionally include errors in a separate field if needed downstream
+          // fileErrors: fileDeleteErrors,
+          data: true
+        };
       }
 
       return { success: true, message: 'Asset deleted successfully, including associated files.', data: true };
 
     } catch (error: unknown) {
-      console.error('Error in deleteAsset:', error);
+      console.error('Unexpected error in deleteAsset:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
-      return { success: false, error: errorMessage, message: `An unexpected error occurred during asset deletion: ${errorMessage}`, data: false };
+      // Wrap unexpected errors in ApiError
+      return {
+        success: false,
+        error: new ApiError(ErrorCode.INTERNAL_ERROR, `An unexpected error occurred during asset deletion: ${errorMessage}`, error),
+        message: `An unexpected error occurred during asset deletion: ${errorMessage}`,
+        data: false,
+      };
     }
   }
 
