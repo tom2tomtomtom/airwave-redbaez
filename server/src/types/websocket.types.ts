@@ -35,6 +35,8 @@ export enum WebSocketEvent { // Renamed from ServerToClientEvents
   REVIEW_UPDATE = 'review:update',         // General update (status change, participant added/removed)
   REVIEW_COMMENT_NEW = 'review:comment:new', // A new comment was added
   REVIEW_APPROVAL_UPDATE = 'review:approval:update', // A participant approved/rejected
+  // --- Matrix Batch Rendering Events ---
+  BATCH_PROGRESS_UPDATE = 'matrix:batch:progress', // Update on batch rendering progress
 }
 
 import { ReviewComment, ReviewParticipant } from './review.types';
@@ -131,6 +133,23 @@ export interface ErrorPayload {
   message: string;
 }
 
+/**
+ * Payload for matrix batch rendering progress updates
+ */
+export interface BatchRenderProgressPayload {
+  matrixId: string;
+  progress: {
+    matrixId: string;
+    total: number;
+    completed: number;
+    failed: number;
+    inProgress: number;
+    queued: number;
+    overallProgress: number;
+    estimatedTimeRemaining?: number; // in seconds
+  };
+}
+
 // --- Socket.IO Server Typing ---
 
 // Describes the events the server listens for from the client
@@ -155,6 +174,7 @@ export interface ServerEmitEvents {
   [WebSocketEvent.REVIEW_UPDATE]: ReviewUpdatePayload;
   [WebSocketEvent.REVIEW_COMMENT_NEW]: ReviewCommentNewPayload; // Ensure this uses the updated payload interface
   [WebSocketEvent.REVIEW_APPROVAL_UPDATE]: ReviewApprovalUpdatePayload;
+  [WebSocketEvent.BATCH_PROGRESS_UPDATE]: BatchRenderProgressPayload;
 }
 
 // Describes events applicable to inter-server communication (if using clustering/multiple instances)

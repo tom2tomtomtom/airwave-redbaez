@@ -298,6 +298,21 @@ export class WebSocketService {
     (this.io.to(room).emit as any)(event, payload);
     logger.debug(`WS Broadcast [${String(event)}] to room ${room}`);
   }
+  
+  /**
+   * Emits an event to a specific room.
+   * This is an alias for broadcastToRoom, added for code clarity.
+   * @param room The target room name.
+   * @param event The event name.
+   * @param payload The data to send.
+   */
+  public emitToRoom<T extends WebSocketEvent>(
+    room: string,
+    event: T,
+    payload: ServerEmitEvents[T]
+  ): void {
+    this.broadcastToRoom(room, event, payload);
+  }
 
   /**
    * Emits an event directly to a specific user identified by their socket ID.

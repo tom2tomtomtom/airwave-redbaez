@@ -1,18 +1,19 @@
 import axios from 'axios';
 import { WebSocketService } from './WebSocketService';
 import { WebSocketEvent, JobProgressPayload } from '../types/websocket.types';
+import { logger } from '../utils/logger';
 
 // Initialize Creatomate API client
 const CREATOMATE_API_KEY = process.env.CREATOMATE_API_KEY || '';
 const CREATOMATE_API_URL = 'https://api.creatomate.com/v1';
 
-interface CreatomateRenderOptions {
+export interface CreatomateRenderOptions {
   templateId: string;
   outputFormat: string;
   modifications: Record<string, any>;
 }
 
-interface RenderJob {
+export interface RenderJob {
   id: string;
   status: 'queued' | 'rendering' | 'completed' | 'failed';
   url?: string;
@@ -22,16 +23,23 @@ interface RenderJob {
   userId?: string;
 }
 
-class CreatomateService {
+export type JobStatusUpdateCallback = (
+  status: 'queued' | 'rendering' | 'completed' | 'failed',
+  result?: { url?: string; thumbnailUrl?: string; error?: string }
+) => void;
+
+export class CreatomateService {
   private apiKey: string;
   private baseUrl: string;
   private wsService?: WebSocketService;
   private activeJobs: Map<string, RenderJob>;
+  private jobStatusCallbacks: Map<string, JobStatusUpdateCallback[]>;
 
   constructor(apiKey: string = CREATOMATE_API_KEY, baseUrl: string = CREATOMATE_API_URL) {
     this.apiKey = apiKey;
     this.baseUrl = baseUrl;
     this.activeJobs = new Map();
+    this.jobStatusCallbacks = new Map();
   }
 
   // Set WebSocket service for real-time updates
@@ -271,6 +279,13 @@ class CreatomateService {
         };
         this.wsService.broadcast(WebSocketEvent.JOB_PROGRESS, payload);
       }
+      
+      // Invoke any registered callbacks for this job
+      this.notifyJobStatusCallbacks(job.id, job.status, {
+        url: job.url,
+        thumbnailUrl: job.thumbnailUrl,
+        error: job.error
+      });
 
       return job;
     } catch (error: any) {
@@ -373,6 +388,13 @@ class CreatomateService {
         this.wsService.broadcast(WebSocketEvent.JOB_PROGRESS, payload);
       }
       
+      // Invoke any registered callbacks for this job
+      this.notifyJobStatusCallbacks(updatedJob.id, updatedJob.status, {
+        url: updatedJob.url,
+        thumbnailUrl: updatedJob.thumbnailUrl,
+        error: updatedJob.error
+      });
+      
       index++;
       
       if (index < statuses.length) {
@@ -458,10 +480,77 @@ class CreatomateService {
     
     return job;
   }
+  
+  /**
+   * Register a callback for job status updates
+   * @param jobId The job ID to monitor
+   * @param callback Function to call when job status changes
+   */
+  public onJobStatusUpdate(jobId: string, callback: JobStatusUpdateCallback): void {
+    // Initialize the array if it doesn't exist
+    if (!this.jobStatusCallbacks.has(jobId)) {
+      this.jobStatusCallbacks.set(jobId, []);
+    }
+    
+    // Add the callback
+    const callbacks = this.jobStatusCallbacks.get(jobId);
+    if (callbacks) {
+      callbacks.push(callback);
+    }
+    
+    logger.debug(`Registered job status callback for job ${jobId}`);
+    
+    // If the job already exists, immediately invoke the callback with current status
+    const job = this.activeJobs.get(jobId);
+    if (job) {
+      callback(job.status, {
+        url: job.url,
+        thumbnailUrl: job.thumbnailUrl,
+        error: job.error
+      });
+    }
+  }
+  
+  /**
+   * Remove all callbacks for a job
+   * @param jobId The job ID
+   */
+  public removeJobStatusCallbacks(jobId: string): void {
+    this.jobStatusCallbacks.delete(jobId);
+    logger.debug(`Removed all job status callbacks for job ${jobId}`);
+  }
+  
+  /**
+   * Notify all registered callbacks for a job
+   * @param jobId The job ID
+   * @param status The new job status
+   * @param result The job result data
+   */
+  private notifyJobStatusCallbacks(
+    jobId: string, 
+    status: 'queued' | 'rendering' | 'completed' | 'failed',
+    result?: { url?: string; thumbnailUrl?: string; error?: string }
+  ): void {
+    const callbacks = this.jobStatusCallbacks.get(jobId) || [];
+    
+    if (callbacks.length > 0) {
+      logger.debug(`Notifying ${callbacks.length} callbacks for job ${jobId} status: ${status}`);
+      
+      for (const callback of callbacks) {
+        try {
+          callback(status, result);
+        } catch (error) {
+          logger.error(`Error in job status callback for job ${jobId}:`, error);
+        }
+      }
+      
+      // If job is in a terminal state, remove callbacks to prevent memory leaks
+      if (status === 'completed' || status === 'failed') {
+        this.removeJobStatusCallbacks(jobId);
+      }
+    }
+  }
 }
 
 // Export singleton instance
 export const creatomateService = new CreatomateService();
-
-// Export types for use in other files
-export type { CreatomateRenderOptions, RenderJob };
