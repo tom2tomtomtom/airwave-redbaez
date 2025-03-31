@@ -9,14 +9,23 @@ import {
   Paper,
   Container,
   CircularProgress,
-  Alert
+  Alert,
+  Grid,
+  Card,
+  CardContent,
+  CardMedia,
+  CardActionArea,
+  Button
 } from '@mui/material';
 import {
   Create as CreateIcon,
   Mic as MicIcon,
   Image as ImageIcon,
   Movie as MovieIcon,
-  Palette as PaletteIcon
+  Palette as PaletteIcon,
+  AutoFixHigh as AutoFixHighIcon,
+  Cameraswitch as CameraswitchIcon,
+  ViewQuilt as ViewQuiltIcon
 } from '@mui/icons-material';
 import { RootState, AppDispatch } from '../../store';
 import { Template } from '../../types/templates';
@@ -102,6 +111,119 @@ const GeneratePage: React.FC = () => {
           Create and manage various content types for your campaigns
         </Typography>
       </Box>
+
+      {/* Quick links to advanced generation tools */}
+      <Paper sx={{ p: 3, mb: 4 }}>
+        <Typography variant="h6" gutterBottom>
+          Advanced Generation Tools
+        </Typography>
+        <Grid container spacing={3}>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ height: '100%' }}>
+              <CardActionArea onClick={() => navigate('/generate/text-to-image')}>
+                <CardMedia
+                  component="div"
+                  sx={{
+                    height: 140,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    bgcolor: 'primary.light'
+                  }}
+                >
+                  <AutoFixHighIcon sx={{ fontSize: 60, color: 'white' }} />
+                </CardMedia>
+                <CardContent>
+                  <Typography gutterBottom variant="h6" component="div">
+                    Text to Image
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Generate images from text prompts with brand style matching
+                  </Typography>
+                </CardContent>
+              </CardActionArea>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ height: '100%' }}>
+              <CardActionArea onClick={() => navigate('/generate/image-to-video')}>
+                <CardMedia
+                  component="div"
+                  sx={{
+                    height: 140,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    bgcolor: 'secondary.light'
+                  }}
+                >
+                  <CameraswitchIcon sx={{ fontSize: 60, color: 'white' }} />
+                </CardMedia>
+                <CardContent>
+                  <Typography gutterBottom variant="h6" component="div">
+                    Image to Video
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Convert static images to dynamic videos with motion effects
+                  </Typography>
+                </CardContent>
+              </CardActionArea>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ height: '100%' }}>
+              <CardActionArea onClick={() => navigate('/matrix')}>
+                <CardMedia
+                  component="div"
+                  sx={{
+                    height: 140,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    bgcolor: 'success.light'
+                  }}
+                >
+                  <ViewQuiltIcon sx={{ fontSize: 60, color: 'white' }} />
+                </CardMedia>
+                <CardContent>
+                  <Typography gutterBottom variant="h6" component="div">
+                    Campaign Matrix
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Create combinations of assets for campaign variations
+                  </Typography>
+                </CardContent>
+              </CardActionArea>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ height: '100%' }}>
+              <CardActionArea onClick={() => navigate('/generate/unified')}>
+                <CardMedia
+                  component="div"
+                  sx={{
+                    height: 140,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    bgcolor: 'info.light'
+                  }}
+                >
+                  <MovieIcon sx={{ fontSize: 60, color: 'white' }} />
+                </CardMedia>
+                <CardContent>
+                  <Typography gutterBottom variant="h6" component="div">
+                    Unified Generation
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Create complex multimedia content with multiple generation tools
+                  </Typography>
+                </CardContent>
+              </CardActionArea>
+            </Card>
+          </Grid>
+        </Grid>
+      </Paper>
       
       <Paper sx={{ mb: 4 }}>
         <Tabs

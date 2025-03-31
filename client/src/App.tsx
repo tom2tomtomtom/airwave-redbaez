@@ -35,6 +35,8 @@ import BriefList from './pages/briefs/BriefList';
 import BriefForm from './pages/briefs/BriefForm';
 import BriefDetail from './pages/briefs/BriefDetail';
 import UnifiedGenerationPage from './pages/generate/UnifiedGenerationPage';
+import { ImageToVideoPage } from './pages/image-to-video';
+import TextToImagePage from './pages/text-to-image/TextToImagePage';
 
 // Redux
 import { RootState } from './store';
@@ -160,6 +162,8 @@ const AppContent: React.FC = () => {
         {/* Generate routes */}
         <Route path="generate" element={<ClientProtectedRoute><GeneratePage /></ClientProtectedRoute>} />
         <Route path="generate/copy" element={<ClientProtectedRoute><CopyGenerationPage /></ClientProtectedRoute>} />
+        <Route path="generate/image-to-video" element={<ClientProtectedRoute><ImageToVideoPage /></ClientProtectedRoute>} />
+        <Route path="generate/text-to-image" element={<ClientProtectedRoute><TextToImagePage /></ClientProtectedRoute>} />
         <Route path="matrix" element={<ClientProtectedRoute><MatrixPage /></ClientProtectedRoute>} />
         
         {/* Add the new unified generation route */}

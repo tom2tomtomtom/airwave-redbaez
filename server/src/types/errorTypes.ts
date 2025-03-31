@@ -21,83 +21,84 @@ export enum ErrorCategory {
 }
 
 // Specific error codes
-export const ErrorCode = {
+export enum ErrorCode {
   // Validation errors
-  VALIDATION_FAILED: `${ErrorCategory.VALIDATION}_001`,
-  INVALID_INPUT: `${ErrorCategory.VALIDATION}_002`,
-  MISSING_FIELD: `${ErrorCategory.VALIDATION}_003`,
-  INVALID_FORMAT: `${ErrorCategory.VALIDATION}_004`,
+  VALIDATION_FAILED = `${ErrorCategory.VALIDATION}_001`,
+  INVALID_INPUT = `${ErrorCategory.VALIDATION}_002`,
+  MISSING_FIELD = `${ErrorCategory.VALIDATION}_003`,
+  INVALID_FORMAT = `${ErrorCategory.VALIDATION}_004`,
   
   // Authentication errors
-  INVALID_CREDENTIALS: `${ErrorCategory.AUTHENTICATION}_001`,
-  EXPIRED_TOKEN: `${ErrorCategory.AUTHENTICATION}_002`,
-  INVALID_TOKEN: `${ErrorCategory.AUTHENTICATION}_003`,
-  MISSING_TOKEN: `${ErrorCategory.AUTHENTICATION}_004`,
-  AUTHENTICATION_REQUIRED: `${ErrorCategory.AUTHENTICATION}_005`,
-  ACCOUNT_LOCKED: `${ErrorCategory.AUTHENTICATION}_006`,
-  PASSWORD_EXPIRED: `${ErrorCategory.AUTHENTICATION}_007`,
-  MFA_REQUIRED: `${ErrorCategory.AUTHENTICATION}_008`,
-  MFA_FAILED: `${ErrorCategory.AUTHENTICATION}_009`,
-  SESSION_EXPIRED: `${ErrorCategory.AUTHENTICATION}_010`,
+  INVALID_CREDENTIALS = `${ErrorCategory.AUTHENTICATION}_001`,
+  EXPIRED_TOKEN = `${ErrorCategory.AUTHENTICATION}_002`,
+  INVALID_TOKEN = `${ErrorCategory.AUTHENTICATION}_003`,
+  MISSING_TOKEN = `${ErrorCategory.AUTHENTICATION}_004`,
+  AUTHENTICATION_REQUIRED = `${ErrorCategory.AUTHENTICATION}_005`,
+  ACCOUNT_LOCKED = `${ErrorCategory.AUTHENTICATION}_006`,
+  PASSWORD_EXPIRED = `${ErrorCategory.AUTHENTICATION}_007`,
+  MFA_REQUIRED = `${ErrorCategory.AUTHENTICATION}_008`,
+  MFA_FAILED = `${ErrorCategory.AUTHENTICATION}_009`,
+  SESSION_EXPIRED = `${ErrorCategory.AUTHENTICATION}_010`,
   
   // Authorization errors
-  INSUFFICIENT_PERMISSIONS: `${ErrorCategory.AUTHORIZATION}_001`,
-  FORBIDDEN_RESOURCE: `${ErrorCategory.AUTHORIZATION}_002`,
-  ROLE_REQUIRED: `${ErrorCategory.AUTHORIZATION}_003`,
-  PERMISSION_DENIED: `${ErrorCategory.AUTHORIZATION}_004`,
+  INSUFFICIENT_PERMISSIONS = `${ErrorCategory.AUTHORIZATION}_001`,
+  FORBIDDEN_RESOURCE = `${ErrorCategory.AUTHORIZATION}_002`,
+  ROLE_REQUIRED = `${ErrorCategory.AUTHORIZATION}_003`,
+  PERMISSION_DENIED = `${ErrorCategory.AUTHORIZATION}_004`,
   
   // Not found errors
-  RESOURCE_NOT_FOUND: `${ErrorCategory.NOT_FOUND}_001`,
-  ENDPOINT_NOT_FOUND: `${ErrorCategory.NOT_FOUND}_002`,
-  USER_NOT_FOUND: `${ErrorCategory.NOT_FOUND}_003`,
+  RESOURCE_NOT_FOUND = `${ErrorCategory.NOT_FOUND}_001`,
+  ENDPOINT_NOT_FOUND = `${ErrorCategory.NOT_FOUND}_002`,
+  USER_NOT_FOUND = `${ErrorCategory.NOT_FOUND}_003`,
   
   // Conflict errors
-  RESOURCE_ALREADY_EXISTS: `${ErrorCategory.CONFLICT}_001`,
-  CONFLICTING_REQUEST: `${ErrorCategory.CONFLICT}_002`,
-  OUTDATED_VERSION: `${ErrorCategory.CONFLICT}_003`,
+  RESOURCE_ALREADY_EXISTS = `${ErrorCategory.CONFLICT}_001`,
+  CONFLICTING_REQUEST = `${ErrorCategory.CONFLICT}_002`,
+  OUTDATED_VERSION = `${ErrorCategory.CONFLICT}_003`,
   
   // Security errors
-  INVALID_CSRF_TOKEN: `${ErrorCategory.SECURITY}_001`,
-  RATE_LIMIT_EXCEEDED: `${ErrorCategory.SECURITY}_002`,
-  SUSPICIOUS_ACTIVITY: `${ErrorCategory.SECURITY}_003`,
-  IP_BLOCKED: `${ErrorCategory.SECURITY}_004`,
+  INVALID_CSRF_TOKEN = `${ErrorCategory.SECURITY}_001`,
+  RATE_LIMIT_EXCEEDED = `${ErrorCategory.SECURITY}_002`,
+  SUSPICIOUS_ACTIVITY = `${ErrorCategory.SECURITY}_003`,
+  IP_BLOCKED = `${ErrorCategory.SECURITY}_004`,
   
   // Server errors
-  INTERNAL_ERROR: `${ErrorCategory.SERVER}_001`,
-  SERVICE_UNAVAILABLE: `${ErrorCategory.SERVER}_002`,
-  NOT_IMPLEMENTED: `${ErrorCategory.SERVER}_003`,
+  INTERNAL_ERROR = `${ErrorCategory.SERVER}_001`,
+  SERVICE_UNAVAILABLE = `${ErrorCategory.SERVER}_002`,
+  NOT_IMPLEMENTED = `${ErrorCategory.SERVER}_003`,
+  CONFIGURATION_ERROR = `${ErrorCategory.SERVER}_004`,
   
   // Database errors
-  DATABASE_ERROR: `${ErrorCategory.DATABASE}_001`,
-  QUERY_FAILED: `${ErrorCategory.DATABASE}_002`,
-  CONSTRAINT_VIOLATION: `${ErrorCategory.DATABASE}_003`,
-  TRANSACTION_FAILED: `${ErrorCategory.DATABASE}_004`,
+  DATABASE_ERROR = `${ErrorCategory.DATABASE}_001`,
+  QUERY_FAILED = `${ErrorCategory.DATABASE}_002`,
+  CONSTRAINT_VIOLATION = `${ErrorCategory.DATABASE}_003`,
+  TRANSACTION_FAILED = `${ErrorCategory.DATABASE}_004`,
   
   // External service errors
-  EXTERNAL_SERVICE_ERROR: `${ErrorCategory.EXTERNAL}_001`,
-  EXTERNAL_TIMEOUT: `${ErrorCategory.EXTERNAL}_002`,
-  EXTERNAL_RATE_LIMIT: `${ErrorCategory.EXTERNAL}_003`,
+  EXTERNAL_SERVICE_ERROR = `${ErrorCategory.EXTERNAL}_001`,
+  EXTERNAL_TIMEOUT = `${ErrorCategory.EXTERNAL}_002`,
+  EXTERNAL_RATE_LIMIT = `${ErrorCategory.EXTERNAL}_003`,
   
   // Network errors
-  NETWORK_ERROR: `${ErrorCategory.NETWORK}_001`,
-  REQUEST_TIMEOUT: `${ErrorCategory.NETWORK}_002`,
-  CONNECTION_RESET: `${ErrorCategory.NETWORK}_003`,
+  NETWORK_ERROR = `${ErrorCategory.NETWORK}_001`,
+  REQUEST_TIMEOUT = `${ErrorCategory.NETWORK}_002`,
+  CONNECTION_RESET = `${ErrorCategory.NETWORK}_003`,
   
   // Rate limiting
-  TOO_MANY_REQUESTS: `${ErrorCategory.RATE_LIMIT}_001`,
-  QUOTA_EXCEEDED: `${ErrorCategory.RATE_LIMIT}_002`,
+  TOO_MANY_REQUESTS = `${ErrorCategory.RATE_LIMIT}_001`,
+  QUOTA_EXCEEDED = `${ErrorCategory.RATE_LIMIT}_002`,
   
   // Input errors
-  FILE_TOO_LARGE: `${ErrorCategory.INPUT}_001`,
-  UNSUPPORTED_MEDIA_TYPE: `${ErrorCategory.INPUT}_002`,
-  MALFORMED_REQUEST: `${ErrorCategory.INPUT}_003`,
+  FILE_TOO_LARGE = `${ErrorCategory.INPUT}_001`,
+  UNSUPPORTED_MEDIA_TYPE = `${ErrorCategory.INPUT}_002`,
+  MALFORMED_REQUEST = `${ErrorCategory.INPUT}_003`,
   
   // Business logic errors
-  OPERATION_FAILED: `${ErrorCategory.BUSINESS_LOGIC}_001`,
-  INVALID_STATE_TRANSITION: `${ErrorCategory.BUSINESS_LOGIC}_002`,
-  PRECONDITION_FAILED: `${ErrorCategory.BUSINESS_LOGIC}_003`,
-  ASSET_PROCESSING_FAILED: `${ErrorCategory.BUSINESS_LOGIC}_004`
-};
+  OPERATION_FAILED = `${ErrorCategory.BUSINESS_LOGIC}_001`,
+  INVALID_STATE_TRANSITION = `${ErrorCategory.BUSINESS_LOGIC}_002`,
+  PRECONDITION_FAILED = `${ErrorCategory.BUSINESS_LOGIC}_003`,
+  ASSET_PROCESSING_FAILED = `${ErrorCategory.BUSINESS_LOGIC}_004`
+}
 
 // Map status codes to error categories
 export const StatusCodeMap: Record<ErrorCategory, number> = {
@@ -159,6 +160,7 @@ export const UserFriendlyMessages: Record<string, string> = {
   [ErrorCode.INTERNAL_ERROR]: 'An unexpected error occurred. Our team has been notified.',
   [ErrorCode.SERVICE_UNAVAILABLE]: 'This service is temporarily unavailable. Please try again later.',
   [ErrorCode.NOT_IMPLEMENTED]: 'This feature is not yet implemented.',
+  [ErrorCode.CONFIGURATION_ERROR]: 'A configuration error occurred. Please contact support.',
   
   // Database
   [ErrorCode.DATABASE_ERROR]: 'A database error occurred. Our team has been notified.',
@@ -186,10 +188,11 @@ export const UserFriendlyMessages: Record<string, string> = {
  * Determines if an error is retryable
  */
 export const isRetryableError = (code: string): boolean => {
-  const retryableCodes = [
+  const retryableCodes: string[] = [
     // Server errors
     ErrorCode.SERVICE_UNAVAILABLE,
     ErrorCode.INTERNAL_ERROR,
+    ErrorCode.CONFIGURATION_ERROR,
     
     // External service errors
     ErrorCode.EXTERNAL_SERVICE_ERROR,
@@ -218,7 +221,12 @@ export const isRetryableError = (code: string): boolean => {
  * Get HTTP status code from error code
  */
 export const getStatusCode = (code: string): number => {
-  const category = code.split('_')[0] as ErrorCategory;
+  const lastUnderscoreIndex = code.lastIndexOf('_');
+  if (lastUnderscoreIndex === -1) {
+    // Handle case where code might not have an underscore (fallback)
+    return 500; 
+  }
+  const category = code.substring(0, lastUnderscoreIndex) as ErrorCategory;
   return StatusCodeMap[category] || 500;
 };
 

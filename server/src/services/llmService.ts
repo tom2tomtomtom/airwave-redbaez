@@ -1,5 +1,7 @@
 import axios from 'axios';
 import { supabase } from '../db/supabaseClient';
+import { ApiError } from '@/utils/ApiError';
+import { ErrorCode } from '@/types/errorTypes';
 
 // Types for LLM requests and responses
 export interface BriefData {
@@ -109,7 +111,12 @@ class LLMService {
       }
     } catch (error: any) {
       console.error('Error in processBrief:', error);
-      throw new Error(`Failed to process brief: ${error.message}`);
+      throw new ApiError(
+        ErrorCode.OPERATION_FAILED,
+        'Failed to process brief',
+        undefined, // No public details
+        error // Keep original error for internal logging
+      );
     }
   }
   
@@ -162,7 +169,10 @@ class LLMService {
       let content = response.choices?.[0]?.message?.content;
       
       if (!content) {
-        throw new Error('No content in LLM response');
+        throw new ApiError(
+          ErrorCode.EXTERNAL_SERVICE_ERROR,
+          'No content in LLM response'
+        );
       }
       
       // Try to extract JSON from the content
@@ -186,7 +196,12 @@ class LLMService {
     } catch (error: any) {
       console.error('Error parsing motivations from LLM response:', error);
       console.log('Response content:', response);
-      throw new Error(`Failed to parse motivations: ${error.message}`);
+      throw new ApiError(
+        ErrorCode.EXTERNAL_SERVICE_ERROR, 
+        'Failed to parse motivations from LLM response',
+        undefined,
+        error
+      );
     }
   }
 
@@ -370,7 +385,12 @@ class LLMService {
       }
     } catch (error: any) {
       console.error('Error in regenerateMotivations:', error);
-      throw new Error(`Failed to regenerate motivations: ${error.message}`);
+      throw new ApiError(
+        ErrorCode.OPERATION_FAILED,
+        'Failed to regenerate motivations',
+        undefined,
+        error
+      );
     }
   }
 
@@ -433,7 +453,12 @@ class LLMService {
       }
     } catch (error: any) {
       console.error('Error in generateCopy:', error);
-      throw new Error(`Failed to generate copy: ${error.message}`);
+      throw new ApiError(
+        ErrorCode.OPERATION_FAILED, 
+        'Failed to generate copy variations',
+        undefined,
+        error
+      );
     }
   }
   
@@ -511,7 +536,10 @@ class LLMService {
       let content = response.choices?.[0]?.message?.content;
       
       if (!content) {
-        throw new Error('No content in LLM response');
+        throw new ApiError(
+          ErrorCode.EXTERNAL_SERVICE_ERROR,
+          'No content in LLM response'
+        );
       }
       
       // Try to extract JSON from the content
@@ -536,7 +564,12 @@ class LLMService {
     } catch (error: any) {
       console.error('Error parsing copy variations from LLM response:', error);
       console.log('Response content:', response);
-      throw new Error(`Failed to parse copy variations: ${error.message}`);
+      throw new ApiError(
+        ErrorCode.EXTERNAL_SERVICE_ERROR,
+        'Failed to parse copy variations from LLM response',
+        undefined,
+        error
+      );
     }
   }
 

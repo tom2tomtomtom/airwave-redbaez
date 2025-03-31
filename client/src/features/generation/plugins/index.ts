@@ -1,5 +1,6 @@
 import { generatorRegistryService } from '../services/GeneratorRegistryService';
 import { textToImagePlugin } from './TextToImagePlugin';
+import { imageToVideoPlugin } from './ImageToVideoPlugin';
 // Import other plugins here as they are created
 // import { copyGenerationPlugin } from './CopyGenerationPlugin'; 
 
@@ -12,6 +13,9 @@ export function initializeGenerationPlugins(): void {
   
   // Register Text-to-Image Plugin
   generatorRegistryService.registerPlugin(textToImagePlugin);
+  
+  // Register Image-to-Video Plugin
+  generatorRegistryService.registerPlugin(imageToVideoPlugin);
   
   // Register Copy Generation Plugin (example)
   // generatorRegistryService.registerPlugin(copyGenerationPlugin);

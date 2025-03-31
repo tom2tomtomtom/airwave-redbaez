@@ -14,7 +14,7 @@ interface MessageHandlerMap {
   [key: string]: TypedMessageCallback[];
 }
 
-class WebSocketClient {
+export class WebSocketClient {
   private socket: WebSocket | null = null;
   private clientId: string | null = null;
   private userId: string | null = null;
@@ -126,12 +126,24 @@ class WebSocketClient {
     this.messageHandlers.push(callback);
   }
   
+  // Unregister generic message handler
+  public offMessage(callback: MessageCallback): void {
+    this.messageHandlers = this.messageHandlers.filter(handler => handler !== callback);
+  }
+  
   // Register handler for specific message type
   public on(type: string, callback: TypedMessageCallback): void {
     if (!this.typedMessageHandlers[type]) {
       this.typedMessageHandlers[type] = [];
     }
     this.typedMessageHandlers[type].push(callback);
+  }
+  
+  // Unregister handler for specific message type
+  public off(type: string, callback: TypedMessageCallback): void {
+    if (this.typedMessageHandlers[type]) {
+      this.typedMessageHandlers[type] = this.typedMessageHandlers[type].filter(handler => handler !== callback);
+    }
   }
   
   // Register connection handler

@@ -34,6 +34,9 @@ import briefRoutes from './routes/briefRoutes';
 import clientRoutes from './routes/clientRoutes';
 import mcpRoutes from './routes/mcp.routes';
 
+// Import new image-to-video router
+import { imageToVideoRouter } from './routes/ImageToVideoRouter';
+
 // v2 API routes
 import v2Routes from './routes/v2';
 
@@ -162,6 +165,7 @@ app.use('/api/signoff-sessions', signoffSessionsRoutes);
 app.use('/api/matrix', matrixRoutes);
 app.use('/api/briefs', briefRoutes);
 app.use('/api/mcp', mcpRoutes);
+app.use('/api/image-to-video', imageToVideoRouter.getRouter());
 app.use('/api/v2', v2Routes);
 
 // Apply error handling middleware (must be after all routes)

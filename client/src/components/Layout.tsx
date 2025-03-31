@@ -30,7 +30,8 @@ import {
   AccountCircle as AccountIcon,
   Logout as LogoutIcon,
   Description as BriefIcon,
-  Business as BusinessIcon
+  Business as BusinessIcon,
+  VideoLibrary as MovieIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
@@ -82,7 +83,8 @@ const Layout: React.FC = () => {
   const navItems = [
     { text: 'Client', icon: <BusinessIcon />, path: '/client-dashboard' },
     { text: 'Strategy', icon: <BriefIcon />, path: '/briefs/strategy-development' },
-    { text: 'Generate', icon: <GenerateIcon />, path: '/briefs/strategy-development' },
+    { text: 'Generate', icon: <GenerateIcon />, path: '/generate' },
+    { text: 'Image to Video', icon: <MovieIcon />, path: '/generate/image-to-video' },
     { text: 'Assets', icon: <ImageIcon />, path: '/assets' },
     { text: 'Templates', icon: <TemplateIcon />, path: '/templates' },
     { text: 'Campaigns', icon: <CampaignIcon />, path: '/campaigns' },
