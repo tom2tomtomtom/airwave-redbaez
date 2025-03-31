@@ -2,6 +2,7 @@
 import { Response, NextFunction } from 'express';
 import { getSupabaseClient } from '@/utils/supabaseClient';
 import { ReviewRequestContext, ReviewAuthenticatedRequest } from '@/types/review.types';
+import { AuthenticatedUser } from '@/types/shared';
 import { logger } from '@/utils/logger';
 
 /**
@@ -91,6 +92,16 @@ export const reviewAuth = async (
 
     // Attach context to request object for downstream controllers/services
     req.reviewContext = reviewContext; // Assign directly
+    
+    // Populate req.user according to AuthenticatedUser interface
+    req.user = {
+      id: participant.id, // Use participant ID as the user ID
+      userId: participant.id,
+      name: participant.reviewer_email.split('@')[0], // Use first part of email as name
+      email: participant.reviewer_email,
+      role: 'client' // Default role for external reviewers
+    } as AuthenticatedUser;
+    
     logger.info(
       `Review token validated for participant ${reviewContext.reviewParticipantId} on review ${reviewContext.reviewId}`,
     );

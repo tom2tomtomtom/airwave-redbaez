@@ -2,11 +2,12 @@ import express, { Request, Response, NextFunction } from 'express';
 import { checkAuth } from '../middleware/auth.middleware';
 import { signoffService } from '../services/signoffService';
 import { AuthenticatedRequest } from '../types/AuthenticatedRequest';
+import { asRouteHandler } from '../types/routeHandler';
 
 const router = express.Router();
 
 // Create a new signoff session
-router.post('/create', checkAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+router.post('/create', checkAuth, asRouteHandler(async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     if (!req.user) {
       return next(new Error('User not authenticated'));
@@ -48,10 +49,10 @@ router.post('/create', checkAuth, async (req: AuthenticatedRequest, res: Respons
       error: error.message
     });
   }
-});
+}));
 
 // Send a signoff session to client
-router.post('/:id/send', checkAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+router.post('/:id/send', checkAuth, asRouteHandler(async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     if (!req.user) {
       return next(new Error('User not authenticated'));
@@ -78,10 +79,10 @@ router.post('/:id/send', checkAuth, async (req: AuthenticatedRequest, res: Respo
       error: error.message
     });
   }
-});
+}));
 
 // Get all signoff sessions for a campaign
-router.get('/campaign/:campaignId', checkAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+router.get('/campaign/:campaignId', checkAuth, asRouteHandler(async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     if (!req.user) {
       return next(new Error('User not authenticated'));
@@ -103,10 +104,10 @@ router.get('/campaign/:campaignId', checkAuth, async (req: AuthenticatedRequest,
       error: error.message
     });
   }
-});
+}));
 
 // Get a specific signoff session
-router.get('/:id', checkAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+router.get('/:id', checkAuth, asRouteHandler(async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     if (!req.user) {
       return next(new Error('User not authenticated'));
@@ -128,7 +129,7 @@ router.get('/:id', checkAuth, async (req: AuthenticatedRequest, res: Response, n
       error: error.message
     });
   }
-});
+}));
 
 // Client view of signoff session (no auth required, uses access token)
 router.get('/client/:id', async (req: Request, res: Response, next: NextFunction) => {

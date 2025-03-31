@@ -43,6 +43,8 @@ import apiClient from '../../api/apiClient';
 import TemplateCard from '../../components/templates/TemplateCard';
 import { VirtualizedAssetGrid } from '../../components/matrix/VirtualizedAssetGrid';
 import { MatrixCombinationGrid, AssetCombination } from '../../components/matrix/MatrixCombinationGrid';
+import { EnhancedMatrixGrid, TemplateFormat } from '../../components/matrix/EnhancedMatrixGrid';
+import { batchExportService } from '../../services/BatchExportService';
 import { batchRenderingService, RenderJob, RenderPriority } from '../../services/BatchRenderingService';
 import { combinationOptimizer } from '../../services/CombinationOptimizer';
 import { v4 as uuidv4 } from 'uuid';
@@ -79,6 +81,7 @@ interface TemplateVariable {
 enum TabValue {
   SELECTION = 0,
   COMBINATIONS = 1,
+  ANALYTICS = 2,
 }
 
 const MatrixPage: React.FC = () => {
@@ -107,12 +110,15 @@ const MatrixPage: React.FC = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'enhanced'>('enhanced'); // Default to enhanced view
   
   // Matrix combinations state
   const [combinations, setCombinations] = useState<AssetCombination[]>([]);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
   const [generatedCount, setGeneratedCount] = useState<number>(0);
+  const [selectedCombinationId, setSelectedCombinationId] = useState<string | null>(null);
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
   
   const navigate = useNavigate();
   
@@ -192,7 +198,10 @@ const MatrixPage: React.FC = () => {
     }
   }, []);
   
-  // Generate all possible asset combinations based on selected assets
+  /**
+   * Generate all possible asset combinations for the selected template variables
+   * Creates combinations by taking the cartesian product of selected assets
+   */
   const generateCombinations = useCallback(() => {
     if (!selectedTemplate || !templateVariables.length) return;
     
@@ -206,40 +215,46 @@ const MatrixPage: React.FC = () => {
     // Generate all possible combinations
     const newCombinations: AssetCombination[] = [];
     
-    // If only one variable is selected, create a single combination with that asset
-    if (variablesWithAssets.length === 1) {
-      const variable = variablesWithAssets[0];
+    // For each variable, find the selected asset(s) and prepare for cartesian product
+    const assetsByVariable: Record<string, Asset[]> = {};
+    
+    variablesWithAssets.forEach(variable => {
       const assetId = selectedAssets[variable.name];
-      
       if (assetId) {
-        const asset = assetsByType[variable.type]?.find(a => a.id === assetId) || null;
-        
-        newCombinations.push({
-          id: uuidv4(),
-          assets: { [variable.name]: asset },
-          status: 'pending',
-          progress: 0
-        });
-      }
-    } else {
-      // Process multi-variable combinations
-      // First, organize selected assets by variable
-      const selectedVariableAssets: { variable: string, asset: Asset }[] = [];
-      
-      variablesWithAssets.forEach(variable => {
-        const assetId = selectedAssets[variable.name];
-        if (assetId) {
-          const asset = assetsByType[variable.type]?.find(a => a.id === assetId);
-          if (asset) {
-            selectedVariableAssets.push({ variable: variable.name, asset });
-          }
+        const asset = assetsByType[variable.type]?.find(a => a.id === assetId);
+        if (asset) {
+          assetsByVariable[variable.name] = [asset];
         }
-      });
+      }
+    });
+    
+    // Calculate all possible combinations (cartesian product)
+    if (Object.keys(assetsByVariable).length > 0) {
+      // Helper function to generate cartesian product
+      const cartesianProduct = (arr: Asset[][]): Asset[][] => {
+        return arr.reduce<Asset[][]>(
+          (acc, val) => acc.flatMap(el => val.map(v => [...el, v])),
+          [[]]
+        );
+      };
       
-      // Create a combination for each variable-asset pair
-      selectedVariableAssets.forEach(({ variable, asset }) => {
+      // Get arrays of assets for each variable
+      const variableNames = Object.keys(assetsByVariable);
+      const assetArrays = variableNames.map(name => assetsByVariable[name]);
+      
+      // Generate all possible combinations
+      const allCombinations = cartesianProduct(assetArrays);
+      
+      // Convert each combination to our format
+      allCombinations.forEach(assetList => {
         const assets: { [key: string]: Asset | null } = {};
-        assets[variable] = asset;
+        
+        // Map assets to their variables
+        variableNames.forEach((name, index) => {
+          if (assetList[index]) {
+            assets[name] = assetList[index];
+          }
+        });
         
         newCombinations.push({
           id: uuidv4(),
@@ -289,7 +304,84 @@ const MatrixPage: React.FC = () => {
     );
   }, [selectedTemplate, combinations]);
   
-  // Regenerate a specific combination
+  /**
+   * Export a specific combination to the selected platform or download
+   */
+  const handleExportCombination = useCallback(async (combinationId: string) => {
+    const combination = combinations.find(c => c.id === combinationId);
+    if (!combination || combination.status !== 'completed') return;
+    
+    try {
+      const success = await batchExportService.exportCombination(combination);
+      
+      if (success) {
+        // Show success message
+        console.log('Combination exported successfully');
+      } else {
+        // Show error message
+        setError('Failed to export combination');
+      }
+    } catch (err) {
+      console.error('Error exporting combination:', err);
+      setError('Error exporting combination');
+    }
+  }, [combinations]);
+  
+  /**
+   * Export all completed combinations as a zip file
+   */
+  const handleExportAll = useCallback(async () => {
+    const completedCombinations = combinations.filter(c => c.status === 'completed');
+    if (completedCombinations.length === 0) return;
+    
+    try {
+      const results = await batchExportService.exportMultipleCombinations(completedCombinations);
+      const successCount = results.filter(r => r.success).length;
+      
+      if (successCount > 0) {
+        // Show success message
+        console.log(`${successCount} combinations exported successfully`);
+      } else {
+        // Show error message
+        setError('Failed to export combinations');
+      }
+    } catch (err) {
+      console.error('Error exporting combinations:', err);
+      setError('Error exporting combinations');
+    }
+  }, [combinations]);
+  
+  /**
+   * View analytics for a specific combination
+   */
+  const handleViewAnalytics = useCallback(async (combinationId: string) => {
+    setSelectedCombinationId(combinationId);
+    setActiveTab(TabValue.ANALYTICS);
+    
+    try {
+      const metrics = await combinationOptimizer.getPerformanceMetrics(combinationId);
+      setAnalyticsData(metrics);
+    } catch (err) {
+      console.error('Error fetching analytics:', err);
+      setError('Failed to load analytics data');
+    }
+  }, []);
+  
+  /**
+   * Toggle favourite status for a combination
+   */
+  const handleToggleFavourite = useCallback((combinationId: string) => {
+    setCombinations(prev => prev.map(c => {
+      if (c.id === combinationId) {
+        return { ...c, isFavourite: !c.isFavourite };
+      }
+      return c;
+    }));
+  }, []);
+  
+  /**
+   * Regenerate a specific combination
+   */
   const handleRegenerateCombination = useCallback((combinationId: string) => {
     if (!selectedTemplate) return;
     
@@ -330,19 +422,28 @@ const MatrixPage: React.FC = () => {
     );
   }, []);
   
-  // Export a combination
-  const handleExportCombination = useCallback((combinationId: string) => {
+  // Export a combination (improved version that uses BatchExportService)
+  const handleExportCombination = useCallback(async (combinationId: string) => {
     const combination = combinations.find(c => c.id === combinationId);
-    if (!combination || !combination.previewUrl) return;
+    if (!combination || combination.status !== 'completed') return;
     
-    // Open preview in new tab (temporary solution)
-    window.open(combination.previewUrl, '_blank');
-    
-    // TODO: Implement actual export functionality
-    console.log('Exporting combination:', combinationId);
+    try {
+      const success = await batchExportService.exportCombination(combination);
+      
+      if (success) {
+        // Show success message
+        console.log('Combination exported successfully');
+      } else {
+        // Show error message
+        setError('Failed to export combination');
+      }
+    } catch (err) {
+      console.error('Error exporting combination:', err);
+      setError('Error exporting combination');
+    }
   }, [combinations]);
   
-  // Optimize recommendations using the CombinationOptimizer service
+  // Optimise recommendations using the CombinationOptimizer service
   const handleOptimizeRecommendations = useCallback(async () => {
     if (!selectedClientId || combinations.length === 0) return;
     
@@ -351,17 +452,16 @@ const MatrixPage: React.FC = () => {
     try {
       const optimizedCombinations = await combinationOptimizer.optimiseCombinations(
         combinations,
-        selectedClientId,
-        selectedCampaign?.id
+        selectedClientId
       );
       
       setCombinations(optimizedCombinations);
     } catch (error) {
-      console.error('Error optimizing combinations:', error);
+      console.error('Error optimising combinations:', error);
     } finally {
       setIsOptimizing(false);
     }
-  }, [selectedClientId, selectedCampaign, combinations]);
+  }, [selectedClientId, combinations]);
 
   const fetchTemplatesData = async () => {
     try {
@@ -937,18 +1037,55 @@ const MatrixPage: React.FC = () => {
       
       {/* Combinations Tab */}
       {activeTab === TabValue.COMBINATIONS && (
-        <Box>
-          <MatrixCombinationGrid
-            combinations={combinations}
-            isGenerating={isGenerating}
-            isOptimizing={isOptimizing}
-            onGenerateAll={handleGenerateAll}
-            onRegenerateCombination={handleRegenerateCombination}
-            onToggleFavourite={handleToggleFavourite}
-            onExportCombination={handleExportCombination}
-            templateFormat={selectedTemplate?.format || 'square'}
-            onOptimizeRecommendations={handleOptimizeRecommendations}
-          />
+        <Box sx={{ p: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h5" sx={{ flexGrow: 1 }}>
+              Matrix Combinations
+            </Typography>
+            
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Tooltip title="View mode">
+                <IconButton
+                  onClick={() => setViewMode(viewMode === 'grid' ? 'enhanced' : 'grid')}
+                  color="primary"
+                >
+                  {viewMode === 'grid' ? <GridViewIcon /> : <ListAltIcon />}
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </Box>
+          
+          {combinations.length === 0 ? (
+            <Typography variant="body1" sx={{ textAlign: 'center', mt: 4 }}>
+              No combinations yet. Select assets and generate combinations.
+            </Typography>
+          ) : viewMode === 'enhanced' ? (
+            <EnhancedMatrixGrid
+              combinations={combinations}
+              isGenerating={isGenerating}
+              isOptimizing={isOptimizing}
+              onGenerateAll={handleGenerateAll}
+              onRegenerateCombination={handleRegenerateCombination}
+              onToggleFavourite={handleToggleFavourite}
+              onExportCombination={handleExportCombination}
+              onExportAll={handleExportAll}
+              templateFormat={selectedTemplate?.format as TemplateFormat || 'square'}
+              onOptimizeRecommendations={handleOptimizeRecommendations}
+              onViewAnalytics={handleViewAnalytics}
+            />
+          ) : (
+            <MatrixCombinationGrid
+              combinations={combinations}
+              isGenerating={isGenerating}
+              isOptimizing={isOptimizing}
+              onGenerateAll={handleGenerateAll}
+              onRegenerateCombination={handleRegenerateCombination}
+              onToggleFavourite={handleToggleFavourite}
+              onExportCombination={handleExportCombination}
+              templateFormat={selectedTemplate?.format as string}
+              onOptimizeRecommendations={handleOptimizeRecommendations}
+            />
+          )}
           
           {/* Actions for combinations */}
           <Box sx={{ mt: 4, display: 'flex', justifyContent: 'space-between' }}>

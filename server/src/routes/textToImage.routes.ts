@@ -10,14 +10,13 @@ import { createLogger } from '../utils/logger';
 // Create a logger with the appropriate context
 const logger = createLogger('TextToImageRouter');
 
+import { AuthenticatedUser } from '../types/shared';
+
 // Extend the Express Request type to include authenticated user properties
 interface AuthenticatedRequest extends Request {
   userId?: string;
   clientId?: string;
-  user?: {
-    userId: string;
-    email: string;
-    role: string;
+  user?: AuthenticatedUser & {
     sessionId: string;
     [key: string]: any;
   };

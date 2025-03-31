@@ -23,6 +23,10 @@ import {
 import { ApiError } from '@/utils/ApiError';
 import { ErrorCode } from '@/types/errorTypes';
 
+// Import AI service for asset analysis
+import { assetAI } from './assetAI';
+import { logger } from '@/utils/logger';
+
 // Use fs/promises directly - no need for promisify
 const { mkdir, readFile, unlink, stat, writeFile } = fsPromises;
 
@@ -33,6 +37,7 @@ class AssetService {
   private supabase: SupabaseClient;
   private readonly uploadsDir: string;
   private static instance: AssetService;
+  private readonly logger = logger;
 
   // Make constructor private for singleton pattern
   private constructor() {
@@ -446,10 +451,11 @@ class AssetService {
 
   /**
    * Process image assets - generate thumbnails and extract metadata
+   * Enhanced with AI-powered content analysis
    */
   async processImageAsset(asset: Asset, filePath: string): Promise<void> {
     try {
-      console.log(`Processing image asset: ${asset.name}`);
+      this.logger.info(`Processing image asset: ${asset.name}`);
       
       // Extract metadata using sharp
       const metadata = await sharp(filePath).metadata();
@@ -471,63 +477,142 @@ class AssetService {
       // Update asset with thumbnail URL
       asset.thumbnailUrl = `${asset.url.substring(0, asset.url.lastIndexOf('/'))}/${thumbnailFileName}`;
       
+      // Use AI to analyse the image content
+      try {
+        this.logger.info(`Starting AI analysis for image: ${asset.name}`);
+        const aiAnalysis = await assetAI.analyseImage(filePath);
+        
+        // Add AI-generated tags and categories
+        if (aiAnalysis.tags && aiAnalysis.tags.length > 0) {
+          // Combine existing tags with AI tags, ensuring uniqueness
+          const existingTags = asset.tags || [];
+          asset.aiTags = aiAnalysis.tags;
+          asset.tags = [...new Set([...existingTags, ...aiAnalysis.tags])];
+        }
+        
+        if (aiAnalysis.categories && aiAnalysis.categories.length > 0) {
+          // Combine existing categories with AI categories, ensuring uniqueness
+          const existingCategories = asset.categories || [];
+          asset.categories = [...new Set([...existingCategories, ...aiAnalysis.categories])];
+        }
+        
+        // Add content description
+        asset.contentDescription = aiAnalysis.contentDescription;
+        
+        // Add dominant colours
+        asset.dominantColours = aiAnalysis.dominantColours;
+        
+        // Add safety labels
+        asset.safetyLabels = aiAnalysis.safetyLabels;
+        
+        this.logger.info(`AI analysis complete for image: ${asset.name}`);
+      } catch (aiError) {
+        this.logger.error(`AI image analysis error: ${(aiError as Error).message}`);
+        // Continue without AI analysis if it fails
+      }
     } catch (error: any) {
-      console.error(`Error processing image asset: ${error.message}`);
+      this.logger.error(`Error processing image asset: ${error.message}`);
       // Continue with the upload even if image processing fails
     }
   }
 
   /**
    * Process video assets - generate thumbnails and extract metadata
+   * Enhanced with AI-powered content analysis
    */
   async processVideoAsset(asset: Asset, filePath: string): Promise<void> {
     try {
-      console.log(`Processing video asset: ${asset.name}`);
+      this.logger.info(`Processing video asset: ${asset.name}`);
       
       // Get video directory
       const assetDir = path.dirname(filePath);
       const thumbnailFileName = 'thumbnail.jpg';
       const thumbnailPath = path.join(assetDir, thumbnailFileName);
       
+      // Create additional preview frames for AI analysis
+      const previewsDir = path.join(assetDir, 'previews');
+      if (!fs.existsSync(previewsDir)) {
+        fs.mkdirSync(previewsDir, { recursive: true });
+      }
+      
       // Extract a thumbnail from the video at the 1 second mark
       return new Promise<void>((resolve, reject) => {
         ffmpeg(filePath)
           .on('error', (err: Error) => {
-            console.error('Error generating video thumbnail:', err);
+            this.logger.error('Error generating video thumbnail:', err);
             resolve(); // Continue even if thumbnail generation fails
           })
-          .on('end', () => { // Add type for callback
+          .on('end', async () => {
             // Update asset with thumbnail URL
             asset.thumbnailUrl = `${asset.url.substring(0, asset.url.lastIndexOf('/'))}/${thumbnailFileName}`;
             
-            // Try to get video metadata
-            ffmpeg.ffprobe(filePath, (err: any, metadata: any) => {
-              if (err) {
-                console.error('Error getting video metadata:', err);
-                resolve();
-                return;
+            // Try to get video metadata using a more structured approach
+            try {
+              const { data: metadata, error } = await this.getVideoMetadataDetails(filePath);
+              
+              if (error) {
+                this.logger.error('Error extracting video metadata:', error);
+              } else if (metadata) {
+                // Update basic asset properties
+                asset.width = metadata.width;
+                asset.height = metadata.height;
+                asset.duration = metadata.duration;
+                
+                // Add extended metadata
+                const extendedMetadata = {
+                  codec: metadata.codec,
+                  frameRate: metadata.frameRate,
+                  bitrate: metadata.bitrate,
+                  aspectRatio: metadata.aspectRatio,
+                  audioChannels: metadata.audioChannels,
+                  audioCodec: metadata.audioCodec
+                };
+                
+                // Store in asset metadata
+                asset.metadata = { ...asset.metadata, ...extendedMetadata };
               }
               
+              // Use AI to analyse the thumbnail for video content understanding
               try {
-                if (metadata && metadata.streams && metadata.streams.length > 0) {
-                  const videoStream = metadata.streams.find((s: any): s is { codec_type: 'video' } => s.codec_type === 'video');
-                  if (videoStream) {
-                    asset.width = videoStream.width;
-                    asset.height = videoStream.height;
-                    // Convert duration from seconds to milliseconds
-                    if (videoStream.duration) {
-                      asset.duration = Math.round(parseFloat(videoStream.duration) * 1000);
-                    } else if (metadata.format && metadata.format.duration) {
-                      asset.duration = Math.round(parseFloat(metadata.format.duration) * 1000);
-                    }
+                if (fs.existsSync(thumbnailPath)) {
+                  this.logger.info(`Starting AI analysis of video thumbnail for: ${asset.name}`);
+                  const aiAnalysis = await assetAI.analyseImage(thumbnailPath);
+                  
+                  // Add AI-generated tags and categories
+                  if (aiAnalysis.tags && aiAnalysis.tags.length > 0) {
+                    // Combine existing tags with AI tags, ensuring uniqueness
+                    const existingTags = asset.tags || [];
+                    asset.aiTags = aiAnalysis.tags;
+                    // Add video-specific tags
+                    asset.tags = [...new Set([...existingTags, ...aiAnalysis.tags, 'video'])];
                   }
+                  
+                  if (aiAnalysis.categories && aiAnalysis.categories.length > 0) {
+                    // Combine existing categories with AI categories, ensuring uniqueness
+                    const existingCategories = asset.categories || [];
+                    asset.categories = [...new Set([...existingCategories, ...aiAnalysis.categories, 'videos'])];
+                  }
+                  
+                  // Add content description with video context
+                  asset.contentDescription = `Video ${aiAnalysis.contentDescription}`;
+                  
+                  // Add dominant colours from thumbnail
+                  asset.dominantColours = aiAnalysis.dominantColours;
+                  
+                  // Add safety labels
+                  asset.safetyLabels = aiAnalysis.safetyLabels;
+                  
+                  this.logger.info(`AI analysis complete for video: ${asset.name}`);
                 }
-              } catch (metadataError) {
-                console.error('Error parsing video metadata:', metadataError);
+              } catch (aiError) {
+                this.logger.error(`AI video analysis error: ${(aiError as Error).message}`);
+                // Continue without AI analysis if it fails
               }
-              
-              resolve();
-            });
+            } catch (metadataError) {
+              this.logger.error('Error processing video metadata:', metadataError);
+            }
+            
+            resolve();
           })
           .screenshots({
             count: 1,
@@ -537,42 +622,216 @@ class AssetService {
           });
       });
     } catch (error: any) {
-      console.error(`Error processing video asset: ${error.message}`);
+      this.logger.error(`Error processing video asset: ${error.message}`);
       // Continue with the upload even if video processing fails
     }
+  }
+  
+  /**
+   * Extract detailed video metadata
+   */
+  private async getVideoMetadataDetails(filePath: string): Promise<{
+    data?: {
+      width?: number;
+      height?: number;
+      duration?: number;
+      codec?: string;
+      frameRate?: number;
+      bitrate?: number;
+      aspectRatio?: string;
+      audioChannels?: number;
+      audioCodec?: string;
+    };
+    error?: Error;
+  }> {
+    return new Promise((resolve) => {
+      ffmpeg.ffprobe(filePath, (err: any, metadata: any) => {
+        if (err) {
+          resolve({ error: err });
+          return;
+        }
+        
+        try {
+          const result: any = {};
+          
+          if (metadata && metadata.format) {
+            // Convert duration from seconds to milliseconds
+            result.duration = metadata.format.duration ? 
+              Math.round(parseFloat(metadata.format.duration) * 1000) : undefined;
+            result.bitrate = metadata.format.bit_rate ? 
+              parseInt(metadata.format.bit_rate, 10) : undefined;
+          }
+          
+          if (metadata && metadata.streams) {
+            const videoStream = metadata.streams.find((s: any) => s.codec_type === 'video');
+            if (videoStream) {
+              result.width = videoStream.width;
+              result.height = videoStream.height;
+              result.codec = videoStream.codec_name;
+              result.aspectRatio = videoStream.display_aspect_ratio || 
+                (videoStream.width && videoStream.height ? `${videoStream.width}:${videoStream.height}` : undefined);
+              
+              // Calculate frame rate
+              if (videoStream.r_frame_rate) {
+                const fpsRatio = videoStream.r_frame_rate.split('/');
+                if (fpsRatio.length === 2) {
+                  const num = parseInt(fpsRatio[0], 10);
+                  const den = parseInt(fpsRatio[1], 10);
+                  if (!isNaN(num) && !isNaN(den) && den !== 0) {
+                    result.frameRate = Math.round((num / den) * 100) / 100; // Round to 2 decimal places
+                  }
+                }
+              }
+            }
+            
+            const audioStream = metadata.streams.find((s: any) => s.codec_type === 'audio');
+            if (audioStream) {
+              result.audioCodec = audioStream.codec_name;
+              result.audioChannels = audioStream.channels;
+            }
+          }
+          
+          resolve({ data: result });
+        } catch (error) {
+          resolve({ error: error as Error });
+        }
+      });
+    });
   }
 
   /**
    * Process audio assets - generate waveform images and extract metadata
+   * Enhanced with AI-powered content analysis
    */
   async processAudioAsset(asset: Asset, filePath: string): Promise<void> {
     try {
-      console.log(`Processing audio asset: ${asset.name}`);
+      this.logger.info(`Processing audio asset: ${asset.name}`);
       
-      // This would typically generate a waveform image and extract audio metadata
-      // For now, we'll just extract basic metadata
+      // Get asset directory for storing additional files
+      const assetDir = path.dirname(filePath);
+      const waveformFileName = 'waveform.png';
+      const waveformPath = path.join(assetDir, waveformFileName);
+      
+      // Extract audio metadata and generate waveform
       return new Promise<void>((resolve, reject) => {
-        ffmpeg.ffprobe(filePath, (err: any, metadata: any) => {
+        // First get the audio metadata
+        ffmpeg.ffprobe(filePath, async (err: any, metadata: any) => {
           if (err) {
-            console.error('Error getting audio metadata:', err);
+            this.logger.error('Error getting audio metadata:', err);
             resolve();
             return;
           }
           
           try {
-            if (metadata && metadata.format && metadata.format.duration) {
+            // Extract basic metadata
+            if (metadata && metadata.format) {
               // Convert duration from seconds to milliseconds
-              asset.duration = Math.round(parseFloat(metadata.format.duration) * 1000);
+              if (metadata.format.duration) {
+                asset.duration = Math.round(parseFloat(metadata.format.duration) * 1000);
+              }
+              
+              // Extract additional audio metadata
+              const audioMetadata: Record<string, any> = {};
+              
+              if (metadata.format.bit_rate) {
+                audioMetadata.bitrate = parseInt(metadata.format.bit_rate, 10);
+              }
+              
+              if (metadata.format.tags) {
+                // Extract any available tags from audio file (e.g., ID3 tags)
+                if (metadata.format.tags.title) audioMetadata.title = metadata.format.tags.title;
+                if (metadata.format.tags.artist) audioMetadata.artist = metadata.format.tags.artist;
+                if (metadata.format.tags.album) audioMetadata.album = metadata.format.tags.album;
+                if (metadata.format.tags.genre) audioMetadata.genre = metadata.format.tags.genre;
+                if (metadata.format.tags.date) audioMetadata.year = metadata.format.tags.date;
+              }
+              
+              // Extract details from the audio stream
+              const audioStream = metadata.streams.find((s: any) => s.codec_type === 'audio');
+              if (audioStream) {
+                if (audioStream.codec_name) audioMetadata.codec = audioStream.codec_name;
+                if (audioStream.sample_rate) audioMetadata.sampleRate = parseInt(audioStream.sample_rate, 10);
+                if (audioStream.channels) audioMetadata.channels = audioStream.channels;
+                if (audioStream.channel_layout) audioMetadata.channelLayout = audioStream.channel_layout;
+              }
+              
+              // Store metadata in asset
+              asset.metadata = { ...asset.metadata, ...audioMetadata };
+              
+              // Add to asset tags based on available metadata
+              const metadataTags: string[] = [];
+              if (audioMetadata.genre) metadataTags.push(audioMetadata.genre.toLowerCase());
+              if (audioMetadata.channels === 1) metadataTags.push('mono');
+              if (audioMetadata.channels === 2) metadataTags.push('stereo');
+              
+              // Add audio-related tags
+              const existingTags = asset.tags || [];
+              asset.tags = [...new Set([...existingTags, ...metadataTags, 'audio'])];
+              
+              // Try to use AI to analyse the audio content
+              try {
+                this.logger.info(`Starting AI analysis for audio: ${asset.name}`);
+                const aiAnalysis = await assetAI.analyseAudio(filePath);
+                
+                // Add AI-generated tags and attributes
+                if (aiAnalysis.tags && aiAnalysis.tags.length > 0) {
+                  asset.aiTags = aiAnalysis.tags;
+                  // Combine with existing tags, ensuring uniqueness
+                  asset.tags = [...new Set([...asset.tags, ...aiAnalysis.tags])];
+                }
+                
+                if (aiAnalysis.categories && aiAnalysis.categories.length > 0) {
+                  // Add categories, ensuring uniqueness
+                  const existingCategories = asset.categories || [];
+                  asset.categories = [...new Set([...existingCategories, ...aiAnalysis.categories, 'audio'])];
+                }
+                
+                // Create a content description from audio metadata or transcription
+                const description = aiAnalysis.transcription || 
+                  `Audio file${audioMetadata.title ? ` titled "${audioMetadata.title}"` : ''}`;
+                asset.contentDescription = description;
+                
+                this.logger.info(`AI analysis complete for audio: ${asset.name}`);
+              } catch (aiError) {
+                this.logger.error(`AI audio analysis error: ${(aiError as Error).message}`);
+                // Set basic content description from metadata if AI fails
+                if (audioMetadata.title || audioMetadata.artist) {
+                  asset.contentDescription = [
+                    audioMetadata.title ? `"${audioMetadata.title}"` : 'Untitled',
+                    audioMetadata.artist ? `by ${audioMetadata.artist}` : ''
+                  ].filter(Boolean).join(' ');
+                }
+              }
             }
           } catch (metadataError) {
-            console.error('Error parsing audio metadata:', metadataError);
+            this.logger.error('Error parsing audio metadata:', metadataError);
           }
           
-          resolve();
+          // Attempt to generate waveform visualization
+          try {
+            // Generate waveform image as the thumbnail using ffmpeg
+            ffmpeg(filePath)
+              .audioFilters('showwavespic=s=600x120:colors=#2198f3')
+              .outputOptions('-frames:v 1')
+              .saveToFile(waveformPath)
+              .on('end', () => {
+                // Set waveform as thumbnail
+                asset.thumbnailUrl = `${asset.url.substring(0, asset.url.lastIndexOf('/'))}/${waveformFileName}`;
+                this.logger.info(`Generated waveform for audio: ${asset.name}`);
+                resolve();
+              })
+              .on('error', (waveformErr: Error) => {
+                this.logger.error(`Error generating waveform: ${waveformErr.message}`);
+                resolve(); // Continue despite the error
+              });
+          } catch (waveformError) {
+            this.logger.error(`Failed to generate waveform: ${(waveformError as Error).message}`);
+            resolve(); // Continue despite the error
+          }
         });
       });
     } catch (error: any) {
-      console.error(`Error processing audio asset: ${error.message}`);
+      this.logger.error(`Error processing audio asset: ${error.message}`);
       // Continue with the upload even if audio processing fails
     }
   }
@@ -583,7 +842,7 @@ class AssetService {
    */
   async getAssets(filters: AssetFilters = {}): Promise<{assets: Asset[], total: number}> {
     try {
-      console.log('🔍 DEBUG: Asset fetch initiated with filters:', JSON.stringify(filters, null, 2));
+      this.logger.info('Asset fetch initiated with filters:', JSON.stringify(filters, null, 2));
       
       // Default pagination values
       const limit = filters.limit || 50;
@@ -600,7 +859,7 @@ class AssetService {
       const { count, error: countError } = await countQuery;
       
       if (countError) {
-        console.error('Error counting assets:', countError);
+        this.logger.error('Error counting assets:', countError);
         return { assets: [], total: 0 };
       }
       
@@ -628,6 +887,10 @@ class AssetService {
         if (dbSortField === 'usageCount') dbSortField = 'metadata->>usageCount';
         if (dbSortField === 'name') dbSortField = 'name';
         
+        // Support sorting by AI-generated metrics
+        if (dbSortField === 'contentRelevance') dbSortField = 'metadata->>contentRelevance';
+        if (dbSortField === 'engagementScore') dbSortField = 'metadata->>engagementScore';
+        
         const sortDirection = filters.sortDirection || 'desc';
         dataQuery = dataQuery.order(dbSortField, { ascending: sortDirection === 'asc' });
       } else {
@@ -635,28 +898,56 @@ class AssetService {
         dataQuery = dataQuery.order('created_at', { ascending: false });
       }
       
+      // Apply additional filters for content-based searches
+      if (filters.contentSearch) {
+        // This is a natural language search against content descriptions
+        this.logger.info(`Performing content-based search: ${filters.contentSearch}`);
+        // This would typically use a vector search or full-text search
+        // For now, we'll use a simple LIKE query on the content description
+        const contentSearchTerm = `%${filters.contentSearch}%`;
+        dataQuery = dataQuery.ilike('content_description', contentSearchTerm);
+      }
+      
       const { data, error: dataError } = await dataQuery;
       
       if (dataError) {
-        console.error('Error fetching assets:', dataError);
+        this.logger.error('Error fetching assets:', dataError);
         return { assets: [], total: 0 };
       }
       
       // Transform DB assets to application assets
       const assets = data.map(item => this.transformAssetFromDb(item as DbAsset));
       
+      // Apply any additional client-side filtering for advanced AI features
+      // that might not be directly queryable in the database
+      let filteredAssets = assets;
+      
+      // Client-side colour filtering (if dominantColours is being used)
+      if (filters.colourFilter) {
+        this.logger.info(`Applying colour filter: ${filters.colourFilter}`);
+        filteredAssets = filteredAssets.filter(asset => {
+          // Check if asset has dominant colours and if any of them is close to the requested colour
+          return asset.dominantColours && 
+                 asset.dominantColours.some(colour => 
+                   this.areColoursRelated(colour, filters.colourFilter!));
+        });
+      }
+      
       return {
-        assets,
-        total: count || 0
+        assets: filteredAssets,
+        total: filters.colourFilter ? filteredAssets.length : (count || 0)
       };
     } catch (error: any) {
-      console.error('Error in getAssets:', error);
+      this.logger.error('Error in getAssets:', error);
       return { assets: [], total: 0 };
     }
   }
+  
+  // Methods for colour analysis are now implemented using the enhanced versions below
 
   /**
    * Helper method to apply filters to a Supabase query
+   * Enhanced to support AI-generated metadata filters
    */
   private applyFiltersToQuery(query: any, filters: AssetFilters): any { // `any` for query builder type flexibility
     // Client Filter (crucial for multi-tenancy)
@@ -675,34 +966,37 @@ class AssetService {
     }
     
     // Tag Filter (array contains)
-    // Assuming tags are stored directly in a 'tags' column (array type)
-    // If tags are in metadata JSON: query = query.contains('metadata->tags', filters.tags);
     if (filters.tags && filters.tags.length > 0) {
       query = query.contains('tags', filters.tags);
     }
     
+    // AI Tag Filter - specifically search in AI-generated tags
+    if (filters.aiTags && filters.aiTags.length > 0) {
+      query = query.contains('ai_tags', filters.aiTags);
+    }
+    
     // Category Filter (array contains)
-    // Assuming categories are stored directly in a 'categories' column (array type)
-    // If categories are in metadata JSON: query = query.contains('metadata->categories', filters.categories);
     if (filters.categories && filters.categories.length > 0) {
       query = query.contains('categories', filters.categories);
     }
     
     // Favourites Filter
-    // Assuming is_favourite is a direct boolean column
-    // If in metadata: query = query.eq('metadata->isFavourite', true);
-    if (filters.favourite) { // Check favourite from imported type
+    if (filters.favourite) {
       query = query.eq('is_favourite', true);
     }
     
-    // Search Term Filter (searches name and description)
-    // Check search from imported type
+    // Search Term Filter (searches name, description, and content description)
     if (filters.search) {
       const searchTerm = `%${filters.search}%`;
-      // Assuming search across name, description (in metadata), and maybe tags/categories
-      query = query.or(`name.ilike.${searchTerm},metadata->>description.ilike.${searchTerm}`);
-      // Example: searching tags array: `tags.cs.{${filters.search}}`
-      // Example: searching alternative text: `alternative_text.ilike.${searchTerm}`
+      // Enhanced to search in AI-generated content description as well
+      query = query.or(`name.ilike.${searchTerm},content_description.ilike.${searchTerm},metadata->>description.ilike.${searchTerm}`);
+      
+      // Additionally, if the search term might be a concept rather than exact text,
+      // we try to match against AI-generated tags as well
+      if (filters.includeConceptSearch) {
+        // This would be more sophisticated in production with proper vector search
+        query = query.or(`ai_tags.cs.{${filters.search}}`);
+      }
     }
     
     // Date Range Filter
@@ -718,9 +1012,342 @@ class AssetService {
       query = query.eq('status', filters.status);
     }
     
+    // Safety Level Filter
+    if (filters.safetyLevel) {
+      // Filter assets based on their safety labels
+      // Assuming safety labels are stored in the database
+      switch (filters.safetyLevel) {
+        case 'all':
+          // No filter, show all content
+          break;
+        case 'moderate':
+          // Filter out content with high adult or violence scores
+          query = query.lt('safety_adult', 0.7);
+          query = query.lt('safety_violence', 0.7);
+          break;
+        case 'strict':
+          // Filter out content with any significant adult, violence, or racy content
+          query = query.lt('safety_adult', 0.3);
+          query = query.lt('safety_violence', 0.3);
+          query = query.lt('safety_racy', 0.5);
+          break;
+      }
+    }
+    
+    // Engagement Score Filter - filter for content with high engagement potential
+    if (filters.minEngagementScore) {
+      query = query.gte('engagement_score', filters.minEngagementScore);
+    }
+    
+    // Content Relevance Filter - for targeting specific concepts or subjects
+    if (filters.contentRelevance && filters.contentRelevance.topic) {
+      const relevanceTopic = filters.contentRelevance.topic;
+      const relevanceThreshold = filters.contentRelevance.threshold || 0.6; // Default threshold
+      
+      // This would be implemented using vector similarity in production
+      // For now, we'll use a simplified approach with tags
+      query = query.contains('ai_tags', [relevanceTopic]);
+    }
+    
     return query;
   }
 
+  /**
+   * Find similar assets based on AI metadata
+   * @param assetId ID of the reference asset
+   * @param options Options for similarity search
+   */
+  async findSimilarAssets(assetId: string, options: {
+    limit?: number;
+    clientId?: string;
+    includeSameType?: boolean;
+    similarityThreshold?: number;
+  } = {}): Promise<{assets: Asset[], success: boolean, message?: string}> {
+    try {
+      // Get the reference asset first
+      const { asset: referenceAsset, success } = await this.getAssetById(assetId);
+      
+      if (!success || !referenceAsset) {
+        return {
+          assets: [],
+          success: false,
+          message: 'Reference asset not found'
+        };
+      }
+      
+      // Default options
+      const limit = options.limit || 10;
+      const includeSameType = options.includeSameType !== false; // Default to true
+      
+      // Build filters based on the reference asset's AI-generated metadata
+      const filters: AssetFilters = {
+        clientId: options.clientId || referenceAsset.clientId,
+        limit: limit,
+      };
+      
+      // If AI tags exist, use them for similarity matching
+      if (referenceAsset.aiTags && referenceAsset.aiTags.length > 0) {
+        // Take the top 3 AI tags for more relevant results
+        filters.aiTags = referenceAsset.aiTags.slice(0, 3);
+      }
+      
+      // For visual assets, use dominant colours for visual similarity
+      if (
+        (referenceAsset.type === 'image' || referenceAsset.type === 'video') &&
+        referenceAsset.dominantColours &&
+        referenceAsset.dominantColours.length > 0
+      ) {
+        // Use the primary dominant colour
+        filters.colourFilter = referenceAsset.dominantColours[0];
+      }
+      
+      // Filter by same type if requested
+      if (includeSameType && referenceAsset.type) {
+        filters.type = referenceAsset.type;
+      }
+      
+      // If there's a content description, use it for content search
+      if (referenceAsset.contentDescription) {
+        // Extract key terms from content description for more specific matching
+        const keyTerms = this.extractKeyTerms(referenceAsset.contentDescription);
+        if (keyTerms.length > 0) {
+          filters.contentSearch = keyTerms.join(' ');
+        }
+      }
+      
+      // Exclude the reference asset itself
+      const { assets } = await this.getAssets(filters);
+      const filteredAssets = assets.filter(asset => asset.id !== assetId);
+      
+      // Rank assets by similarity if we have sufficient metadata
+      if (referenceAsset.aiTags && referenceAsset.aiTags.length > 0) {
+        const rankedAssets = this.rankAssetsBySimilarity(filteredAssets, referenceAsset);
+        return {
+          assets: rankedAssets,
+          success: true,
+          message: `Found ${rankedAssets.length} similar assets`
+        };
+      }
+      
+      return {
+        assets: filteredAssets,
+        success: true,
+        message: `Found ${filteredAssets.length} similar assets`
+      };
+    } catch (error: any) {
+      this.logger.error('Error finding similar assets:', error);
+      return {
+        assets: [],
+        success: false,
+        message: `Error finding similar assets: ${error.message}`
+      };
+    }
+  }
+  
+  /**
+   * Extract key terms from a content description for better similarity matching
+   * @param description The content description to extract terms from
+   */
+  private extractKeyTerms(description: string): string[] {
+    if (!description) return [];
+    
+    // Remove common stop words and split into words
+    const stopWords = ['a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'with', 'by', 'of'];
+    const words = description.toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '') // Remove non-alphanumeric characters
+      .split(/\s+/) // Split by whitespace
+      .filter(word => word.length > 2 && !stopWords.includes(word)); // Remove stop words and short words
+    
+    // Count word frequency
+    const wordCounts: Record<string, number> = {};
+    words.forEach(word => {
+      wordCounts[word] = (wordCounts[word] || 0) + 1;
+    });
+    
+    // Sort by frequency and take the top 5 most frequent words
+    return Object.entries(wordCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(entry => entry[0]);
+  }
+  
+  /**
+   * Rank assets by similarity to a reference asset
+   * @param assets Assets to rank
+   * @param referenceAsset Reference asset for comparison
+   */
+  private rankAssetsBySimilarity(assets: Asset[], referenceAsset: Asset): Asset[] {
+    return assets
+      .map(asset => {
+        const similarityScore = this.calculateSimilarityScore(asset, referenceAsset);
+        return { ...asset, similarityScore };
+      })
+      .sort((a, b) => (b.similarityScore || 0) - (a.similarityScore || 0));
+  }
+  
+  /**
+   * Calculate a similarity score between two assets using their AI-generated metadata
+   * @param asset1 First asset to compare
+   * @param asset2 Second asset to compare
+   * @returns Similarity score from 0 to 1, where 1 is most similar
+   */
+  private calculateSimilarityScore(asset1: Asset, asset2: Asset): number {
+    let score = 0;
+    let factors = 0;
+    
+    // Compare AI tags if both assets have them
+    if (asset1.aiTags && asset1.aiTags.length > 0 && asset2.aiTags && asset2.aiTags.length > 0) {
+      const commonTags = asset1.aiTags.filter(tag => asset2.aiTags!.includes(tag));
+      const tagSimilarity = commonTags.length / Math.max(asset1.aiTags.length, asset2.aiTags.length);
+      score += tagSimilarity;
+      factors++;
+    }
+    
+    // Compare dominant colours if both assets have them
+    if (
+      asset1.dominantColours && asset1.dominantColours.length > 0 &&
+      asset2.dominantColours && asset2.dominantColours.length > 0
+    ) {
+      // Compare primary colours
+      const colourSimilarity = this.areColoursRelated(asset1.dominantColours[0], asset2.dominantColours[0]) ? 0.8 : 0;
+      score += colourSimilarity;
+      factors++;
+    }
+    
+    // Compare categories if both assets have them
+    if (
+      asset1.categories && asset1.categories.length > 0 &&
+      asset2.categories && asset2.categories.length > 0
+    ) {
+      const commonCategories = asset1.categories.filter(category => asset2.categories!.includes(category));
+      const categorySimilarity = commonCategories.length / Math.max(asset1.categories.length, asset2.categories.length);
+      score += categorySimilarity;
+      factors++;
+    }
+    
+    // If there are no factors to compare, return 0
+    if (factors === 0) return 0;
+    
+    // Return the average similarity score
+    return score / factors;
+  }
+  
+  /**
+   * Determine if two colours are visually related
+   * @param colour1 First colour in hex format (e.g., '#ff0000')
+   * @param colour2 Second colour in hex format (e.g., '#ff5555')
+   * @returns True if the colours are considered related
+   */
+  private areColoursRelated(colour1: string, colour2: string): boolean {
+    // Ensure both colours are in hex format
+    if (!colour1 || !colour2 || !colour1.startsWith('#') || !colour2.startsWith('#')) {
+      return false;
+    }
+    
+    try {
+      // Parse hex colours to RGB
+      const rgb1 = this.hexToRgb(colour1);
+      const rgb2 = this.hexToRgb(colour2);
+      
+      if (!rgb1 || !rgb2) return false;
+      
+      // Convert RGB to HSL to better compare colour relationships
+      const hsl1 = this.rgbToHsl(rgb1.r, rgb1.g, rgb1.b);
+      const hsl2 = this.rgbToHsl(rgb2.r, rgb2.g, rgb2.b);
+      
+      // Colours are considered related if they have similar hue (within a threshold)
+      // or if they are both very dark or both very light
+      const hueThreshold = 30; // Degrees of difference in hue that we consider "related"
+      const hueDiff = Math.abs(hsl1.h - hsl2.h);
+      const normalizedHueDiff = Math.min(hueDiff, 360 - hueDiff); // Handle hue wraparound at 360 degrees
+      
+      // Colours with similar hue are related
+      if (normalizedHueDiff <= hueThreshold) {
+        return true;
+      }
+      
+      // Both are very dark (low lightness) or both very light (high lightness)
+      if ((hsl1.l < 0.2 && hsl2.l < 0.2) || (hsl1.l > 0.8 && hsl2.l > 0.8)) {
+        return true;
+      }
+      
+      // Both are very desaturated (grayscale-like)
+      if (hsl1.s < 0.2 && hsl2.s < 0.2) {
+        return true;
+      }
+      
+      return false;
+    } catch (e) {
+      // If any error occurs during colour calculation, return false
+      return false;
+    }
+  }
+  
+  /**
+   * Convert a hex colour string to RGB values
+   */
+  private hexToRgb(hex: string): {r: number, g: number, b: number} | null {
+    // Remove # if present
+    hex = hex.replace(/^#/, '');
+    
+    // Parse 3-digit hex
+    if (hex.length === 3) {
+      hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+    }
+    
+    // Validate hex format
+    if (hex.length !== 6) {
+      return null;
+    }
+    
+    // Parse the RGB components
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    
+    // Check for valid parsing
+    if (isNaN(r) || isNaN(g) || isNaN(b)) {
+      return null;
+    }
+    
+    return { r, g, b };
+  }
+  
+  /**
+   * Convert RGB to HSL colour space
+   * @returns Object with h (0-360), s (0-1), l (0-1)
+   */
+  private rgbToHsl(r: number, g: number, b: number): {h: number, s: number, l: number} {
+    // Normalize RGB values
+    r /= 255;
+    g /= 255;
+    b /= 255;
+    
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let h = 0;
+    let s = 0;
+    const l = (max + min) / 2;
+    
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      
+      switch (max) {
+        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+        case g: h = (b - r) / d + 2; break;
+        case b: h = (r - g) / d + 4; break;
+      }
+      
+      h /= 6;
+    }
+    
+    // Convert hue to degrees
+    h = Math.round(h * 360);
+    
+    return { h, s, l };
+  }
+  
   /**
    * Get a single asset by ID
    */

@@ -17,6 +17,26 @@ export class ApiResponse {
     });
   }
 
+  static badRequest(
+    res: Response,
+    message: string = 'Bad request'
+  ): Response {
+    return res.status(400).json({
+      success: false,
+      message,
+    });
+  }
+
+  static notFound(
+    res: Response,
+    message: string = 'Resource not found'
+  ): Response {
+    return res.status(404).json({
+      success: false,
+      message,
+    });
+  }
+
   static error(
     res: Response,
     error: unknown, // Use unknown for better type safety

@@ -15,6 +15,20 @@ export interface Asset extends SharedAsset {
   alternativeText?: string;
   expiresAt?: string;
   fileExtension?: string;
+  
+  // Enhanced metadata fields
+  contentDescription?: string;
+  aiTags?: string[];
+  dominantColours?: string[];
+  safetyLabels?: Record<string, any>;
+  transcript?: string;
+  sentimentScore?: number;
+  keyPhrases?: string[];
+  
+  // Usage statistics
+  usageCount?: number;
+  lastUsed?: string;
+  engagementScore?: number;
 }
 
 /**
@@ -37,9 +51,14 @@ export interface DbAsset {
   owner_id: string;
   tags?: string[];
   categories?: string[];
+  ai_tags?: string[];
   is_favourite: boolean;
   status: string;
   alternative_text?: string;
+  content_description?: string;
+  usage_count?: number;
+  last_used_at?: Date;
+  engagement_score?: number;
   metadata?: Record<string, any>;
   created_at: Date;
   updated_at: Date;
@@ -47,25 +66,58 @@ export interface DbAsset {
 }
 
 /**
+ * Content relevance filtering options
+ */
+export interface ContentRelevanceFilter {
+  topic: string;         // The subject or concept to evaluate relevance against
+  threshold?: number;    // Minimum relevance score threshold (0-1)
+}
+
+/**
  * Comprehensive filtering options for asset queries
+ * Enhanced with AI-powered filtering capabilities
  */
 export interface AssetFilters {
+  // Basic filters
   clientId?: string;
   client_id?: string; // Alternate format for backwards compatibility
-  type?: string;
+  type?: string | string[];
   search?: string;
   tags?: string[];
   categories?: string[];
   favourite?: boolean;
   ownerId?: string;
   status?: string;
+  
+  // Time-based filters
   startDate?: string;
   endDate?: string;
+  
+  // Pagination and sorting
   sortBy?: string;
   sortDirection?: 'asc' | 'desc';
   limit?: number;
   offset?: number;
+  
+  // Additional basic filters
   includeExpired?: boolean;
+  
+  // AI-enhanced filters
+  aiTags?: string[];                      // Filter by AI-generated tags
+  colourFilter?: string;                  // Search by colour (hex code) with visual similarity
+  contentSearch?: string;                 // Natural language search across content descriptions
+  includeConceptSearch?: boolean;         // Enable concept-based searching (not just exact matches)
+  minEngagementScore?: number;           // Filter by minimum engagement score
+  maxEngagementScore?: number;           // Filter by maximum engagement score
+  similarTo?: string;                     // Asset ID to find similar assets to
+  contentRelevance?: ContentRelevanceFilter;  // Filter by relevance to a specific topic
+  
+  // Safety filters
+  safetyLevel?: 'all' | 'moderate' | 'strict';  // Filter based on safety labels
+  
+  // Legacy filters (maintained for backward compatibility)
+  colourHex?: string;                     // Legacy colour filter
+  contentContains?: string;               // Legacy content search
 }
 
 /**

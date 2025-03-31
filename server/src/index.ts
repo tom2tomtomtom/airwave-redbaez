@@ -33,9 +33,16 @@ import matrixRoutes from './routes/matrix.routes';
 import briefRoutes from './routes/briefRoutes';
 import clientRoutes from './routes/clientRoutes';
 import mcpRoutes from './routes/mcp.routes';
+import revisionRoutes from './routes/revisionRoutes';
+import notificationRoutes from './routes/notificationRoutes';
+import timeBasedCommentRoutes from './routes/timeBasedCommentRoutes';
 
 // Import new image-to-video router
 import { imageToVideoRouter } from './routes/ImageToVideoRouter';
+
+// Generation service routes
+import generationRoutes from './routes/generationRoutes';
+import subtitleRoutes from './routes/subtitleRoutes';
 
 // v2 API routes
 import v2Routes from './routes/v2';
@@ -166,6 +173,11 @@ app.use('/api/matrix', matrixRoutes);
 app.use('/api/briefs', briefRoutes);
 app.use('/api/mcp', mcpRoutes);
 app.use('/api/image-to-video', imageToVideoRouter.getRouter());
+app.use('/api/generation', generationRoutes);
+app.use('/api/subtitles', subtitleRoutes);
+app.use('/api/revisions', revisionRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api', timeBasedCommentRoutes);
 app.use('/api/v2', v2Routes);
 
 // Apply error handling middleware (must be after all routes)
@@ -193,6 +205,11 @@ server.listen(PORT, () => {
     { name: 'Matrix', path: '/api/matrix' },
     { name: 'Briefs', path: '/api/briefs' },
     { name: 'MCP', path: '/api/mcp' },
+    { name: 'Generation', path: '/api/generation' },
+    { name: 'Subtitles', path: '/api/subtitles' },
+    { name: 'Revisions', path: '/api/revisions' },
+    { name: 'Notifications', path: '/api/notifications' },
+    { name: 'TimeBasedComments', path: '/api/reviews/:reviewId/comments/timebased' },
     { name: 'V2 API', path: '/api/v2' }
   ];
   

@@ -72,9 +72,22 @@ interface SignOffVersion {
   title: string;
   content: any;
   isLatest: boolean;
+  versionNumber?: number;
 }
 
-const ClientSignOffPortal: React.FC = () => {
+interface ClientSignOffPortalProps {
+  versionId?: string;
+  reviewId?: string;
+  canApprove?: boolean;
+  onApproveReject?: (status: 'approved' | 'rejected', feedback: string) => Promise<void>;
+}
+
+const ClientSignOffPortal: React.FC<ClientSignOffPortalProps> = ({
+  versionId,
+  reviewId,
+  canApprove = false,
+  onApproveReject,
+}) => {
   const { token } = useParams<{ token: string }>();
   const [signOffItem, setSignOffItem] = useState<SignOffItem | null>(null);
   const [loading, setLoading] = useState(true);

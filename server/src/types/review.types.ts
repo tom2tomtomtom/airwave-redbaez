@@ -82,11 +82,12 @@ export interface ReviewRequestContext {
 }
 
 import { Request } from 'express';
+import { AuthenticatedRequest } from './AuthenticatedRequest';
 
 /**
- * Extends Express Request to include reviewContext populated by reviewAuth middleware.
+ * Extends AuthenticatedRequest to include reviewContext populated by reviewAuth middleware.
  */
-export interface ReviewAuthenticatedRequest extends Request {
+export interface ReviewAuthenticatedRequest extends AuthenticatedRequest {
   reviewContext?: ReviewRequestContext;
 }
 

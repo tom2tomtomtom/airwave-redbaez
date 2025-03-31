@@ -196,6 +196,53 @@ class ApiService {
     }
   }
 
+  /**
+   * Performs a GET request to the specified endpoint
+   * 
+   * @param endpoint The API endpoint to request
+   * @param options Additional request options
+   * @returns Promise resolving to the API response
+   */
+  public async get<T>(endpoint: string, options: { params?: Record<string, any> } = {}): Promise<ApiResponse<T>> {
+    const queryParams = options.params ? new URLSearchParams(this.prepareParams(options.params)).toString() : '';
+    const url = queryParams ? `${endpoint}?${queryParams}` : endpoint;
+    
+    return this.request<T>(url, {
+      method: 'GET',
+    });
+  }
+  
+  /**
+   * Performs a POST request to the specified endpoint
+   * 
+   * @param endpoint The API endpoint to request
+   * @param data The data to send in the request body
+   * @param options Additional request options
+   * @returns Promise resolving to the API response
+   */
+  public async post<T>(endpoint: string, data: any, options: RequestInit = {}): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      ...options,
+    });
+  }
+  
+  /**
+   * Prepares parameters for URL encoding by removing undefined values
+   */
+  private prepareParams(params: Record<string, any>): Record<string, string> {
+    const result: Record<string, string> = {};
+    
+    for (const key in params) {
+      if (params[key] !== undefined && params[key] !== null) {
+        result[key] = String(params[key]);
+      }
+    }
+    
+    return result;
+  }
+
   public async getCampaigns(
     pagination?: PaginationParams,
     sort?: SortParams

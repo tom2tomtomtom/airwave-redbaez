@@ -6,14 +6,13 @@ import { ErrorCode } from '@/types/errorTypes';
 import { redis } from '../db/redisClient';
 import jwt from 'jsonwebtoken';
 
+import { AuthenticatedUser } from '@/types/shared';
+
 // Extend Express Request type to include user property with typed information
 declare global {
   namespace Express {
     interface Request {
-      user?: {
-        userId: string;        // User's unique identifier
-        email: string;         // User's email address
-        role: string;          // User's role (e.g., 'admin', 'user')
+      user?: AuthenticatedUser & {
         sessionId: string;     // Unique identifier for the session
         [key: string]: any;
       };
@@ -47,6 +46,7 @@ export const checkAuth = async (req: Request, res: Response, next: NextFunction)
     
     // Set a mock user on the request
     req.user = {
+      id: '00000000-0000-0000-0000-000000000000',
       userId: '00000000-0000-0000-0000-000000000000',
       email: 'admin@airwave.dev',
       role: 'admin',
@@ -86,8 +86,10 @@ export const checkAuth = async (req: Request, res: Response, next: NextFunction)
       // Attach user info to request
       req.user = {
         ...payload,
-        userId: payload.userId,
+        id: payload.userId || payload.id,
+        userId: payload.userId || payload.id,
         email: payload.email,
+        name: payload.name || payload.email.split('@')[0],
         role: payload.role,
         sessionId: payload.sessionId
       };
@@ -135,8 +137,10 @@ export const checkAuth = async (req: Request, res: Response, next: NextFunction)
         
         // Attach user info to request
         req.user = {
+          id: data.user.id,
           userId: data.user.id,
           email: data.user.email || '',
+          name: data.user.user_metadata?.name || data.user.email?.split('@')[0] || 'User',
           role: userData?.role || 'user',
           sessionId: sessionId
         };

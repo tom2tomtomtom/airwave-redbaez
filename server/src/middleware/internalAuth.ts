@@ -44,10 +44,13 @@ export const internalAuth = async (
 
     // Populate request object
     req.user = { 
-      userId: decoded.userId, 
+      id: decoded.userId,          // Use userId as the id property
+      userId: decoded.userId,      // Keep userId for backward compatibility
+      name: decoded.userName || decoded.userEmail.split('@')[0], // Use userName if available, or extract from email
       email: decoded.userEmail, 
       role: decoded.role || 'user', // Assuming role is in token, provide default
-      sessionId: decoded.sessionId || '' // Assuming sessionId is in token
+      sessionId: decoded.sessionId || '', // Assuming sessionId is in token
+      clientId: decoded.clientId    // Include client ID if available
     };
 
     if (req.user) {

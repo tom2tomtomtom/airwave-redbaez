@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -25,7 +25,8 @@ import {
   Palette as PaletteIcon,
   AutoFixHigh as AutoFixHighIcon,
   Cameraswitch as CameraswitchIcon,
-  ViewQuilt as ViewQuiltIcon
+  ViewQuilt as ViewQuiltIcon,
+  MusicNote as MusicNoteIcon
 } from '@mui/icons-material';
 import { RootState, AppDispatch } from '../../store';
 import { Template } from '../../types/templates';
@@ -39,6 +40,11 @@ import CopyGenerationPage from './CopyGenerationPage';
 import ImageGenerationPage from './ImageGenerationPage';
 import VideoGenerationPage from './VideoGenerationPage';
 import LoadingScreen from '../../components/common/LoadingScreen';
+
+// Lazy load the new generation pages
+const VoiceoverGenerationPage = lazy(() => import('./VoiceoverGenerationPage'));
+const MusicGenerationPage = lazy(() => import('./MusicGenerationPage'));
+const TextToImagePage = lazy(() => import('./TextToImagePage'));
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -120,7 +126,7 @@ const GeneratePage: React.FC = () => {
         <Grid container spacing={3}>
           <Grid item xs={12} sm={6} md={3}>
             <Card sx={{ height: '100%' }}>
-              <CardActionArea onClick={() => navigate('/generate/text-to-image')}>
+              <CardActionArea onClick={() => setTabValue(3)}>
                 <CardMedia
                   component="div"
                   sx={{
@@ -146,7 +152,7 @@ const GeneratePage: React.FC = () => {
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <Card sx={{ height: '100%' }}>
-              <CardActionArea onClick={() => navigate('/generate/image-to-video')}>
+              <CardActionArea onClick={() => setTabValue(4)}>
                 <CardMedia
                   component="div"
                   sx={{
@@ -198,6 +204,32 @@ const GeneratePage: React.FC = () => {
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <Card sx={{ height: '100%' }}>
+              <CardActionArea onClick={() => setTabValue(2)}>
+                <CardMedia
+                  component="div"
+                  sx={{
+                    height: 140,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    bgcolor: 'warning.light'
+                  }}
+                >
+                  <MusicNoteIcon sx={{ fontSize: 60, color: 'white' }} />
+                </CardMedia>
+                <CardContent>
+                  <Typography gutterBottom variant="h6" component="div">
+                    Music Generation
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Generate original music from text descriptions
+                  </Typography>
+                </CardContent>
+              </CardActionArea>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ height: '100%' }}>
               <CardActionArea onClick={() => navigate('/generate/unified')}>
                 <CardMedia
                   component="div"
@@ -235,6 +267,7 @@ const GeneratePage: React.FC = () => {
         >
           <Tab icon={<CreateIcon />} label="Copy" />
           <Tab icon={<MicIcon />} label="Voiceover" />
+          <Tab icon={<MusicNoteIcon />} label="Music" />
           <Tab icon={<ImageIcon />} label="Images" />  
           <Tab icon={<MovieIcon />} label="Video" /> 
           <Tab icon={<PaletteIcon />} label="Background" disabled />
@@ -255,19 +288,24 @@ const GeneratePage: React.FC = () => {
             <CopyGenerationPage />
           </TabPanel>
           <TabPanel value={tabValue} index={1}>
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-              <Typography variant="h6" color="text.secondary">
-                Voiceover generation is coming soon
-              </Typography>
-            </Box>
+            <Suspense fallback={<LoadingScreen message="Loading voiceover generator..." />}>
+              <VoiceoverGenerationPage />
+            </Suspense>
           </TabPanel>
           <TabPanel value={tabValue} index={2}>
-            <ImageGenerationPage />
+            <Suspense fallback={<LoadingScreen message="Loading music generator..." />}>
+              <MusicGenerationPage />
+            </Suspense>
           </TabPanel>
           <TabPanel value={tabValue} index={3}>
-            <VideoGenerationPage />
+            <Suspense fallback={<LoadingScreen message="Loading image generator..." />}>
+              <TextToImagePage />
+            </Suspense>
           </TabPanel>
           <TabPanel value={tabValue} index={4}>
+            <VideoGenerationPage />
+          </TabPanel>
+          <TabPanel value={tabValue} index={5}>
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
               <Typography variant="h6" color="text.secondary">
                 Background modifications are coming soon

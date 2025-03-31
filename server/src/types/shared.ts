@@ -52,9 +52,11 @@ export interface ServiceResult<T = any> {
  * Canonical representation of an authenticated user attached to requests.
  */
 export interface AuthenticatedUser {
-  userId: string; 
-  email: string;
-  role: string;
-  sessionId: string;
-  // Add other essential properties if needed, e.g., clientId
+  id: string;          // User's unique identifier
+  userId: string;      // Alias for id (used in some contexts)
+  name: string;        // User's display name
+  email: string;       // User's email address
+  role: string;        // User's role (admin, editor, reviewer, client, etc.)
+  sessionId: string;   // Session identifier
+  clientId?: string;   // Associated client ID if applicable
 }
