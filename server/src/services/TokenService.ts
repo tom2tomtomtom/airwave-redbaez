@@ -1,9 +1,12 @@
-import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
-import { ApiError } from '../middleware/errorHandler';
+import * as jwt from 'jsonwebtoken';
+import * as crypto from 'crypto';
+import { Request } from 'express';
+import { ApiError } from '../utils/ApiError';
 import { ErrorCode } from '../types/errorTypes';
 import { supabase } from '../db/supabaseClient';
 import { redis } from '../db/redisClient';
+import { logger } from '../utils/logger';
+import { auditLogger, AuditEventType } from '../utils/auditLogger';
 
 // Types
 export interface TokenPayload {
@@ -11,6 +14,9 @@ export interface TokenPayload {
   role: string;
   email: string;
   sessionId: string;
+  ipAddress?: string;     // IP address that the token was issued to
+  fingerprint?: string;   // Browser fingerprint for additional validation
+  issuedAt: number;       // When the token was issued (Unix timestamp)
   [key: string]: any;
 }
 
@@ -70,67 +76,118 @@ class TokenService {
   }
 
   /**
-   * Generate a new access token
+   * Generate a new access token with security enhancements
+   * @param payload Token payload with user information
+   * @param options Optional token configuration
+   * @returns JWT access token
    */
   public generateAccessToken(payload: TokenPayload, options: TokenOptions = {}): string {
-    const tokenOptions = {
-      expiresIn: options.expiresIn || this.defaultAccessExpiry,
+    // Ensure payload has issuedAt for token freshness validation
+    const enhancedPayload = {
+      ...payload,
+      issuedAt: payload.issuedAt || Math.floor(Date.now() / 1000)
+    };
+    
+    // Force type to be compatible with jwt.SignOptions
+    const expiryValue = options.expiresIn || this.defaultAccessExpiry;
+    
+    const tokenOptions: jwt.SignOptions = {
+      expiresIn: expiryValue as jwt.SignOptions['expiresIn'],
       audience: options.audience || this.tokenAudience,
       issuer: options.issuer || this.tokenIssuer,
-      jwtid: crypto.randomBytes(16).toString('hex')
+      jwtid: crypto.randomBytes(16).toString('hex'), // Unique token ID for revocation
+      notBefore: 0 // Token is valid immediately
     };
 
-    return jwt.sign(payload, this.accessTokenSecret, tokenOptions);
+    const token = jwt.sign(enhancedPayload, this.accessTokenSecret, tokenOptions);
+    
+    // Log token generation for security auditing
+    logger.debug(`Access token generated for user ${payload.userId} with session ${payload.sessionId}`);
+    
+    return token;
   }
 
   /**
    * Generate a new refresh token
    */
-  public generateRefreshToken(payload: { userId: string; sessionId: string }, options: TokenOptions = {}): string {
-    const tokenOptions = {
-      expiresIn: options.expiresIn || this.defaultRefreshExpiry,
+  public generateRefreshToken(payload: { userId: string; sessionId: string; issuedAt?: number }, options: TokenOptions = {}): string {
+    // Force type to be compatible with jwt.SignOptions
+    const expiryValue = options.expiresIn || this.defaultRefreshExpiry;
+    
+    const tokenOptions: jwt.SignOptions = {
+      expiresIn: expiryValue as jwt.SignOptions['expiresIn'],
       audience: options.audience || this.tokenAudience,
       issuer: options.issuer || this.tokenIssuer,
       jwtid: crypto.randomBytes(16).toString('hex')
     };
 
-    return jwt.sign(payload, this.refreshTokenSecret, tokenOptions);
+    const enhancedPayload = {
+      ...payload,
+      issuedAt: payload.issuedAt || Math.floor(Date.now() / 1000)
+    };
+
+    return jwt.sign(enhancedPayload, this.refreshTokenSecret, tokenOptions);
   }
 
   /**
-   * Generate both access and refresh tokens
+   * Generate both access and refresh tokens with contextual security
+   * @param userData User data for token generation
+   * @param req Express request for IP validation
+   * @returns TokenResponse with access and refresh tokens
    */
   public generateTokenPair(userData: { 
     userId: string; 
     role: string; 
     email: string;
     [key: string]: any;
-  }): TokenResponse {
+  }, req?: Request): TokenResponse {
     // Create a unique session ID
     const sessionId = crypto.randomBytes(32).toString('hex');
 
-    // Create token payload
+    // Create token payload with enhanced security properties
     const tokenPayload: TokenPayload = {
       userId: userData.userId,
       role: userData.role,
       email: userData.email,
       sessionId,
+      issuedAt: Math.floor(Date.now() / 1000),
       ...Object.fromEntries(
         Object.entries(userData).filter(([key]) => 
           !['userId', 'role', 'email'].includes(key)
         )
       )
     };
+    
+    // Add IP address binding if request is available
+    if (req) {
+      tokenPayload.ipAddress = req.ip;
+      tokenPayload.fingerprint = req.headers['user-agent'] || 'unknown';
+    }
 
     // Generate tokens
     const accessToken = this.generateAccessToken(tokenPayload);
     const refreshToken = this.generateRefreshToken({ 
       userId: userData.userId, 
-      sessionId 
+      sessionId,
+      issuedAt: tokenPayload.issuedAt
     });
 
     // Store refresh token in Redis with expiry
     this.storeRefreshToken(refreshToken, userData.userId, sessionId);
+    
+    // Log to security audit
+    auditLogger.logAuditEvent({
+      eventType: AuditEventType.TOKEN_REFRESH,
+      timestamp: new Date().toISOString(),
+      userId: userData.userId,
+      ipAddress: tokenPayload.ipAddress,
+      userAgent: tokenPayload.fingerprint,
+      sessionId,
+      status: 'success',
+      details: {
+        tokenType: 'new_token_pair'
+      }
+    });
 
     return {
       accessToken,
@@ -150,12 +207,12 @@ class TokenService {
     try {
       // First, check for existing tokens for this user (limit to 5 sessions)
       const userTokensKey = `user:${userId}:refresh_tokens`;
-      const activeTokens = await redis.smembers(userTokensKey);
+      const activeTokens = await redis.sMembers(userTokensKey);
       
       if (activeTokens.length >= 5) {
         // Remove oldest token if limit reached
         const oldestToken = activeTokens[0];
-        await redis.srem(userTokensKey, oldestToken);
+        await redis.sRem(userTokensKey, oldestToken);
         await redis.del(`refresh_token:${oldestToken}`);
       }
       
@@ -164,10 +221,10 @@ class TokenService {
         userId,
         sessionId,
         createdAt: Date.now()
-      }), 'EX', expirySeconds);
+      }), { EX: expirySeconds });
       
       // Add to user's tokens set
-      await redis.sadd(userTokensKey, tokenHash);
+      await redis.sAdd(userTokensKey, tokenHash);
       await redis.expire(userTokensKey, expirySeconds);
     } catch (error) {
       console.error('Failed to store refresh token:', error);
@@ -184,17 +241,15 @@ class TokenService {
       return decoded;
     } catch (error) {
       if (error instanceof jwt.TokenExpiredError) {
-        throw new ApiError({
-          statusCode: 401,
-          message: 'Access token has expired',
-          code: ErrorCode.INVALID_TOKEN
-        });
+        throw new ApiError(
+          ErrorCode.INVALID_TOKEN,
+          'Access token has expired'
+        );
       }
-      throw new ApiError({
-        statusCode: 401,
-        message: 'Invalid access token',
-        code: ErrorCode.INVALID_TOKEN
-      });
+      throw new ApiError(
+        ErrorCode.INVALID_TOKEN,
+        'Invalid access token'
+      );
     }
   }
 
@@ -217,11 +272,10 @@ class TokenService {
       const storedToken = await redis.get(`refresh_token:${tokenHash}`);
       
       if (!storedToken) {
-        throw new ApiError({
-          statusCode: 401,
-          message: 'Refresh token has been revoked',
-          code: ErrorCode.INVALID_TOKEN
-        });
+        throw new ApiError(
+          ErrorCode.INVALID_TOKEN,
+          'Refresh token has been revoked'
+        );
       }
       
       return decoded;
@@ -229,18 +283,16 @@ class TokenService {
       if (error instanceof ApiError) throw error;
       
       if (error instanceof jwt.TokenExpiredError) {
-        throw new ApiError({
-          statusCode: 401,
-          message: 'Refresh token has expired',
-          code: ErrorCode.INVALID_TOKEN
-        });
+        throw new ApiError(
+          ErrorCode.INVALID_TOKEN,
+          'Refresh token has expired'
+        );
       }
       
-      throw new ApiError({
-        statusCode: 401,
-        message: 'Invalid refresh token',
-        code: ErrorCode.INVALID_TOKEN
-      });
+      throw new ApiError(
+        ErrorCode.INVALID_TOKEN,
+        'Invalid refresh token'
+      );
     }
   }
 
@@ -260,11 +312,10 @@ class TokenService {
         .single();
       
       if (error || !userData) {
-        throw new ApiError({
-          statusCode: 401,
-          message: 'User not found',
-          code: ErrorCode.INVALID_TOKEN
-        });
+        throw new ApiError(
+          ErrorCode.INVALID_TOKEN,
+          'User not found'
+        );
       }
       
       // Generate a new access token
@@ -272,7 +323,8 @@ class TokenService {
         userId: userData.id,
         role: userData.role,
         email: userData.email,
-        sessionId
+        sessionId,
+        issuedAt: Math.floor(Date.now() / 1000)
       };
       
       const accessToken = this.generateAccessToken(tokenPayload);
@@ -286,11 +338,10 @@ class TokenService {
     } catch (error) {
       if (error instanceof ApiError) throw error;
       
-      throw new ApiError({
-        statusCode: 401,
-        message: 'Failed to refresh token',
-        code: ErrorCode.INVALID_TOKEN
-      });
+      throw new ApiError(
+        ErrorCode.INVALID_TOKEN,
+        'Failed to refresh token'
+      );
     }
   }
 
@@ -310,7 +361,7 @@ class TokenService {
       await redis.del(`refresh_token:${tokenHash}`);
       
       // Remove from user's tokens set
-      await redis.srem(`user:${decoded.userId}:refresh_tokens`, tokenHash);
+      await redis.sRem(`user:${decoded.userId}:refresh_tokens`, tokenHash);
     } catch (error) {
       // If token is invalid, we don't need to revoke it
       console.error('Error revoking token:', error);
@@ -324,7 +375,7 @@ class TokenService {
     try {
       // Get all tokens for user
       const userTokensKey = `user:${userId}:refresh_tokens`;
-      const tokens = await redis.smembers(userTokensKey);
+      const tokens = await redis.sMembers(userTokensKey);
       
       // Delete each token
       for (const tokenHash of tokens) {
@@ -339,7 +390,17 @@ class TokenService {
   }
 
   /**
+   * Generate a unique session ID
+   * @returns A cryptographically secure random session ID
+   */
+  public generateSessionId(): string {
+    return crypto.randomBytes(32).toString('hex');
+  }
+
+  /**
    * Generate a CSRF token for a session
+   * @param sessionId The session ID to generate a token for
+   * @returns A CSRF token tied to the session ID
    */
   public generateCsrfToken(sessionId: string): string {
     return crypto
@@ -350,8 +411,11 @@ class TokenService {
 
   /**
    * Verify a CSRF token against a session ID
+   * @param token The CSRF token to verify
+   * @param sessionId The session ID to verify against
+   * @returns True if the token is valid for the session ID
    */
-  public verifyCsrfToken(token: string, sessionId: string): boolean {
+  public validateCsrfToken(token: string, sessionId: string): boolean {
     const expectedToken = this.generateCsrfToken(sessionId);
     return crypto.timingSafeEqual(
       Buffer.from(token),

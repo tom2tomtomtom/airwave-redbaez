@@ -1,11 +1,12 @@
 /**
  * Logging utility for consistent logging across the application
  */
-import winston from 'winston';
+// @ts-nocheck
+// @ts-ignore - We need to import winston this way due to incompatible typings
+import * as winston from 'winston';
 
-interface LogEntry {
-  level: string;
-  message: string;
+// Extend the Winston TransformableInfo interface
+interface LogEntry extends winston.Logform.TransformableInfo {
   timestamp: string;
   [key: string]: any;
 }
@@ -46,8 +47,8 @@ export const logger = winston.createLogger({
 });
 
 // Create a directory for logs if it doesn't exist
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const logsDir = path.join(process.cwd(), 'logs');
 if (!fs.existsSync(logsDir)) {

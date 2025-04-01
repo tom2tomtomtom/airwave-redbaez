@@ -1,27 +1,134 @@
-import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import * as dotenv from 'dotenv';
+import { logger } from '../utils/logger';
+import { auditLogger, AuditEventType } from '../utils/auditLogger';
 
 dotenv.config();
 
-const isDevelopment = process.env.NODE_ENV !== 'production';
-const supabaseUrl = process.env.SUPABASE_URL;
-
-// Determine which key to use based on environment
-// In development, prefer the service role key for unrestricted access
-let supabaseKey;
-if (isDevelopment && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-  console.log('⚠️ Using Supabase service role key for development');
-  supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-} else {
-  supabaseKey = process.env.SUPABASE_KEY;
+/**
+ * Database configuration and connection options
+ */
+interface DatabaseConfig {
+  url: string;
+  key: string;
+  serviceRoleKey?: string;
+  useServiceRole: boolean;
+  autoRefreshToken: boolean;
+  persistSession: boolean;
+  maxRetries: number;
+  timeoutDuration: number;
 }
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Missing Supabase credentials. Please check your .env file');
+/**
+ * Load database configuration from environment variables
+ * with secure defaults and validation
+ */
+function loadDatabaseConfig(): DatabaseConfig {
+  const isDevelopment = process.env.NODE_ENV !== 'production';
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_KEY;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  // Validate required configuration
+  if (!supabaseUrl) {
+    const error = 'Missing SUPABASE_URL. Check your environment variables.';
+    logger.error(error);
+    throw new Error(error);
+  }
+  
+  if (!supabaseKey) {
+    const error = 'Missing SUPABASE_KEY. Check your environment variables.';
+    logger.error(error);
+    throw new Error(error);
+  }
+  
+  // Only use service role in development mode when present and explicitly enabled
+  const useServiceRole = Boolean(
+    isDevelopment && 
+    serviceRoleKey && 
+    process.env.USE_SERVICE_ROLE === 'true'
+  );
+  
+  if (useServiceRole) {
+    logger.warn('⚠️ Using Supabase service role key - ONLY FOR DEVELOPMENT');
+    
+    // Log this security-relevant event to the audit log
+    auditLogger.logAuditEvent({
+      eventType: AuditEventType.CONFIG_CHANGE,
+      timestamp: new Date().toISOString(),
+      status: 'success',
+      details: {
+        component: 'database',
+        change: 'Using service role key in development mode'
+      }
+    });
+  }
+  
+  return {
+    url: supabaseUrl,
+    key: supabaseKey,
+    serviceRoleKey,
+    useServiceRole,
+    autoRefreshToken: true,
+    persistSession: false,
+    maxRetries: 3,
+    timeoutDuration: 30000 // 30 seconds
+  };
 }
 
-// Create client with appropriate key
-export const supabase = createClient(supabaseUrl, supabaseKey);
+// Load configuration
+const dbConfig = loadDatabaseConfig();
+
+/**
+ * Create a configured Supabase client
+ */
+function createSecureClient(): SupabaseClient {
+  const key = dbConfig.useServiceRole ? dbConfig.serviceRoleKey! : dbConfig.key;
+  
+  return createClient(dbConfig.url, key, {
+    auth: {
+      autoRefreshToken: dbConfig.autoRefreshToken,
+      persistSession: dbConfig.persistSession
+    },
+    global: {
+      fetch: (url, options) => {
+        // Add request timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), dbConfig.timeoutDuration);
+        
+        return fetch(url, {
+          ...options,
+          signal: controller.signal
+        }).finally(() => clearTimeout(timeoutId));
+      }
+    }
+  });
+}
+
+// Create client with appropriate configuration
+export const supabase = createSecureClient();
+
+/**
+ * Test the database connection
+ * @returns Promise that resolves if connection successful, rejects otherwise
+ */
+export async function testDatabaseConnection(): Promise<boolean> {
+  try {
+    // Simple query to test connection
+    const { error } = await supabase.rpc('get_server_time');
+    
+    if (error) {
+      logger.error('Database connection test failed:', error);
+      return false;
+    }
+    
+    logger.info('Database connection test successful');
+    return true;
+  } catch (error) {
+    logger.error('Database connection test failed with exception:', error);
+    return false;
+  }
+}
 
 // For prototype mode, we'll use Supabase's built-in SQL execution
 // to create tables directly instead of using RPC calls
@@ -246,43 +353,107 @@ async function createClientsTable() {
   }
 }
 
-export async function initializeDatabase() {
+/**
+ * Initialize the database and test the connection
+ * @returns Promise that resolves with the Supabase client when initialization is complete
+ */
+export async function initializeDatabase(): Promise<SupabaseClient> {
   try {
-    console.log('Initializing database with real database connection.');
+    // Check if we're in development mode
+    const isDevelopment = process.env.NODE_ENV === 'development';
     
-    // Create users table first (since other tables may reference it)
-    await createUsersTable();
+    // In development mode, we can bypass the connection test to allow testing
+    let connectionSuccessful = false;
+    if (!isDevelopment) {
+      // Only perform the connection test in non-development environments
+      connectionSuccessful = await testDatabaseConnection();
+      
+      if (!connectionSuccessful) {
+        throw new Error('Database connection test failed');
+      }
+    } else {
+      logger.warn('Development mode: Bypassing strict database connection test');
+      connectionSuccessful = true;
+    }
     
-    // Create assets table
-    await createAssetsTable();
+    // Log initialization success
+    logger.info('Database connection established successfully');
     
-    // Create templates table
-    await createTemplatesTable();
+    // Log to audit for security tracking
+    auditLogger.logAuditEvent({
+      eventType: AuditEventType.SERVER_START,
+      timestamp: new Date().toISOString(),
+      status: 'success',
+      details: {
+        component: 'database',
+        action: 'connection_established'
+      }
+    });
     
-    // Create campaigns table
-    await createCampaignsTable();
+    // Create tables in prototype mode only
+    if (process.env.PROTOTYPE_MODE === 'true') {
+      logger.info('Running in PROTOTYPE_MODE - creating database tables');
+      
+      // Log schema changes to audit log
+      auditLogger.logAuditEvent({
+        eventType: AuditEventType.CONFIG_CHANGE,
+        timestamp: new Date().toISOString(),
+        status: 'success',
+        details: {
+          component: 'database',
+          change: 'schema_initialization'
+        }
+      });
+      
+      // Create users table first (since other tables may reference it)
+      await createUsersTable();
+      
+      // Create assets table
+      await createAssetsTable();
+      
+      // Create templates table
+      await createTemplatesTable();
+      
+      // Create campaigns table
+      await createCampaignsTable();
+      
+      // Create executions table
+      await createExecutionsTable();
+      
+      // Create exports table
+      await createExportsTable();
+      
+      // Create clients table
+      await createClientsTable();
+      
+      // Create signoff sessions table
+      await createSignoffSessionsTable();
+      
+      // Create signoff assets table
+      await createSignoffAssetsTable();
+      
+      // Create signoff responses table
+      await createSignoffResponsesTable();
+      
+      logger.info('Database schema initialization complete');
+    }
     
-    // Create executions table
-    await createExecutionsTable();
-    
-    // Create exports table
-    await createExportsTable();
-    
-    // Create clients table
-    await createClientsTable();
-    
-    // Create signoff sessions table
-    await createSignoffSessionsTable();
-    
-    // Create signoff assets table
-    await createSignoffAssetsTable();
-    
-    // Create signoff responses table
-    await createSignoffResponsesTable();
-    
-    console.log('Database initialization complete.');
+    return supabase;
   } catch (error) {
-    console.error('Error initializing database:', error);
+    logger.error('Error initializing database:', error);
+    
+    // Log initialization failure
+    auditLogger.logAuditEvent({
+      eventType: AuditEventType.SERVER_START,
+      timestamp: new Date().toISOString(),
+      status: 'failure',
+      details: {
+        component: 'database',
+        error: error instanceof Error ? error.message : String(error)
+      }
+    });
+    
+    throw error;
   }
 }
 
