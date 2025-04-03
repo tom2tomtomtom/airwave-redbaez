@@ -1,8 +1,8 @@
 // server/src/services/ReviewService.ts
 import { SupabaseClient } from '@supabase/supabase-js';
-import { getSupabaseClient } from '@/utils/supabaseClient'; // Corrected import path
-import { logger } from '@/utils/logger'; // Corrected import path
-import { ServiceResult } from '@/types/ServiceResult';
+import { getSupabaseClient } from '../utils/supabaseClient'; // Corrected import path
+import { logger } from '../utils/logger'; // Corrected import path
+import { ServiceResult } from '../types/ServiceResult';
 import { 
   InitiateReviewPayload, 
   ReviewApprovalPayload, 
@@ -12,7 +12,7 @@ import {
   ReviewPortalData, 
   ReviewStatus, 
   ReviewComment, 
-} from '@/types/review.types';
+} from '../types/review.types';
 import crypto from 'crypto';
 
 // Define expected database record structures (replace with actual schema if possible)

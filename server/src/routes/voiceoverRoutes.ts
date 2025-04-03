@@ -1,6 +1,6 @@
 import express from 'express';
 import { voiceoverService } from '../services/voiceoverService';
-import { authMiddleware } from '../middleware/authMiddleware';
+import { authenticateToken as authMiddleware } from '../middleware/auth';
 import { createLogger } from '../utils/logger';
 
 const logger = createLogger('VoiceoverRoutes');

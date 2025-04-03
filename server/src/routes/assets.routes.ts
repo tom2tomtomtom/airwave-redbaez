@@ -16,8 +16,8 @@ import { validateRequest, validationSchemas } from '../middleware/validation';
 // Use the refactored asset service
 import { assetService, AssetFilters, ServiceResult, Asset } from '../services/assetService.new';
 import { logger } from '../utils/logger';
-import { ApiError } from '@/utils/ApiError';
-import { ErrorCode } from '@/types/errorTypes';
+import { ApiError } from '../utils/ApiError';
+import { ErrorCode } from '../types/errorTypes';
 
 // Configure multer storage for file uploads
 const storage = multer.diskStorage({

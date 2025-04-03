@@ -1,11 +1,11 @@
 // server/src/routes/revisionRoutes.ts
 import express, { Router, Request, Response, NextFunction } from 'express';
-import { internalAuth } from '@/middleware/internalAuth';
-import { reviewAuth } from '@/middleware/reviewAuth';
-import { revisionService, RevisionComparison, Revision } from '@/services/revisionService';
-import { ApiResponse } from '@/utils/ApiResponse';
-import { AuthenticatedRequest } from '@/types/AuthenticatedRequest';
-import { asRouteHandler } from '@/types/routeHandler';
+import { internalAuth } from '../middleware/internalAuth';
+import { reviewAuth } from '../middleware/reviewAuth';
+import { revisionService, RevisionComparison, Revision } from '../services/revisionService';
+import { ApiResponse } from '../utils/ApiResponse';
+import { AuthenticatedRequest } from '../types/AuthenticatedRequest';
+import { asRouteHandler } from '../types/routeHandler';
 
 const router = Router();
 

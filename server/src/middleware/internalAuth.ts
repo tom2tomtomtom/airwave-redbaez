@@ -1,7 +1,7 @@
 // server/src/middleware/internalAuth.ts
 import { Request, Response, NextFunction } from 'express';
-import { AuthenticatedRequest } from '@/types/AuthenticatedRequest';
-import { logger } from '@/utils/logger';
+import { AuthenticatedRequest } from '../types/AuthenticatedRequest';
+import { logger } from '../utils/logger';
 import jwt from 'jsonwebtoken';
 
 /**

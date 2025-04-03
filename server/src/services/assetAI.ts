@@ -1,8 +1,8 @@
 import axios from 'axios';
 import sharp from 'sharp';
-import { ApiError } from '@/utils/ApiError';
-import { ErrorCode } from '@/types/errorTypes';
-import { Logger } from '@/utils/logger';
+import { ApiError } from '../utils/ApiError';
+import { ErrorCode } from '../types/errorTypes';
+import { createLogger } from '../utils/logger';
 
 /**
  * Service to provide AI-powered asset analysis, tagging and categorisation
@@ -11,7 +11,7 @@ export class AssetAIService {
   private static instance: AssetAIService;
   private readonly visionApiKey: string;
   private readonly textAnalysisApiKey: string;
-  private readonly logger = new Logger('AssetAIService');
+  private readonly logger = createLogger('AssetAIService');
 
   private constructor() {
     this.visionApiKey = process.env.VISION_API_KEY || '';
@@ -313,53 +313,30 @@ export class AssetAIService {
   }
   
   /**
-   * Fallback method when API is not available
+   * Fallback image analysis when API is unavailable
    */
-  private async fallbackImageAnalysis(imagePath: string): Promise<{
+  private fallbackImageAnalysis(imagePath: string): Promise<{
     tags: string[];
     categories: string[];
     contentDescription: string;
     dominantColours: string[];
     safetyLabels: Record<string, number>;
   }> {
-    try {
-      // Use sharp to extract basic image information
-      const metadata = await sharp(imagePath).metadata();
-      
-      const tags = [
-        metadata.format || 'image',
-        metadata.width && metadata.height ? 
-          (metadata.width > metadata.height ? 'landscape' : 'portrait') : 'image'
-      ];
-      
-      // Extract dominant colour
-      const { dominant } = await sharp(imagePath)
-        .resize(100, 100, { fit: 'inside' })
-        .stats();
-      
-      const dominantColour = this.rgbToHex(dominant.r, dominant.g, dominant.b);
-      
-      return {
-        tags,
-        categories: ['images'],
-        contentDescription: 'Image content (AI analysis unavailable)',
-        dominantColours: [dominantColour],
-        safetyLabels: {}
-      };
-    } catch (error) {
-      this.logger.error('Error in fallback image analysis', error);
-      return {
-        tags: ['image'],
-        categories: ['images'],
-        contentDescription: 'Image content',
-        dominantColours: [],
-        safetyLabels: {}
-      };
-    }
+    // Extract basic information from filename
+    const filename = imagePath.split('/').pop() || '';
+    const filenameParts = filename.split('.')[0].split('_').map(part => part.toLowerCase());
+    
+    return Promise.resolve({
+      tags: ['image', ...filenameParts],
+      categories: ['uncategorized'],
+      contentDescription: `Image file: ${filename}`,
+      dominantColours: ['#cccccc'],
+      safetyLabels: {}
+    });
   }
   
   /**
-   * Fallback text analysis
+   * Fallback text analysis when API is unavailable
    */
   private fallbackTextAnalysis(text: string): Promise<{
     tags: string[];
@@ -367,7 +344,7 @@ export class AssetAIService {
     summary: string;
     keyPhrases: string[];
   }> {
-    // Simple keyword extraction based on frequency
+    // Extract basic keywords from text
     const words = text.toLowerCase()
       .replace(/[^\w\s]/g, '')
       .split(/\s+/)
@@ -379,24 +356,20 @@ export class AssetAIService {
       wordCount[word] = (wordCount[word] || 0) + 1;
     });
     
-    // Get top frequent words as tags
-    const tags = Object.entries(wordCount)
+    // Get top keywords
+    const keywords = Object.entries(wordCount)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
+      .slice(0, 5)
       .map(([word]) => word);
     
-    // Create a simple summary (first 100 characters)
-    const summary = text.length > 150 
-      ? text.substring(0, 150) + '...'
-      : text;
-    
     return Promise.resolve({
-      tags,
-      categories: ['document'],
-      summary,
-      keyPhrases: tags.slice(0, 5),
+      tags: keywords,
+      categories: ['uncategorized'],
+      summary: text.length > 100 ? text.substring(0, 100) + '...' : text,
+      keyPhrases: keywords
     });
   }
 }
 
-export const assetAI = AssetAIService.getInstance();
+// Export singleton instance
+export const assetAIService = AssetAIService.getInstance();

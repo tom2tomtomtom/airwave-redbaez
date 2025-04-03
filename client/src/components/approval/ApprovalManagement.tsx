@@ -191,6 +191,7 @@ const ApprovalManagement: React.FC<ApprovalManagementProps> = ({
                         <IconButton
                           onClick={() => onDeleteRequest(request.id)}
                           disabled={isLoading}
+                          aria-label="Cancel"
                         >
                           <DeleteIcon />
                         </IconButton>
@@ -202,6 +203,7 @@ const ApprovalManagement: React.FC<ApprovalManagementProps> = ({
                       <IconButton
                         onClick={() => onCopyRequest(request.id)}
                         disabled={isLoading}
+                        aria-label="Copy request"
                       >
                         <CopyIcon />
                       </IconButton>

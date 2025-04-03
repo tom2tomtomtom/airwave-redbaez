@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { supabase } from '../db/supabaseClient';
-import { ApiError } from '@/utils/ApiError';
-import { ErrorCode } from '@/types/errorTypes';
+import { ApiError } from '../utils/ApiError';
+import { ErrorCode } from '../types/errorTypes';
 
 // Types for LLM requests and responses
 export interface BriefData {

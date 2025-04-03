@@ -74,6 +74,42 @@ jest.mock('@mui/material/Modal', () => {
   };
 });
 
+// Mock URL constructor for axios
+global.URL = class URL {
+  constructor(url: string, base?: string) {
+    this.href = url;
+    this.origin = 'http://localhost';
+    this.protocol = 'http:';
+    this.username = '';
+    this.password = '';
+    this.host = 'localhost';
+    this.hostname = 'localhost';
+    this.port = '';
+    this.pathname = '/';
+    this.search = '';
+    this.searchParams = new URLSearchParams();
+    this.hash = '';
+  }
+  href: string;
+  origin: string;
+  protocol: string;
+  username: string;
+  password: string;
+  host: string;
+  hostname: string;
+  port: string;
+  pathname: string;
+  search: string;
+  searchParams: URLSearchParams;
+  hash: string;
+  toString(): string {
+    return this.href;
+  }
+  toJSON(): string {
+    return this.href;
+  }
+};
+
 // Mock window.URL utilities
 Object.defineProperty(window, 'URL', {
   value: {
@@ -188,4 +224,3 @@ global.console = {
   info: jest.fn(),
   debug: jest.fn(),
 };
-

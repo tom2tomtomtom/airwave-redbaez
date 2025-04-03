@@ -2,8 +2,8 @@ import express from 'express';
 import { creatomateService, RenderJob } from '../services/creatomateService';
 import { checkAuth } from '../middleware/auth.middleware';
 import { supabase } from '../db/supabaseClient';
-import { ApiError } from '@/utils/ApiError'; 
-import { ErrorCode } from '@/types/errorTypes'; 
+import { ApiError } from '../utils/ApiError'; 
+import { ErrorCode } from '../types/errorTypes'; 
 
 const router = express.Router();
 

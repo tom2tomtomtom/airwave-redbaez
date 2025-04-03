@@ -1,13 +1,13 @@
 // server/src/routes/timeBasedCommentRoutes.ts
 import express, { Router, Response, NextFunction } from 'express';
-import { internalAuth } from '@/middleware/internalAuth';
-import { reviewAuth } from '@/middleware/reviewAuth';
-import { ApiResponse } from '@/utils/ApiResponse';
-import { AuthenticatedRequest } from '@/types/AuthenticatedRequest';
-import { asRouteHandler } from '@/types/routeHandler';
+import { internalAuth } from '../middleware/internalAuth';
+import { reviewAuth } from '../middleware/reviewAuth';
+import { ApiResponse } from '../utils/ApiResponse';
+import { AuthenticatedRequest } from '../types/AuthenticatedRequest';
+import { asRouteHandler } from '../types/routeHandler';
 import { supabase } from '../db/supabaseClient';
 import { v4 as uuidv4 } from 'uuid';
-import { notificationService } from '@/services/notificationService';
+import { notificationService } from '../services/notificationService';
 
 const router = Router();
 

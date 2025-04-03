@@ -1,9 +1,9 @@
 // server/src/middleware/reviewAuth.ts
 import { Response, NextFunction } from 'express';
-import { getSupabaseClient } from '@/utils/supabaseClient';
-import { ReviewRequestContext, ReviewAuthenticatedRequest } from '@/types/review.types';
-import { AuthenticatedUser } from '@/types/shared';
-import { logger } from '@/utils/logger';
+import { getSupabaseClient } from '../utils/supabaseClient';
+import { ReviewRequestContext, ReviewAuthenticatedRequest } from '../types/review.types';
+import { AuthenticatedUser } from '../types/shared';
+import { logger } from '../utils/logger';
 
 /**
  * Middleware to authenticate requests using a review token.

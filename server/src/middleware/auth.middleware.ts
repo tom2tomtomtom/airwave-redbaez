@@ -1,12 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import { tokenService } from '../services/TokenService';
 import { supabase } from '../db/supabaseClient';
-import { ApiError } from '@/utils/ApiError';
-import { ErrorCode } from '@/types/errorTypes';
+import { ApiError } from '../utils/ApiError';
+import { ErrorCode } from '../types/errorTypes';
 import { redis } from '../db/redisClient';
 import jwt from 'jsonwebtoken';
 
-import { AuthenticatedUser } from '@/types/shared';
+import { AuthenticatedUser } from '../types/shared';
 
 // Extend Express Request type to include user property with typed information
 declare global {

@@ -4,7 +4,7 @@ import bcrypt from 'bcrypt';
 import { AuthenticatedRequest } from '../types/AuthenticatedRequest';
 import { Response, NextFunction } from 'express';
 import { supabase } from '../db/supabaseClient';
-import { ApiError } from '@/utils/ApiError'; // Corrected import path
+import { ApiError } from '../utils/ApiError'; // Fixed import path
 import { ErrorCode } from '../types/errorTypes'; // Import ErrorCode
 
 const router = express.Router();
@@ -258,14 +258,14 @@ router.post('/register', checkAuth, async (req: AuthenticatedRequest, res: Respo
     
     if (signUpError) {
       console.error('Error creating user with Supabase Auth:', signUpError);
-      return next(new ApiError(ErrorCode.EXTERNAL_SERVICE_ERROR, 'Registration failed via Supabase Auth', undefined, { originalError: signUpError.message, service: 'Supabase Auth' }));
+      return next(new ApiError(ErrorCode.AUTHENTICATION_ERROR, 'Error creating user', undefined, { originalError: signUpError.message }));
     }
-
+    
     if (!authData.user) {
-      return next(new ApiError(ErrorCode.INTERNAL_ERROR, 'User creation failed - no user returned from Supabase Auth', undefined, undefined));
+      return next(new ApiError(ErrorCode.AUTHENTICATION_ERROR, 'User created but no user data returned'));
     }
-
-    // Create user record in our users table
+    
+    // Also create a record in our users table
     const { error: insertError } = await supabase
       .from('users')
       .insert({
@@ -276,313 +276,61 @@ router.post('/register', checkAuth, async (req: AuthenticatedRequest, res: Respo
       });
       
     if (insertError) {
-      console.error('Error creating user record in database:', insertError);
+      console.error('Error inserting user into database:', insertError);
+      // We don't return an error here because the auth user was created successfully
+      // This is a non-critical error that we'll log but not fail the request
     }
-
-    // Return success
+    
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
       data: {
-        user: {
-          id: authData.user.id,
-          email: authData.user.email,
-          name,
-          role
-        }
+        id: authData.user.id,
+        email: authData.user.email,
+        name,
+        role
       }
     });
   } catch (error: any) {
-    console.error('Error registering user:', error);
+    console.error('Registration error:', error);
     next(error); // Pass to error handler
   }
 });
 
-// Helper middleware for admin check
-const checkAdmin = (req: any, res: any, next: any) => {
-  if (req.user?.role !== 'admin') {
-    return next(new ApiError(ErrorCode.INSUFFICIENT_PERMISSIONS, 'Access denied. Admin privileges required.'));
-  }
-  next();
-};
-
-// GET - Get all users (admin only)
-router.get('/users', checkAuth, checkAdmin, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+// Development-only login endpoint
+router.post('/dev-login', async (req: express.Request, res: Response, next: NextFunction) => {
   try {
-    // Fetch all users from the database (excluding passwords)
-    const { data: userList, error } = await supabase
-      .from('users')
-      .select('id, email, name, role, created_at, last_login')
-      .order('created_at', { ascending: false });
-    
-    if (error) {
-      console.error('Error fetching users:', error);
-      return next(new ApiError(ErrorCode.DATABASE_ERROR, 'Failed to retrieve users from database.', undefined, { originalError: error.message }));
+    // Only allow in development mode
+    if (process.env.NODE_ENV !== 'development' && process.env.PROTOTYPE_MODE !== 'true') {
+      return next(new ApiError(ErrorCode.INSUFFICIENT_PERMISSIONS, 'Development login only available in development mode'));
     }
+    
+    console.log('Development login requested');
+    
+    // Create a mock user and session
+    const mockUser = {
+      id: '00000000-0000-0000-0000-000000000000',
+      email: 'dev@example.com',
+      name: 'Development User',
+      role: 'admin'
+    };
+    
+    const mockSession = {
+      access_token: 'dev-token-' + Date.now(),
+      refresh_token: 'dev-refresh-' + Date.now(),
+      expires_at: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
+    };
     
     res.json({
       success: true,
-      data: userList
-    });
-  } catch (error: any) {
-    console.error('Error fetching users:', error);
-    next(error); // Pass to error handler
-  }
-});
-
-// POST - Create new user (admin only)
-router.post('/users', checkAuth, checkAdmin, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-  try {
-    const { email, password, name, role = 'user' } = req.body;
-
-    // Validate inputs
-    if (!email || !password || !name) {
-      return next(new ApiError(ErrorCode.INVALID_INPUT, 'Email, password, and name are required for user creation.'));
-    }
-
-    // Check if email already exists in the database
-    const { data: existingUser, error: userCheckError } = await supabase
-      .from('users')
-      .select('email')
-      .eq('email', email)
-      .maybeSingle();
-      
-    if (userCheckError) {
-      console.error('Error checking existing user:', userCheckError);
-      return next(new ApiError(ErrorCode.DATABASE_ERROR, 'Database error checking for existing user email.', undefined, { email, originalError: userCheckError.message }));
-    }
-    
-    if (existingUser) {
-      return next(new ApiError(ErrorCode.RESOURCE_ALREADY_EXISTS, 'Email already in use.'));
-    }
-
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Create new user in database
-    const { data: newUser, error: insertError } = await supabase
-      .from('users')
-      .insert([
-        {
-          email,
-          password: hashedPassword,
-          name,
-          role
-        }
-      ])
-      .select('*')
-      .single();
-    
-    if (insertError || !newUser) {
-      console.error('Error creating user:', insertError?.message || 'Unknown error');
-      return next(new ApiError(ErrorCode.DATABASE_ERROR, 'Failed to create user account.', undefined, { email, originalError: insertError?.message }));
-    }
-
-    // Return success
-    res.status(201).json({
-      success: true,
-      message: 'User created successfully',
-      data: {
-        id: newUser.id,
-        email: newUser.email,
-        name: newUser.name,
-        role: newUser.role
-      }
-    });
-  } catch (error: any) {
-    console.error('Error creating user:', error);
-    next(error); // Pass to error handler
-  }
-});
-
-// Debug endpoint to create a test user (DEV ONLY)
-router.post('/debug-create-user', async (req: express.Request, res: Response, next: NextFunction) => {
-  // Only allow in development mode
-  if (process.env.NODE_ENV === 'production') {
-    return next(new ApiError(ErrorCode.INSUFFICIENT_PERMISSIONS, 'Debug endpoint only available in non-production environments.'));
-  }
-
-  try {
-    console.log('Creating debug test user...');
-    
-    // Create a test user with Supabase Auth
-    const timestamp = Date.now();
-    // Using gmail.com which should be well-formed and acceptable
-    const email = `test.user.${timestamp}@gmail.com`; 
-    const password = 'Test123!@#';
-    const name = 'Test User';
-    
-    const { data: authData, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          name,
-          role: 'user'
-        }
-      }
-    });
-    
-    if (signUpError) {
-      console.error('Error creating test user:', signUpError);
-      return next(new ApiError(ErrorCode.EXTERNAL_SERVICE_ERROR, 'Failed to create test user via Supabase Auth.', undefined, { originalError: signUpError.message, service: 'Supabase Auth' }));
-    }
-    
-    // Return the user data including the ID needed for asset creation
-    return res.status(201).json({
-      success: true,
-      message: 'Test user created successfully',
-      data: {
-        id: authData.user?.id,
-        email,
-        name,
-        note: 'Use this ID as userId for the assets/debug-create endpoint'
-      }
-    });
-  } catch (err: any) {
-    console.error('Error in debug-create-user:', err);
-    next(err); // Pass to error handler
-  }
-});
-
-// Development login endpoint - only available when USE_DEV_LOGIN is true
-router.post('/dev-login', async (req: express.Request, res: Response, next: NextFunction) => {
-  // Allow in development and prototype modes
-  // In prototype mode, we want to bypass auth completely
-  if ((AUTH_MODE.CURRENT !== 'development' && AUTH_MODE.CURRENT !== 'prototype') || 
-      (!process.env.USE_DEV_LOGIN && !AUTH_MODE.BYPASS_AUTH)) {
-    return next(new ApiError(ErrorCode.INSUFFICIENT_PERMISSIONS, 'Dev login endpoint not available in current mode/configuration.'));
-  }
-
-  try {
-    console.log('Development login - using Supabase directly...');
-    
-    // Use Supabase to sign in with a development user
-    // First, see if we already have a development user
-    const devEmail = 'dev@example.com';
-    const devPassword = 'devPassword123!';
-    
-    // Try to sign in with the development credentials
-    let { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-      email: devEmail,
-      password: devPassword
-    });
-    
-    // If the user doesn't exist, create it
-    if (signInError && signInError.message.includes('Invalid login credentials')) {
-      console.log('Development user does not exist, creating...');
-      
-      // Create a new development user
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: devEmail,
-        password: devPassword,
-        options: {
-          data: {
-            name: 'Development User',
-            role: 'admin'
-          }
-        }
-      });
-      
-      if (signUpError) {
-        console.error('Error creating development user:', signUpError);
-        return next(new ApiError(ErrorCode.EXTERNAL_SERVICE_ERROR, 'Failed to create development user via Supabase Auth.', undefined, { originalError: signUpError.message, service: 'Supabase Auth' }));
-      }
-      
-      // Now sign in with the newly created user
-      ({ data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: devEmail,
-        password: devPassword
-      }));
-    }
-    
-    // Check for any sign-in errors
-    if (signInError) {
-      console.error('Error signing in development user:', signInError);
-      return next(new ApiError(ErrorCode.EXTERNAL_SERVICE_ERROR, 'Failed to sign in development user via Supabase Auth.', undefined, { originalError: signInError.message, service: 'Supabase Auth' }));
-    }
-    
-    // Ensure we have valid session data
-    if (!signInData || !signInData.session) {
-      console.error('No session data returned from Supabase');
-      return next(new ApiError(ErrorCode.EXTERNAL_SERVICE_ERROR, 'No session data returned from Supabase after sign-in.', undefined, { service: 'Supabase Auth' }));
-    }
-    
-    console.log('Development login successful, returning valid Supabase tokens');
-    
-    // Add user to our database if not already there
-    const user = signInData.user;
-    const { data: existingUser, error: checkError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('id', user.id)
-      .single();
-    
-    if (!existingUser && (!checkError || checkError.code === 'PGRST116')) {
-      // Insert user into our database
-      await supabase.from('users').insert({
-        id: user.id,
-        email: user.email,
-        name: user.user_metadata?.name || 'Development User',
-        role: user.user_metadata?.role || 'admin'
-      });
-    }
-    
-    // Return user data with valid Supabase tokens
-    return res.status(200).json({
-      success: true,
       message: 'Development login successful',
       data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.user_metadata?.name || 'Development User',
-          role: user.user_metadata?.role || 'admin'
-        },
-        session: signInData.session
+        user: mockUser,
+        session: mockSession
       }
     });
-  } catch (err: any) {
-    console.error('Error in dev-login:', err);
-    next(err); // Pass to error handler
-  }
-});
-
-// Status check endpoint for health monitoring
-router.get('/check', async (req: express.Request, res: Response, next: NextFunction) => {
-  try {
-    // Simple database query to verify connection
-    const { data, error } = await supabase
-      .from('assets')
-      .select('count')
-      .limit(1);
-      
-    if (error) {
-      return next(new ApiError(ErrorCode.DATABASE_ERROR, 'Health check failed: Cannot connect to the database.', undefined, { originalError: error.message }));
-    }
-    
-    return res.status(200).json({
-      connected: true,
-      timestamp: new Date().toISOString()
-    });
   } catch (error: any) {
-    console.error('Error checking status:', error);
-    next(error); // Pass to error handler
-  }
-});
-
-// Supabase status check endpoint
-router.get('/supabase-status', async (req: express.Request, res: Response, next: NextFunction) => {
-  try {
-    const { data, error } = await supabase.auth.getSession();
-    
-    return res.status(200).json({
-      connected: !error,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error: any) {
-    console.error('Error checking Supabase status:', error);
+    console.error('Development login error:', error);
     next(error); // Pass to error handler
   }
 });

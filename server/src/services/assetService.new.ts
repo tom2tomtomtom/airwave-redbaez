@@ -20,12 +20,12 @@ import {
 } from '../types/assetTypes';
 
 // Added imports for standardized error handling
-import { ApiError } from '@/utils/ApiError';
-import { ErrorCode } from '@/types/errorTypes';
+import { ApiError } from '../utils/ApiError';
+import { ErrorCode } from '../types/errorTypes';
 
 // Import AI service for asset analysis
 import { assetAI } from './assetAI';
-import { logger } from '@/utils/logger';
+import { logger } from '../utils/logger';
 
 // Use fs/promises directly - no need for promisify
 const { mkdir, readFile, unlink, stat, writeFile } = fsPromises;

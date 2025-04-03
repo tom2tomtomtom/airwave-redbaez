@@ -248,6 +248,8 @@ const ClientApprovalPortal: React.FC<ClientApprovalPortalProps> = ({
                     onChange={(e) => setFeedback(e.target.value)}
                     placeholder="Enter your feedback here..."
                     sx={{ mb: 2 }}
+                    aria-label="feedback"
+                    label="Feedback"
                   />
                   <Box sx={{ display: 'flex', gap: 2 }}>
                     <Button
@@ -256,6 +258,7 @@ const ClientApprovalPortal: React.FC<ClientApprovalPortalProps> = ({
                       startIcon={<ApproveIcon />}
                       onClick={handleApprove}
                       disabled={isLoading}
+                      aria-label="approve"
                     >
                       Approve
                     </Button>
@@ -265,8 +268,17 @@ const ClientApprovalPortal: React.FC<ClientApprovalPortalProps> = ({
                       startIcon={<RejectIcon />}
                       onClick={handleReject}
                       disabled={isLoading || !feedback}
+                      aria-label="request changes"
                     >
                       Request Changes
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      onClick={() => setFeedback(feedback)}
+                      disabled={isLoading}
+                      aria-label="submit feedback"
+                    >
+                      Submit Feedback
                     </Button>
                   </Box>
                 </Box>

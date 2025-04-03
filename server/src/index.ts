@@ -9,8 +9,8 @@ import { webSocketService } from './services/WebSocketService';
 // Import middleware
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { responseHandler, requestLogger } from './middleware/responseHandler';
-import { ApiError } from '@/utils/ApiError';
-import { ErrorCode } from '@/types/errorTypes';
+import { ApiError } from './utils/ApiError';
+import { ErrorCode } from './types/errorTypes';
 
 // Import route registry
 import { RouteRegistry } from './routes/RouteRegistry';

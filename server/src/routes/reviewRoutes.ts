@@ -1,11 +1,11 @@
 // server/src/routes/reviewRoutes.ts
 import express, { Router, Request, Response, NextFunction } from 'express';
-import { reviewController } from '@/controllers/reviewController';
-import { reviewAuth } from '@/middleware/reviewAuth';
-import { internalAuth } from '@/middleware/internalAuth';
+import { reviewController } from '../controllers/reviewController';
+import { reviewAuth } from '../middleware/reviewAuth';
+import { internalAuth } from '../middleware/internalAuth';
 import { AuthenticatedRequest } from '../types/AuthenticatedRequest';
-import { asRouteHandler } from '@/types/routeHandler';
-import { ApiResponse } from '@/utils/ApiResponse'; // Import ApiResponse
+import { asRouteHandler } from '../types/routeHandler';
+import { ApiResponse } from '../utils/ApiResponse'; // Import ApiResponse
 
 const router = Router();
 

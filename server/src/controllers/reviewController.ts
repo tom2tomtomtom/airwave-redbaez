@@ -1,12 +1,12 @@
 // server/src/controllers/reviewController.ts
 import { Response, NextFunction } from 'express';
-import { ReviewService } from '@/services/ReviewService';
-import { logger } from '@/utils/logger';
-import { AuthenticatedRequest } from '@/types/AuthenticatedRequest';
-import { ReviewAuthenticatedRequest, ReviewApprovalPayload } from '@/types/review.types';
-import { ApiError } from '@/utils/ApiError'; 
-import { ApiResponse } from '@/utils/ApiResponse';
-import { ErrorCode } from '@/types/errorTypes';
+import { ReviewService } from '../services/ReviewService';
+import { logger } from '../utils/logger';
+import { AuthenticatedRequest } from '../types/AuthenticatedRequest';
+import { ReviewAuthenticatedRequest, ReviewApprovalPayload } from '../types/review.types';
+import { ApiError } from '../utils/ApiError'; 
+import { ApiResponse } from '../utils/ApiResponse';
+import { ErrorCode } from '../types/errorTypes';
 
 const reviewService = new ReviewService();
 
