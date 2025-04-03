@@ -2,7 +2,7 @@ import express from 'express';
 import textToImageRoutes from './textToImageRoutes';
 import voiceoverRoutes from './voiceoverRoutes';
 import musicGenerationRoutes from './musicGenerationRoutes';
-import { authMiddleware } from '../middleware/authMiddleware';
+import { authenticateToken as authMiddleware } from '../middleware/auth';
 import { createLogger } from '../utils/logger';
 
 const logger = createLogger('GenerationRoutes');

@@ -44,3 +44,228 @@
 2025-04-03T12:15:49.752Z [[33mwarn[39m]: [AssetAIService] AI services not fully configured. Some AI features may be unavailable.
 2025-04-03T12:15:49.818Z [[33mwarn[39m]: [TextToImageService] Missing STABILITY_API_KEY environment variable for text-to-image service
 2025-04-03T12:15:49.888Z [[33mwarn[39m]: [VoiceoverService] Missing ELEVENLABS_API_KEY environment variable for voiceover service
+2025-04-03T13:12:54.125Z [[33mwarn[39m]: [AssetAIService] AI services not fully configured. Some AI features may be unavailable.
+2025-04-03T13:12:54.177Z [[33mwarn[39m]: [TextToImageService] Missing STABILITY_API_KEY environment variable for text-to-image service
+2025-04-03T13:12:54.252Z [[33mwarn[39m]: [VoiceoverService] Missing ELEVENLABS_API_KEY environment variable for voiceover service
+2025-04-03T13:12:54.295Z [[33mwarn[39m]: [MusicGenerationService] Missing MUBERT_API_KEY environment variable for music generation service
+2025-04-03T13:22:27.185Z [[33mwarn[39m]: [AssetAIService] AI services not fully configured. Some AI features may be unavailable.
+2025-04-03T13:22:27.197Z [[33mwarn[39m]: [TextToImageService] Missing STABILITY_API_KEY environment variable for text-to-image service
+2025-04-03T13:22:27.202Z [[33mwarn[39m]: [VoiceoverService] Missing ELEVENLABS_API_KEY environment variable for voiceover service
+2025-04-03T13:22:27.206Z [[33mwarn[39m]: [MusicGenerationService] Missing MUBERT_API_KEY environment variable for music generation service
+2025-04-03T13:22:27.295Z [[33mwarn[39m]: [SubtitleService] Missing ASSEMBLY_AI_API_KEY environment variable for subtitle service
+2025-04-03T13:22:27.884Z [[32minfo[39m]: V2 API routes initialized
+2025-04-03T13:22:27.888Z [[32minfo[39m]: Socket.IO server initialized with enhanced connection settings
+2025-04-03T13:22:27.893Z [[32minfo[39m]: WebSocket session cleanup started. Running every 300 seconds, timeout after 60 minutes of inactivity
+2025-04-03T13:22:27.894Z [[33mwarn[39m]: Development mode: Bypassing strict database connection test
+2025-04-03T13:22:27.894Z [[32minfo[39m]: Database connection established successfully
+2025-04-03T13:22:27.896Z [[32minfo[39m]: AUDIT: SYSTEM_SERVER_START - success - User: unknown - IP: unknown {"auditEvent":{"eventType":"SYSTEM_SERVER_START","timestamp":"2025-04-03T13:22:27.895Z","status":"success","details":{"component":"database","action":"connection_established"}}}
+2025-04-03T13:22:27.896Z [[32minfo[39m]: Running in PROTOTYPE_MODE - creating database tables
+2025-04-03T13:22:27.897Z [[32minfo[39m]: AUDIT: SECURITY_CONFIG_CHANGE - success - User: unknown - IP: unknown {"auditEvent":{"eventType":"SECURITY_CONFIG_CHANGE","timestamp":"2025-04-03T13:22:27.896Z","status":"success","details":{"component":"database","change":"schema_initialization"}}}
+2025-04-03T13:22:27.914Z [[32minfo[39m]: Server running on port 3002
+2025-04-03T13:22:27.915Z [[32minfo[39m]: Environment: development
+2025-04-03T13:22:27.915Z [[32minfo[39m]: Root URL: http://localhost:3002/
+2025-04-03T13:22:27.916Z [[32minfo[39m]: Health check: http://localhost:3002/health
+2025-04-03T13:22:27.916Z [[32minfo[39m]: WebSocket Initialized (listening for connections)
+2025-04-03T13:22:27.917Z [[32minfo[39m]: Available API endpoints:
+2025-04-03T13:22:27.917Z [[32minfo[39m]: - Auth: http://localhost:3002/api/auth
+2025-04-03T13:22:27.917Z [[32minfo[39m]: - Templates: http://localhost:3002/api/templates
+2025-04-03T13:22:27.924Z [[32minfo[39m]: - Campaigns: http://localhost:3002/api/campaigns
+2025-04-03T13:22:27.924Z [[32minfo[39m]: - Creatomate: http://localhost:3002/api/creatomate
+2025-04-03T13:22:27.924Z [[32minfo[39m]: - Runway: http://localhost:3002/api/runway
+2025-04-03T13:22:27.925Z [[32minfo[39m]: - Exports: http://localhost:3002/api/exports
+2025-04-03T13:22:27.925Z [[32minfo[39m]: - LLM: http://localhost:3002/api/llm
+2025-04-03T13:22:27.925Z [[32minfo[39m]: - Sign-off: http://localhost:3002/api/signoff
+2025-04-03T13:22:27.926Z [[32minfo[39m]: - Matrix: http://localhost:3002/api/matrix
+2025-04-03T13:22:27.926Z [[32minfo[39m]: - Briefs: http://localhost:3002/api/briefs
+2025-04-03T13:22:27.926Z [[32minfo[39m]: - MCP: http://localhost:3002/api/mcp
+2025-04-03T13:22:27.927Z [[32minfo[39m]: - Generation: http://localhost:3002/api/generation
+2025-04-03T13:22:27.927Z [[32minfo[39m]: - Subtitles: http://localhost:3002/api/subtitles
+2025-04-03T13:22:27.927Z [[32minfo[39m]: - Revisions: http://localhost:3002/api/revisions
+2025-04-03T13:22:27.928Z [[32minfo[39m]: - Notifications: http://localhost:3002/api/notifications
+2025-04-03T13:22:27.928Z [[32minfo[39m]: - TimeBasedComments: http://localhost:3002/api/reviews/:reviewId/comments/timebased
+2025-04-03T13:22:27.928Z [[32minfo[39m]: - V2 API: http://localhost:3002/api/v2
+2025-04-03T13:22:27.929Z [[32minfo[39m]: Server initialization complete
+2025-04-03T13:22:28.530Z [[31merror[39m]: Error initializing database: TypeError: fetch failed {"details":"TypeError: fetch failed\n    at node:internal/deps/undici/undici:13484:13\n    at processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at createClientsTable (/home/ubuntu/airwave-redbaez/server/src/db/supabaseClient.ts:296:36)\n    at initializeDatabase (/home/ubuntu/airwave-redbaez/server/src/db/supabaseClient.ts:427:7)","hint":"","code":""}
+2025-04-03T13:22:28.531Z [[33mwarn[39m]: AUDIT: SYSTEM_SERVER_START - failure - User: unknown - IP: unknown {"auditEvent":{"eventType":"SYSTEM_SERVER_START","timestamp":"2025-04-03T13:22:28.530Z","status":"failure","details":{"component":"database","error":"[object Object]"}}}
+2025-04-03T13:22:27.584Z [[33mwarn[39m]: [AssetAIService] AI services not fully configured. Some AI features may be unavailable.
+2025-04-03T13:22:27.702Z [[33mwarn[39m]: [AssetAIService] AI services not fully configured. Some AI features may be unavailable.
+2025-04-03T13:22:54.512Z [[33mwarn[39m]: [AssetAIService] AI services not fully configured. Some AI features may be unavailable.
+2025-04-03T13:24:34.064Z [[33mwarn[39m]: [AssetAIService] AI services not fully configured. Some AI features may be unavailable.
+2025-04-03T13:24:34.141Z [[33mwarn[39m]: [TextToImageService] Missing STABILITY_API_KEY environment variable for text-to-image service
+2025-04-03T13:24:34.206Z [[33mwarn[39m]: [VoiceoverService] Missing ELEVENLABS_API_KEY environment variable for voiceover service
+2025-04-03T13:24:34.259Z [[33mwarn[39m]: [MusicGenerationService] Missing MUBERT_API_KEY environment variable for music generation service
+2025-04-03T13:24:34.334Z [[33mwarn[39m]: [SubtitleService] Missing ASSEMBLY_AI_API_KEY environment variable for subtitle service
+2025-04-03T13:24:34.492Z [[32minfo[39m]: V2 API routes initialized
+2025-04-03T13:24:34.497Z [[32minfo[39m]: Socket.IO server initialized with enhanced connection settings
+2025-04-03T13:24:34.498Z [[32minfo[39m]: WebSocket session cleanup started. Running every 300 seconds, timeout after 60 minutes of inactivity
+2025-04-03T13:24:34.499Z [[33mwarn[39m]: Development mode: Bypassing strict database connection test
+2025-04-03T13:24:34.499Z [[32minfo[39m]: Database connection established successfully
+2025-04-03T13:24:34.500Z [[32minfo[39m]: AUDIT: SYSTEM_SERVER_START - success - User: unknown - IP: unknown {"auditEvent":{"eventType":"SYSTEM_SERVER_START","timestamp":"2025-04-03T13:24:34.500Z","status":"success","details":{"component":"database","action":"connection_established"}}}
+2025-04-03T13:24:34.501Z [[32minfo[39m]: Running in PROTOTYPE_MODE - creating database tables
+2025-04-03T13:24:34.502Z [[32minfo[39m]: AUDIT: SECURITY_CONFIG_CHANGE - success - User: unknown - IP: unknown {"auditEvent":{"eventType":"SECURITY_CONFIG_CHANGE","timestamp":"2025-04-03T13:24:34.501Z","status":"success","details":{"component":"database","change":"schema_initialization"}}}
+2025-04-03T13:24:34.508Z [[32minfo[39m]: Server running on port 3002
+2025-04-03T13:24:34.508Z [[32minfo[39m]: Environment: development
+2025-04-03T13:24:34.509Z [[32minfo[39m]: Root URL: http://localhost:3002/
+2025-04-03T13:24:34.509Z [[32minfo[39m]: Health check: http://localhost:3002/health
+2025-04-03T13:24:34.510Z [[32minfo[39m]: WebSocket Initialized (listening for connections)
+2025-04-03T13:24:34.510Z [[32minfo[39m]: Available API endpoints:
+2025-04-03T13:24:34.510Z [[32minfo[39m]: - Auth: http://localhost:3002/api/auth
+2025-04-03T13:24:34.511Z [[32minfo[39m]: - Templates: http://localhost:3002/api/templates
+2025-04-03T13:24:34.511Z [[32minfo[39m]: - Campaigns: http://localhost:3002/api/campaigns
+2025-04-03T13:24:34.511Z [[32minfo[39m]: - Creatomate: http://localhost:3002/api/creatomate
+2025-04-03T13:24:34.512Z [[32minfo[39m]: - Runway: http://localhost:3002/api/runway
+2025-04-03T13:24:34.512Z [[32minfo[39m]: - Exports: http://localhost:3002/api/exports
+2025-04-03T13:24:34.512Z [[32minfo[39m]: - LLM: http://localhost:3002/api/llm
+2025-04-03T13:24:34.513Z [[32minfo[39m]: - Sign-off: http://localhost:3002/api/signoff
+2025-04-03T13:24:34.513Z [[32minfo[39m]: - Matrix: http://localhost:3002/api/matrix
+2025-04-03T13:24:34.513Z [[32minfo[39m]: - Briefs: http://localhost:3002/api/briefs
+2025-04-03T13:24:34.514Z [[32minfo[39m]: - MCP: http://localhost:3002/api/mcp
+2025-04-03T13:24:34.514Z [[32minfo[39m]: - Generation: http://localhost:3002/api/generation
+2025-04-03T13:24:34.514Z [[32minfo[39m]: - Subtitles: http://localhost:3002/api/subtitles
+2025-04-03T13:24:34.515Z [[32minfo[39m]: - Revisions: http://localhost:3002/api/revisions
+2025-04-03T13:24:34.515Z [[32minfo[39m]: - Notifications: http://localhost:3002/api/notifications
+2025-04-03T13:24:34.515Z [[32minfo[39m]: - TimeBasedComments: http://localhost:3002/api/reviews/:reviewId/comments/timebased
+2025-04-03T13:24:34.516Z [[32minfo[39m]: - V2 API: http://localhost:3002/api/v2
+2025-04-03T13:24:34.516Z [[32minfo[39m]: Server initialization complete
+2025-04-03T13:24:34.806Z [[31merror[39m]: Error initializing database: TypeError: fetch failed {"details":"TypeError: fetch failed\n    at node:internal/deps/undici/undici:13484:13\n    at processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at createClientsTable (/home/ubuntu/airwave-redbaez/server/src/db/supabaseClient.ts:296:36)\n    at initializeDatabase (/home/ubuntu/airwave-redbaez/server/src/db/supabaseClient.ts:427:7)","hint":"","code":""}
+2025-04-03T13:24:34.807Z [[33mwarn[39m]: AUDIT: SYSTEM_SERVER_START - failure - User: unknown - IP: unknown {"auditEvent":{"eventType":"SYSTEM_SERVER_START","timestamp":"2025-04-03T13:24:34.807Z","status":"failure","details":{"component":"database","error":"[object Object]"}}}
+2025-04-03T13:26:12.487Z [[33mwarn[39m]: [AssetAIService] AI services not fully configured. Some AI features may be unavailable.
+2025-04-03T13:26:12.497Z [[33mwarn[39m]: [TextToImageService] Missing STABILITY_API_KEY environment variable for text-to-image service
+2025-04-03T13:26:12.500Z [[33mwarn[39m]: [VoiceoverService] Missing ELEVENLABS_API_KEY environment variable for voiceover service
+2025-04-03T13:26:12.502Z [[33mwarn[39m]: [MusicGenerationService] Missing MUBERT_API_KEY environment variable for music generation service
+2025-04-03T13:26:12.506Z [[33mwarn[39m]: [SubtitleService] Missing ASSEMBLY_AI_API_KEY environment variable for subtitle service
+2025-04-03T13:26:12.594Z [[32minfo[39m]: V2 API routes initialized
+2025-04-03T13:26:12.598Z [[32minfo[39m]: Socket.IO server initialized with enhanced connection settings
+2025-04-03T13:26:12.599Z [[32minfo[39m]: WebSocket session cleanup started. Running every 300 seconds, timeout after 60 minutes of inactivity
+2025-04-03T13:26:12.600Z [[33mwarn[39m]: Development mode: Bypassing strict database connection test
+2025-04-03T13:26:12.600Z [[32minfo[39m]: Database connection established successfully
+2025-04-03T13:26:12.601Z [[32minfo[39m]: AUDIT: SYSTEM_SERVER_START - success - User: unknown - IP: unknown {"auditEvent":{"eventType":"SYSTEM_SERVER_START","timestamp":"2025-04-03T13:26:12.601Z","status":"success","details":{"component":"database","action":"connection_established"}}}
+2025-04-03T13:26:12.602Z [[32minfo[39m]: Running in PROTOTYPE_MODE - creating database tables
+2025-04-03T13:26:12.604Z [[32minfo[39m]: AUDIT: SECURITY_CONFIG_CHANGE - success - User: unknown - IP: unknown {"auditEvent":{"eventType":"SECURITY_CONFIG_CHANGE","timestamp":"2025-04-03T13:26:12.602Z","status":"success","details":{"component":"database","change":"schema_initialization"}}}
+2025-04-03T13:26:12.609Z [[32minfo[39m]: Server running on port 3002
+2025-04-03T13:26:12.610Z [[32minfo[39m]: Environment: development
+2025-04-03T13:26:12.610Z [[32minfo[39m]: Root URL: http://localhost:3002/
+2025-04-03T13:26:12.610Z [[32minfo[39m]: Health check: http://localhost:3002/health
+2025-04-03T13:26:12.611Z [[32minfo[39m]: WebSocket Initialized (listening for connections)
+2025-04-03T13:26:12.611Z [[32minfo[39m]: Available API endpoints:
+2025-04-03T13:26:12.612Z [[32minfo[39m]: - Auth: http://localhost:3002/api/auth
+2025-04-03T13:26:12.612Z [[32minfo[39m]: - Templates: http://localhost:3002/api/templates
+2025-04-03T13:26:12.612Z [[32minfo[39m]: - Campaigns: http://localhost:3002/api/campaigns
+2025-04-03T13:26:12.613Z [[32minfo[39m]: - Creatomate: http://localhost:3002/api/creatomate
+2025-04-03T13:26:12.613Z [[32minfo[39m]: - Runway: http://localhost:3002/api/runway
+2025-04-03T13:26:12.613Z [[32minfo[39m]: - Exports: http://localhost:3002/api/exports
+2025-04-03T13:26:12.613Z [[32minfo[39m]: - LLM: http://localhost:3002/api/llm
+2025-04-03T13:26:12.614Z [[32minfo[39m]: - Sign-off: http://localhost:3002/api/signoff
+2025-04-03T13:26:12.614Z [[32minfo[39m]: - Matrix: http://localhost:3002/api/matrix
+2025-04-03T13:26:12.614Z [[32minfo[39m]: - Briefs: http://localhost:3002/api/briefs
+2025-04-03T13:26:12.615Z [[32minfo[39m]: - MCP: http://localhost:3002/api/mcp
+2025-04-03T13:26:12.615Z [[32minfo[39m]: - Generation: http://localhost:3002/api/generation
+2025-04-03T13:26:12.615Z [[32minfo[39m]: - Subtitles: http://localhost:3002/api/subtitles
+2025-04-03T13:26:12.615Z [[32minfo[39m]: - Revisions: http://localhost:3002/api/revisions
+2025-04-03T13:26:12.616Z [[32minfo[39m]: - Notifications: http://localhost:3002/api/notifications
+2025-04-03T13:26:12.616Z [[32minfo[39m]: - TimeBasedComments: http://localhost:3002/api/reviews/:reviewId/comments/timebased
+2025-04-03T13:26:12.616Z [[32minfo[39m]: - V2 API: http://localhost:3002/api/v2
+2025-04-03T13:26:12.617Z [[32minfo[39m]: Server initialization complete
+2025-04-03T13:26:12.621Z [[32minfo[39m]: Database schema initialization complete
+2025-04-03T13:26:35.839Z [[33mwarn[39m]: [AssetAIService] AI services not fully configured. Some AI features may be unavailable.
+2025-04-03T13:27:51.785Z [[33mwarn[39m]: [AssetAIService] AI services not fully configured. Some AI features may be unavailable.
+2025-04-03T13:27:51.797Z [[33mwarn[39m]: [TextToImageService] Missing STABILITY_API_KEY environment variable for text-to-image service
+2025-04-03T13:27:51.801Z [[33mwarn[39m]: [VoiceoverService] Missing ELEVENLABS_API_KEY environment variable for voiceover service
+2025-04-03T13:27:51.805Z [[33mwarn[39m]: [MusicGenerationService] Missing MUBERT_API_KEY environment variable for music generation service
+2025-04-03T13:27:51.810Z [[33mwarn[39m]: [SubtitleService] Missing ASSEMBLY_AI_API_KEY environment variable for subtitle service
+2025-04-03T13:27:51.928Z [[32minfo[39m]: V2 API routes initialized
+2025-04-03T13:27:51.933Z [[32minfo[39m]: Socket.IO server initialized with enhanced connection settings
+2025-04-03T13:27:51.934Z [[32minfo[39m]: WebSocket session cleanup started. Running every 300 seconds, timeout after 60 minutes of inactivity
+2025-04-03T13:27:51.936Z [[33mwarn[39m]: Development mode: Bypassing strict database connection test
+2025-04-03T13:27:51.937Z [[32minfo[39m]: Database connection established successfully
+2025-04-03T13:27:51.938Z [[32minfo[39m]: AUDIT: SYSTEM_SERVER_START - success - User: unknown - IP: unknown {"auditEvent":{"eventType":"SYSTEM_SERVER_START","timestamp":"2025-04-03T13:27:51.938Z","status":"success","details":{"component":"database","action":"connection_established"}}}
+2025-04-03T13:27:51.939Z [[32minfo[39m]: Running in PROTOTYPE_MODE - creating database tables
+2025-04-03T13:27:51.944Z [[32minfo[39m]: AUDIT: SECURITY_CONFIG_CHANGE - success - User: unknown - IP: unknown {"auditEvent":{"eventType":"SECURITY_CONFIG_CHANGE","timestamp":"2025-04-03T13:27:51.943Z","status":"success","details":{"component":"database","change":"schema_initialization"}}}
+2025-04-03T13:27:51.952Z [[32minfo[39m]: Server running on port 3002
+2025-04-03T13:27:51.953Z [[32minfo[39m]: Environment: development
+2025-04-03T13:27:51.953Z [[32minfo[39m]: Root URL: http://localhost:3002/
+2025-04-03T13:27:51.954Z [[32minfo[39m]: Health check: http://localhost:3002/health
+2025-04-03T13:27:51.954Z [[32minfo[39m]: WebSocket Initialized (listening for connections)
+2025-04-03T13:27:51.955Z [[32minfo[39m]: Available API endpoints:
+2025-04-03T13:27:51.955Z [[32minfo[39m]: - Auth: http://localhost:3002/api/auth
+2025-04-03T13:27:51.955Z [[32minfo[39m]: - Templates: http://localhost:3002/api/templates
+2025-04-03T13:27:51.956Z [[32minfo[39m]: - Campaigns: http://localhost:3002/api/campaigns
+2025-04-03T13:27:51.956Z [[32minfo[39m]: - Creatomate: http://localhost:3002/api/creatomate
+2025-04-03T13:27:51.957Z [[32minfo[39m]: - Runway: http://localhost:3002/api/runway
+2025-04-03T13:27:51.957Z [[32minfo[39m]: - Exports: http://localhost:3002/api/exports
+2025-04-03T13:27:51.957Z [[32minfo[39m]: - LLM: http://localhost:3002/api/llm
+2025-04-03T13:27:51.958Z [[32minfo[39m]: - Sign-off: http://localhost:3002/api/signoff
+2025-04-03T13:27:51.958Z [[32minfo[39m]: - Matrix: http://localhost:3002/api/matrix
+2025-04-03T13:27:51.958Z [[32minfo[39m]: - Briefs: http://localhost:3002/api/briefs
+2025-04-03T13:27:51.959Z [[32minfo[39m]: - MCP: http://localhost:3002/api/mcp
+2025-04-03T13:27:51.959Z [[32minfo[39m]: - Generation: http://localhost:3002/api/generation
+2025-04-03T13:27:51.959Z [[32minfo[39m]: - Subtitles: http://localhost:3002/api/subtitles
+2025-04-03T13:27:51.960Z [[32minfo[39m]: - Revisions: http://localhost:3002/api/revisions
+2025-04-03T13:27:51.960Z [[32minfo[39m]: - Notifications: http://localhost:3002/api/notifications
+2025-04-03T13:27:51.960Z [[32minfo[39m]: - TimeBasedComments: http://localhost:3002/api/reviews/:reviewId/comments/timebased
+2025-04-03T13:27:51.961Z [[32minfo[39m]: - V2 API: http://localhost:3002/api/v2
+2025-04-03T13:27:51.961Z [[32minfo[39m]: Server initialization complete
+2025-04-03T13:27:51.969Z [[32minfo[39m]: Database schema initialization complete
+2025-04-03T13:27:51.806Z [[33mwarn[39m]: [AssetAIService] AI services not fully configured. Some AI features may be unavailable.
+2025-04-03T13:27:51.822Z [[33mwarn[39m]: [TextToImageService] Missing STABILITY_API_KEY environment variable for text-to-image service
+2025-04-03T13:27:51.826Z [[33mwarn[39m]: [VoiceoverService] Missing ELEVENLABS_API_KEY environment variable for voiceover service
+2025-04-03T13:27:51.831Z [[33mwarn[39m]: [MusicGenerationService] Missing MUBERT_API_KEY environment variable for music generation service
+2025-04-03T13:27:51.834Z [[33mwarn[39m]: [SubtitleService] Missing ASSEMBLY_AI_API_KEY environment variable for subtitle service
+2025-04-03T13:27:51.999Z [[32minfo[39m]: V2 API routes initialized
+2025-04-03T13:27:52.003Z [[32minfo[39m]: Socket.IO server initialized with enhanced connection settings
+2025-04-03T13:27:52.004Z [[32minfo[39m]: WebSocket session cleanup started. Running every 300 seconds, timeout after 60 minutes of inactivity
+2025-04-03T13:27:52.004Z [[33mwarn[39m]: Development mode: Bypassing strict database connection test
+2025-04-03T13:27:52.005Z [[32minfo[39m]: Database connection established successfully
+2025-04-03T13:27:52.005Z [[32minfo[39m]: AUDIT: SYSTEM_SERVER_START - success - User: unknown - IP: unknown {"auditEvent":{"eventType":"SYSTEM_SERVER_START","timestamp":"2025-04-03T13:27:52.005Z","status":"success","details":{"component":"database","action":"connection_established"}}}
+2025-04-03T13:27:52.006Z [[32minfo[39m]: Running in PROTOTYPE_MODE - creating database tables
+2025-04-03T13:27:52.006Z [[32minfo[39m]: AUDIT: SECURITY_CONFIG_CHANGE - success - User: unknown - IP: unknown {"auditEvent":{"eventType":"SECURITY_CONFIG_CHANGE","timestamp":"2025-04-03T13:27:52.006Z","status":"success","details":{"component":"database","change":"schema_initialization"}}}
+2025-04-03T13:27:52.011Z [[33mwarn[39m]: Port 3002 is already in use, trying alternate port 3005
+2025-04-03T13:27:52.011Z [[32minfo[39m]: Server running on port 3002
+2025-04-03T13:27:52.011Z [[32minfo[39m]: Environment: development
+2025-04-03T13:27:52.012Z [[32minfo[39m]: Root URL: http://localhost:3002/
+2025-04-03T13:27:52.012Z [[32minfo[39m]: Health check: http://localhost:3002/health
+2025-04-03T13:27:52.012Z [[32minfo[39m]: WebSocket Initialized (listening for connections)
+2025-04-03T13:27:52.012Z [[32minfo[39m]: Available API endpoints:
+2025-04-03T13:27:52.012Z [[32minfo[39m]: - Auth: http://localhost:3002/api/auth
+2025-04-03T13:27:52.012Z [[32minfo[39m]: - Templates: http://localhost:3002/api/templates
+2025-04-03T13:27:52.012Z [[32minfo[39m]: - Campaigns: http://localhost:3002/api/campaigns
+2025-04-03T13:27:52.012Z [[32minfo[39m]: - Creatomate: http://localhost:3002/api/creatomate
+2025-04-03T13:27:52.012Z [[32minfo[39m]: - Runway: http://localhost:3002/api/runway
+2025-04-03T13:27:52.012Z [[32minfo[39m]: - Exports: http://localhost:3002/api/exports
+2025-04-03T13:27:52.013Z [[32minfo[39m]: - LLM: http://localhost:3002/api/llm
+2025-04-03T13:27:52.013Z [[32minfo[39m]: - Sign-off: http://localhost:3002/api/signoff
+2025-04-03T13:27:52.013Z [[32minfo[39m]: - Matrix: http://localhost:3002/api/matrix
+2025-04-03T13:27:52.013Z [[32minfo[39m]: - Briefs: http://localhost:3002/api/briefs
+2025-04-03T13:27:52.013Z [[32minfo[39m]: - MCP: http://localhost:3002/api/mcp
+2025-04-03T13:27:52.013Z [[32minfo[39m]: - Generation: http://localhost:3002/api/generation
+2025-04-03T13:27:52.013Z [[32minfo[39m]: - Subtitles: http://localhost:3002/api/subtitles
+2025-04-03T13:27:52.013Z [[32minfo[39m]: - Revisions: http://localhost:3002/api/revisions
+2025-04-03T13:27:52.013Z [[32minfo[39m]: - Notifications: http://localhost:3002/api/notifications
+2025-04-03T13:27:52.013Z [[32minfo[39m]: - TimeBasedComments: http://localhost:3002/api/reviews/:reviewId/comments/timebased
+2025-04-03T13:27:52.013Z [[32minfo[39m]: - V2 API: http://localhost:3002/api/v2
+2025-04-03T13:27:52.013Z [[32minfo[39m]: Server initialization complete
+2025-04-03T13:27:52.013Z [[32minfo[39m]: Server running on alternate port 3005
+2025-04-03T13:27:52.013Z [[32minfo[39m]: Environment: development
+2025-04-03T13:27:52.013Z [[32minfo[39m]: Root URL: http://localhost:3005/
+2025-04-03T13:27:52.013Z [[32minfo[39m]: Health check: http://localhost:3005/health
+2025-04-03T13:27:52.014Z [[32minfo[39m]: WebSocket Initialized (listening for connections)
+2025-04-03T13:27:52.014Z [[32minfo[39m]: Available API endpoints:
+2025-04-03T13:27:52.014Z [[32minfo[39m]: - Auth: http://localhost:3005/api/auth
+2025-04-03T13:27:52.014Z [[32minfo[39m]: - Templates: http://localhost:3005/api/templates
+2025-04-03T13:27:52.014Z [[32minfo[39m]: - Campaigns: http://localhost:3005/api/campaigns
+2025-04-03T13:27:52.014Z [[32minfo[39m]: - Creatomate: http://localhost:3005/api/creatomate
+2025-04-03T13:27:52.014Z [[32minfo[39m]: - Runway: http://localhost:3005/api/runway
+2025-04-03T13:27:52.014Z [[32minfo[39m]: - Exports: http://localhost:3005/api/exports
+2025-04-03T13:27:52.014Z [[32minfo[39m]: - LLM: http://localhost:3005/api/llm
+2025-04-03T13:27:52.014Z [[32minfo[39m]: - Sign-off: http://localhost:3005/api/signoff
+2025-04-03T13:27:52.014Z [[32minfo[39m]: - Matrix: http://localhost:3005/api/matrix
+2025-04-03T13:27:52.014Z [[32minfo[39m]: - Briefs: http://localhost:3005/api/briefs
+2025-04-03T13:27:52.014Z [[32minfo[39m]: - MCP: http://localhost:3005/api/mcp
+2025-04-03T13:27:52.014Z [[32minfo[39m]: - Generation: http://localhost:3005/api/generation
+2025-04-03T13:27:52.014Z [[32minfo[39m]: - Subtitles: http://localhost:3005/api/subtitles
+2025-04-03T13:27:52.014Z [[32minfo[39m]: - Revisions: http://localhost:3005/api/revisions
+2025-04-03T13:27:52.014Z [[32minfo[39m]: - Notifications: http://localhost:3005/api/notifications
+2025-04-03T13:27:52.014Z [[32minfo[39m]: - TimeBasedComments: http://localhost:3005/api/reviews/:reviewId/comments/timebased
+2025-04-03T13:27:52.015Z [[32minfo[39m]: - V2 API: http://localhost:3005/api/v2
+2025-04-03T13:27:52.015Z [[32minfo[39m]: Server initialization complete
+2025-04-03T13:27:52.017Z [[32minfo[39m]: Database schema initialization complete

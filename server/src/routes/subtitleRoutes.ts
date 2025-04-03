@@ -1,6 +1,6 @@
 import express from 'express';
 import { subtitleService } from '../services/subtitleService';
-import { authMiddleware } from '../middleware/authMiddleware';
+import { authenticateToken as authMiddleware } from '../middleware/auth';
 import { createLogger } from '../utils/logger';
 
 const logger = createLogger('SubtitleRoutes');

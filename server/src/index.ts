@@ -53,6 +53,7 @@ dotenv.config();
 // Create Express app
 const app = express();
 const PORT = process.env.PORT || 3002;
+const ALTERNATE_PORT = 3005; // Use an alternate port if the default is in use
 
 // Create HTTP server
 const server = http.createServer(app);
@@ -185,6 +186,7 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 // Start the server - make sure we listen on all interfaces
+// Try the default port first, if it fails, try the alternate port
 server.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
@@ -219,4 +221,47 @@ server.listen(PORT, () => {
   });
   
   logger.info('Server initialization complete');
+}).on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    logger.warn(`Port ${PORT} is already in use, trying alternate port ${ALTERNATE_PORT}`);
+    
+    // Try the alternate port
+    server.listen(ALTERNATE_PORT, () => {
+      logger.info(`Server running on alternate port ${ALTERNATE_PORT}`);
+      logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.info(`Root URL: http://localhost:${ALTERNATE_PORT}/`);
+      logger.info(`Health check: http://localhost:${ALTERNATE_PORT}/health`);
+      logger.info(`WebSocket Initialized (listening for connections)`);
+      
+      // Log route information for alternate port
+      const routeInfo = [
+        { name: 'Auth', path: '/api/auth' },
+        { name: 'Templates', path: '/api/templates' },
+        { name: 'Campaigns', path: '/api/campaigns' },
+        { name: 'Creatomate', path: '/api/creatomate' },
+        { name: 'Runway', path: '/api/runway' },
+        { name: 'Exports', path: '/api/exports' },
+        { name: 'LLM', path: '/api/llm' },
+        { name: 'Sign-off', path: '/api/signoff' },
+        { name: 'Matrix', path: '/api/matrix' },
+        { name: 'Briefs', path: '/api/briefs' },
+        { name: 'MCP', path: '/api/mcp' },
+        { name: 'Generation', path: '/api/generation' },
+        { name: 'Subtitles', path: '/api/subtitles' },
+        { name: 'Revisions', path: '/api/revisions' },
+        { name: 'Notifications', path: '/api/notifications' },
+        { name: 'TimeBasedComments', path: '/api/reviews/:reviewId/comments/timebased' },
+        { name: 'V2 API', path: '/api/v2' }
+      ];
+      
+      logger.info('Available API endpoints:');
+      routeInfo.forEach(route => {
+        logger.info(`- ${route.name}: http://localhost:${ALTERNATE_PORT}${route.path}`);
+      });
+      
+      logger.info('Server initialization complete');
+    });
+  } else {
+    logger.error('Error starting server:', err);
+  }
 });
