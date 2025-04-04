@@ -114,6 +114,12 @@ class MockRedisClient {
 
 // Determine whether to use real Redis or mock
 const useRealRedis = process.env.USE_REAL_REDIS === 'true';
+
+// Force real Redis in production environment
+if (process.env.NODE_ENV === 'production' && !useRealRedis) {
+  throw new Error('Production environment requires USE_REAL_REDIS to be set to true');
+}
+
 let redisClient;
 
 if (useRealRedis) {

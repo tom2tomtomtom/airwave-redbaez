@@ -3,6 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import http from 'http';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { initializeDatabase } from './db/supabaseClient';
 import { webSocketService } from './services/WebSocketService';
 
@@ -107,10 +109,31 @@ if (process.env.NODE_ENV !== 'production') {
   };
 }
 
+// Define rate limiters
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  message: 'Too many requests from this IP, please try again after 15 minutes'
+});
+
+// More strict rate limiting for authentication routes
+const authLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // 10 requests per hour
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many authentication attempts, please try again after an hour'
+});
+
 // Middleware
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Apply security middleware
+app.use(helmet());
 
 // Apply our custom middleware
 app.use(responseHandler);
@@ -159,8 +182,13 @@ app.get('/', (req, res) => {
   });
 });
 
-// Register routes
-app.use('/api/auth', authRoutes);
+// Apply rate limiting to API routes
+app.use('/api/', apiLimiter);
+
+// Register routes with specific rate limits for auth routes
+app.use('/api/auth', authLimiter, authRoutes);
+
+// Register other routes
 app.use('/api/templates', templateRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/creatomate', creatomateRoutes);

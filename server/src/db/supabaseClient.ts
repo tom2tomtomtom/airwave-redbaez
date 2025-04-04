@@ -161,6 +161,12 @@ class MockSupabaseClient {
 
 // Determine whether to use real Supabase or mock
 const useRealSupabase = process.env.USE_REAL_SUPABASE === 'true';
+
+// Force real Supabase in production environment
+if (process.env.NODE_ENV === 'production' && !useRealSupabase) {
+  throw new Error('Production environment requires USE_REAL_SUPABASE to be set to true');
+}
+
 let supabase: SupabaseClient | any = null;
 
 if (useRealSupabase) {
