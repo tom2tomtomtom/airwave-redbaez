@@ -4,6 +4,7 @@ import { checkAuth } from '../middleware/auth.middleware';
 import { supabase } from '../db/supabaseClient';
 import { ApiError } from '../utils/ApiError'; 
 import { ErrorCode } from '../types/errorTypes'; 
+import { logger } from '../utils/logger';
 
 const router = express.Router();
 
@@ -16,14 +17,14 @@ router.post('/generate', checkAuth, async (req, res, next) => {
       return next(new ApiError(ErrorCode.VALIDATION_FAILED, 'Template ID and modifications are required for generation.'));
     }
 
-    console.log(`Generating content with template: ${templateId}, format: ${outputFormat}`);
-    console.log('Modifications:', JSON.stringify(modifications));
+    logger.info(`Generating content with template: ${templateId}, format: ${outputFormat}`);
+    logger.debug('Modifications:', JSON.stringify(modifications));
 
     // Check if we're generating an image or a video based on the outputFormat
     let renderJob;
     
     if (outputFormat === 'jpg' || outputFormat === 'png') {
-      console.log('Generating an image');
+      logger.info('Generating an image');
       // We're generating an image
       renderJob = await creatomateService.generateImage({
         templateId,
@@ -31,7 +32,7 @@ router.post('/generate', checkAuth, async (req, res, next) => {
         modifications
       });
     } else {
-      console.log('Generating a video');
+      logger.info('Generating a video');
       // We're generating a video
       renderJob = await creatomateService.generateVideo({
         templateId,
@@ -40,7 +41,7 @@ router.post('/generate', checkAuth, async (req, res, next) => {
       });
     }
 
-    console.log(`Generated job with ID: ${renderJob.id}`);
+    logger.info(`Generated job with ID: ${renderJob.id}`);
 
     // If we have an execution ID, update the execution in the database
     if (executionId) {
@@ -54,7 +55,7 @@ router.post('/generate', checkAuth, async (req, res, next) => {
         .eq('id', executionId);
 
       if (error) {
-        console.error('Error updating execution:', error);
+        logger.error('Error updating execution:', error);
         // Continue anyway, as the rendering has already started
       }
     }
@@ -68,7 +69,7 @@ router.post('/generate', checkAuth, async (req, res, next) => {
       }
     });
   } catch (error: any) {
-    console.error('Error in POST /generate:', error);
+    logger.error('Error in POST /generate:', error);
     next(error);
   }
 });
@@ -100,7 +101,7 @@ router.post('/preview', checkAuth, async (req, res, next) => {
       }
     });
   } catch (error: any) {
-    console.error('Preview generation error:', error);
+    logger.error('Preview generation error:', error);
     next(error);
   }
 });
@@ -111,16 +112,16 @@ router.get('/render/:jobId', checkAuth, async (req, res, next) => {
     const { jobId } = req.params;
 
     if (!jobId || jobId === 'undefined') {
-      console.error('Invalid jobId provided to /render endpoint:', jobId);
+      logger.error('Invalid jobId provided to /render endpoint:', jobId);
       return next(new ApiError(ErrorCode.VALIDATION_FAILED, 'A valid Creatomate job ID is required.'));
     }
 
-    console.log(`Checking render status for job: ${jobId}`);
+    logger.info(`Checking render status for job: ${jobId}`);
     const job = await creatomateService.checkRenderStatus(jobId);
 
     // Ensure we return a valid job object
     if (!job) {
-      console.error(`Job ${jobId} not found`);
+      logger.error(`Job ${jobId} not found`);
       return next(new ApiError(
         ErrorCode.RESOURCE_NOT_FOUND,
         `Creatomate job with ID ${jobId} not found.`,
@@ -128,7 +129,7 @@ router.get('/render/:jobId', checkAuth, async (req, res, next) => {
       ));
     }
 
-    console.log(`Job ${jobId} status: ${job.status}`);
+    logger.info(`Job ${jobId} status: ${job.status}`);
     res.json({
       success: true,
       data: {
@@ -150,7 +151,7 @@ router.get('/render/:jobId', checkAuth, async (req, res, next) => {
         .single();
 
       if (findError) {
-        console.error('Error finding execution:', findError);
+        logger.error('Error finding execution:', findError);
         return; // No execution found, or error
       }
 
@@ -166,12 +167,12 @@ router.get('/render/:jobId', checkAuth, async (req, res, next) => {
           .eq('id', execution.id);
 
         if (updateError) {
-          console.error('Error updating execution status:', updateError);
+          logger.error('Error updating execution status:', updateError);
         }
       }
     }
   } catch (error: any) {
-    console.error('Check render status error:', error);
+    logger.error('Check render status error:', error);
     next(error);
   }
 });
@@ -218,7 +219,7 @@ router.get('/templates', checkAuth, async (req, res, next) => {
       data: templates
     });
   } catch (error: any) {
-    console.error('Creatomate templates error:', error);
+    logger.error('Creatomate templates error:', error);
     next(error);
   }
 });
@@ -238,27 +239,48 @@ router.post('/batch', checkAuth, async (req, res, next) => {
       return next(new ApiError(ErrorCode.VALIDATION_FAILED, 'Missing required fields: templates, assetSets and campaignId are required for batch generation.'));
     }
     
-    // Create a job for each combination of template, asset set, and format
+    // Create jobs in batches instead of nested loops to improve performance
     const jobs = [];
     
-    for (const template of templates) {
-      for (const assetSet of assetSets) {
-        for (const format of outputFormats) {
-          // Start the render job
-          const renderJob = await creatomateService.generateVideo({
+    // Pre-calculate all combinations to avoid nested loops during API calls
+    const combinations = [];
+    templates.forEach(template => {
+      assetSets.forEach(assetSet => {
+        outputFormats.forEach(format => {
+          combinations.push({
             templateId: template.id,
+            assetSet,
+            format
+          });
+        });
+      });
+    });
+    
+    // Process combinations in batches to avoid overwhelming the API
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < combinations.length; i += BATCH_SIZE) {
+      const batch = combinations.slice(i, i + BATCH_SIZE);
+      
+      // Process batch in parallel
+      const batchJobs = await Promise.all(
+        batch.map(({ templateId, assetSet, format }) => 
+          creatomateService.generateVideo({
+            templateId,
             modifications: assetSet,
             outputFormat: format
-          });
-          
-          jobs.push({
-            jobId: renderJob.id,
-            status: renderJob.status,
-            templateId: template.id,
-            outputFormat: format
-          });
-        }
-      }
+          })
+        )
+      );
+      
+      // Add batch results to jobs array
+      batchJobs.forEach((renderJob, index) => {
+        jobs.push({
+          jobId: renderJob.id,
+          status: renderJob.status,
+          templateId: batch[index].templateId,
+          outputFormat: batch[index].format
+        });
+      });
     }
     
     res.json({
@@ -271,7 +293,7 @@ router.post('/batch', checkAuth, async (req, res, next) => {
       }
     });
   } catch (error: any) {
-    console.error('Creatomate batch error:', error);
+    logger.error('Creatomate batch error:', error);
     next(error);
   }
 });
@@ -303,33 +325,34 @@ router.post('/platform-formats', checkAuth, async (req, res, next) => {
       )
     );
     
-    // Start generation for each format
-    const jobs = [];
+    // Start generation for each format in parallel
+    const jobs = await Promise.all(
+      outputFormats.map(format => 
+        creatomateService.generateVideo({
+          templateId,
+          modifications,
+          outputFormat: format as string
+        })
+      )
+    );
     
-    for (const format of outputFormats) {
-      const renderJob = await creatomateService.generateVideo({
-        templateId,
-        modifications,
-        outputFormat: format as string
-      });
-      
-      jobs.push({
-        jobId: renderJob.id,
-        status: renderJob.status,
-        format
-      });
-    }
+    // Map results to response format
+    const jobResults = jobs.map((renderJob, index) => ({
+      jobId: renderJob.id,
+      status: renderJob.status,
+      format: outputFormats[index]
+    }));
     
     res.json({
       success: true,
       message: `Generated formats for ${platforms.length} platforms`,
       data: {
         platforms,
-        jobs
+        jobs: jobResults
       }
     });
   } catch (error: any) {
-    console.error('Creatomate platform formats error:', error);
+    logger.error('Creatomate platform formats error:', error);
     next(error);
   }
 });
@@ -340,11 +363,11 @@ router.post('/webhook', async (req, res, next) => {
     const { jobId, status, url, thumbnailUrl, error } = req.body;
 
     if (!jobId || !status) {
-      console.warn('Received invalid webhook payload:', req.body);
+      logger.warn('Received invalid webhook payload:', req.body);
       return next(new ApiError(ErrorCode.VALIDATION_FAILED, 'Webhook requires Job ID and status.'));
     }
 
-    console.log(`Webhook received for job ${jobId}, status: ${status}`);
+    logger.info(`Webhook received for job ${jobId}, status: ${status}`);
 
     // Find execution with this render job ID
     const { data: execution, error: findError } = await supabase
@@ -365,7 +388,7 @@ router.post('/webhook', async (req, res, next) => {
         .eq('id', execution.id);
 
       if (updateError) {
-        console.error('Error updating execution status from webhook:', updateError);
+        logger.error('Error updating execution status from webhook:', updateError);
       }
     }
 
@@ -375,7 +398,7 @@ router.post('/webhook', async (req, res, next) => {
       message: 'Webhook received'
     });
   } catch (error: any) {
-    console.error('Webhook processing error:', error);
+    logger.error('Webhook processing error:', error);
     next(error);
   }
 });
@@ -392,7 +415,7 @@ router.get('/status', async (req, res, next) => {
       timestamp: new Date().toISOString()
     });
   } catch (error: any) {
-    console.error('Error checking Creatomate status:', error);
+    logger.error('Error checking Creatomate status:', error);
     next(error);
   }
 });
