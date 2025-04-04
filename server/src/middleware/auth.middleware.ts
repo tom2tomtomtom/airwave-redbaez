@@ -21,7 +21,15 @@ declare global {
 }
 
 // Environment variables
-const JWT_SECRET = process.env.JWT_SECRET || 'airwave-jwt-secret-key';
+// JWT_SECRET is required for authentication
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('ERROR: JWT_SECRET environment variable is not set. Authentication will fail.');
+  // In production, we should terminate the application
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET environment variable is required in production');
+  }
+}
 
 // Constants
 export const AUTH_MODE = {
@@ -29,7 +37,9 @@ export const AUTH_MODE = {
   DEVELOPMENT: 'development',
   PROTOTYPE: 'prototype',
   CURRENT: process.env.NODE_ENV || 'development',
-  BYPASS_AUTH: process.env.DEV_BYPASS_AUTH === 'true' || process.env.PROTOTYPE_MODE === 'true'
+  // In production, never bypass authentication regardless of environment variables
+  BYPASS_AUTH: process.env.NODE_ENV !== 'production' && 
+               (process.env.DEV_BYPASS_AUTH === 'true' || process.env.PROTOTYPE_MODE === 'true')
 };
 
 /**

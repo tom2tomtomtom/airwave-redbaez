@@ -52,6 +52,12 @@ import v2Routes from './routes/v2';
 // Initialize environment variables
 dotenv.config();
 
+// Import environment validation
+import { validateAppEnvironment } from './utils/appConfig';
+
+// Validate required environment variables
+validateAppEnvironment();
+
 // Create Express app
 const app = express();
 const PORT = process.env.PORT || 3002;

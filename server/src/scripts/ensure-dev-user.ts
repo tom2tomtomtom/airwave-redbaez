@@ -150,13 +150,22 @@ async function ensureDevUser() {
       // Try creating the auth user - this may fail if we don't have admin permissions
       try {
         console.log('Attempting to create auth user...');
+        // Use environment variable for password or generate a secure random one
+        const devPassword = process.env.DEV_USER_PASSWORD || require('crypto').randomBytes(16).toString('hex');
+        
         const { data: newAuthUser, error: createAuthError } = await supabase.auth.admin.createUser({
           email: 'dev@example.com',
-          password: 'devpassword123',
+          password: devPassword,
           user_metadata: { name: 'Development User' },
           email_confirm: true,
           id: DEV_USER_ID
         });
+        
+        // Log the generated password only in development mode
+        if (!process.env.DEV_USER_PASSWORD && process.env.NODE_ENV !== 'production') {
+          console.log(`Generated random password for dev user: ${devPassword}`);
+          console.log('Set this as DEV_USER_PASSWORD in your .env file if you need to log in as this user');
+        }
         
         if (createAuthError) {
           console.error('Error creating auth user:', createAuthError);
