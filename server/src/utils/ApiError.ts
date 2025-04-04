@@ -1,33 +1,99 @@
-// server/src/utils/ApiError.ts
-import { ErrorCode, getStatusCode } from '../types/errorTypes';
-
 /**
- * Custom error class for API-specific errors.
- * Allows attaching a specific ErrorCode and statusCode.
+ * Custom API Error class for standardized error handling
  */
+import { ErrorCode } from '../types/errorTypes';
+import { logger } from './logger';
+
 export class ApiError extends Error {
-  public statusCode: number;
-  public errorCode: ErrorCode;
-  public details?: unknown; // Optional: For validation errors or extra context
-  public internalDetails?: unknown; // Optional: For internal logging, not sent to client
-
+  public readonly code: ErrorCode;
+  public readonly statusCode: number;
+  public readonly details?: Record<string, unknown>;
+  
   constructor(
-    errorCode: ErrorCode,
-    message?: string, // Optional custom message, defaults based on errorCode
-    details?: unknown,
-    internalDetails?: unknown
+    code: ErrorCode,
+    message: string,
+    details?: Record<string, unknown>
   ) {
-    // Use the provided message or derive one (can enhance getUserFriendlyMessage later if needed)
-    super(message || `Error: ${errorCode}`); 
-    this.name = 'ApiError'; // Set the error name
-    this.errorCode = errorCode;
-    this.statusCode = getStatusCode(errorCode); // Get status code based on error code
+    super(message);
+    this.name = 'ApiError';
+    this.code = code;
     this.details = details;
-    this.internalDetails = internalDetails;
-
-    // Ensure the stack trace is captured correctly
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, this.constructor);
+    this.statusCode = this.determineStatusCode(code);
+    
+    // Log the error when it's created
+    logger.error(`API Error: ${code} - ${message}`, { details });
+    
+    // Capture stack trace
+    Error.captureStackTrace(this, this.constructor);
+  }
+  
+  /**
+   * Determine HTTP status code based on error code
+   */
+  private determineStatusCode(code: ErrorCode): number {
+    switch (code) {
+      // Authentication errors
+      case ErrorCode.UNAUTHORIZED:
+        return 401;
+      case ErrorCode.FORBIDDEN:
+        return 403;
+      case ErrorCode.INVALID_CREDENTIALS:
+        return 401;
+      case ErrorCode.TOKEN_EXPIRED:
+        return 401;
+      
+      // Validation errors
+      case ErrorCode.VALIDATION_FAILED:
+      case ErrorCode.INVALID_INPUT:
+      case ErrorCode.MISSING_REQUIRED_FIELD:
+        return 400;
+      
+      // Resource errors
+      case ErrorCode.RESOURCE_NOT_FOUND:
+        return 404;
+      case ErrorCode.RESOURCE_ALREADY_EXISTS:
+      case ErrorCode.RESOURCE_CONFLICT:
+        return 409;
+      
+      // Rate limiting errors
+      case ErrorCode.RATE_LIMIT_EXCEEDED:
+        return 429;
+      
+      // Media processing errors
+      case ErrorCode.MEDIA_PROCESSING_FAILED:
+      case ErrorCode.INVALID_MEDIA_FORMAT:
+        return 422;
+      
+      // External service errors
+      case ErrorCode.CREATOMATE_ERROR:
+      case ErrorCode.ELEVENLABS_ERROR:
+      case ErrorCode.OPENAI_ERROR:
+      case ErrorCode.ASSEMBLYAI_ERROR:
+      case ErrorCode.MUBERT_ERROR:
+        return 502;
+      
+      // Server errors
+      case ErrorCode.INTERNAL_SERVER_ERROR:
+      case ErrorCode.DATABASE_ERROR:
+      default:
+        return 500;
+      
+      case ErrorCode.SERVICE_UNAVAILABLE:
+        return 503;
     }
+  }
+  
+  /**
+   * Convert to a standardized response object
+   */
+  toResponse() {
+    return {
+      success: false,
+      error: {
+        code: this.code,
+        message: this.message,
+        details: this.details
+      }
+    };
   }
 }

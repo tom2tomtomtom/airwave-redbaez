@@ -11,10 +11,10 @@ const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KE
 
 // Create a mock Supabase client for development/testing
 class MockSupabaseClient {
-  private storage: Map<string, any[]> = new Map();
+  private storage: Map<string, Record<string, unknown>[]> = new Map();
   
   constructor() {
-    console.log('Using mock Supabase client for development/testing');
+    logger.info('Using mock Supabase client for development/testing');
     
     // Initialize with some mock data
     this.storage.set('users', [
@@ -135,9 +135,9 @@ class MockSupabaseClient {
     };
   }
   
-  rpc(functionName: string, params: any) {
+  rpc(functionName: string, params: Record<string, unknown>) {
     // Mock RPC calls
-    console.log(`Mock RPC call to ${functionName} with params:`, params);
+    logger.debug(`Mock RPC call to ${functionName} with params:`, params);
     return {
       data: null,
       error: null
@@ -167,7 +167,17 @@ if (process.env.NODE_ENV === 'production' && !useRealSupabase) {
   throw new Error('Production environment requires USE_REAL_SUPABASE to be set to true');
 }
 
-let supabase: SupabaseClient | any = null;
+// Define a type for our mock client that includes the methods we use
+export type MockSupabaseClientType = {
+  from: (table: string) => any;
+  rpc: (functionName: string, params: Record<string, unknown>) => any;
+  auth: {
+    signIn: () => any;
+    signOut: () => any;
+  };
+};
+
+let supabase: SupabaseClient | MockSupabaseClientType = null;
 
 if (useRealSupabase) {
   supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -209,14 +219,14 @@ async function testDatabaseConnection(): Promise<boolean> {
 // Mock implementations of table creation functions
 async function createUsersTable() {
   if (!useRealSupabase) {
-    console.log('Mock: Users table already exists');
+    logger.info('Mock: Users table already exists');
     return;
   }
   
   try {
     // Real implementation...
   } catch (error) {
-    console.error('Error checking users table:', error);
+    logger.error('Error checking users table:', error);
     // Continue execution in mock mode
     if (!useRealSupabase) return;
     throw error;
@@ -225,14 +235,14 @@ async function createUsersTable() {
 
 async function createAssetsTable() {
   if (!useRealSupabase) {
-    console.log('Mock: Assets table already exists');
+    logger.info('Mock: Assets table already exists');
     return;
   }
   
   try {
     // Real implementation...
   } catch (error) {
-    console.error('Error creating assets table:', error);
+    logger.error('Error creating assets table:', error);
     // Continue execution in mock mode
     if (!useRealSupabase) return;
     throw error;
@@ -241,14 +251,14 @@ async function createAssetsTable() {
 
 async function createTemplatesTable() {
   if (!useRealSupabase) {
-    console.log('Mock: Templates table already exists');
+    logger.info('Mock: Templates table already exists');
     return;
   }
   
   try {
     // Real implementation...
   } catch (error) {
-    console.error('Error creating templates table:', error);
+    logger.error('Error creating templates table:', error);
     // Continue execution in mock mode
     if (!useRealSupabase) return;
     throw error;
@@ -257,14 +267,14 @@ async function createTemplatesTable() {
 
 async function createCampaignsTable() {
   if (!useRealSupabase) {
-    console.log('Mock: Campaigns table already exists');
+    logger.info('Mock: Campaigns table already exists');
     return;
   }
   
   try {
     // Real implementation...
   } catch (error) {
-    console.error('Error creating campaigns table:', error);
+    logger.error('Error creating campaigns table:', error);
     // Continue execution in mock mode
     if (!useRealSupabase) return;
     throw error;
@@ -273,14 +283,14 @@ async function createCampaignsTable() {
 
 async function createExecutionsTable() {
   if (!useRealSupabase) {
-    console.log('Mock: Executions table already exists');
+    logger.info('Mock: Executions table already exists');
     return;
   }
   
   try {
     // Real implementation...
   } catch (error) {
-    console.error('Error creating executions table:', error);
+    logger.error('Error creating executions table:', error);
     // Continue execution in mock mode
     if (!useRealSupabase) return;
     throw error;
@@ -289,14 +299,14 @@ async function createExecutionsTable() {
 
 async function createExportsTable() {
   if (!useRealSupabase) {
-    console.log('Mock: Exports table already exists');
+    logger.info('Mock: Exports table already exists');
     return;
   }
   
   try {
     // Real implementation...
   } catch (error) {
-    console.error('Error creating exports table:', error);
+    logger.error('Error creating exports table:', error);
     // Continue execution in mock mode
     if (!useRealSupabase) return;
     throw error;
@@ -305,14 +315,14 @@ async function createExportsTable() {
 
 async function createClientsTable() {
   if (!useRealSupabase) {
-    console.log('Mock: Clients table already exists');
+    logger.info('Mock: Clients table already exists');
     return;
   }
   
   try {
     // Real implementation...
   } catch (error) {
-    console.error('Error in createClientsTable:', error);
+    logger.error('Error in createClientsTable:', error);
     // Continue execution in mock mode
     if (!useRealSupabase) return;
     throw error;
@@ -321,14 +331,14 @@ async function createClientsTable() {
 
 async function createSignoffSessionsTable() {
   if (!useRealSupabase) {
-    console.log('Mock: Signoff sessions table already exists');
+    logger.info('Mock: Signoff sessions table already exists');
     return;
   }
   
   try {
     // Real implementation...
   } catch (error) {
-    console.error('Error creating signoff sessions table:', error);
+    logger.error('Error creating signoff sessions table:', error);
     // Continue execution in mock mode
     if (!useRealSupabase) return;
     throw error;
@@ -337,14 +347,14 @@ async function createSignoffSessionsTable() {
 
 async function createSignoffAssetsTable() {
   if (!useRealSupabase) {
-    console.log('Mock: Signoff assets table already exists');
+    logger.info('Mock: Signoff assets table already exists');
     return;
   }
   
   try {
     // Real implementation...
   } catch (error) {
-    console.error('Error creating signoff assets table:', error);
+    logger.error('Error creating signoff assets table:', error);
     // Continue execution in mock mode
     if (!useRealSupabase) return;
     throw error;
@@ -353,14 +363,14 @@ async function createSignoffAssetsTable() {
 
 async function createSignoffResponsesTable() {
   if (!useRealSupabase) {
-    console.log('Mock: Signoff responses table already exists');
+    logger.info('Mock: Signoff responses table already exists');
     return;
   }
   
   try {
     // Real implementation...
   } catch (error) {
-    console.error('Error in createSignoffResponsesTable:', error);
+    logger.error('Error in createSignoffResponsesTable:', error);
     // Continue execution in mock mode
     if (!useRealSupabase) return;
     throw error;

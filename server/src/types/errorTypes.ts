@@ -1,238 +1,75 @@
 /**
- * Error classification system for the AirWAVE API
- * Provides consistent error types and codes across the application
+ * Type definitions for API responses
+ * Standardizes response formats across the application
  */
 
-// Base error codes by category
-export enum ErrorCategory {
-  VALIDATION = 'VALIDATION',
-  AUTHENTICATION = 'AUTH',
-  AUTHORIZATION = 'PERMISSION',
-  NOT_FOUND = 'NOT_FOUND',
-  CONFLICT = 'CONFLICT',
-  SERVER = 'SERVER',
-  DATABASE = 'DB',
-  EXTERNAL = 'EXTERNAL',
-  NETWORK = 'NETWORK',
-  RATE_LIMIT = 'RATE_LIMIT',
-  INPUT = 'INPUT',
-  BUSINESS_LOGIC = 'BUSINESS',
-  SECURITY = 'SECURITY'
+// Standard API response format
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: ApiErrorResponse;
+  meta?: ResponseMetadata;
 }
 
-// Specific error codes
+// Error response format
+export interface ApiErrorResponse {
+  code: ErrorCode;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+// Metadata for paginated responses
+export interface ResponseMetadata {
+  pagination?: PaginationMetadata;
+  timestamp?: string;
+  processingTime?: number;
+}
+
+// Pagination metadata
+export interface PaginationMetadata {
+  page: number;
+  limit: number;
+  totalItems: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
+
+// Error codes enum
 export enum ErrorCode {
-  // Validation errors
-  VALIDATION_FAILED = `${ErrorCategory.VALIDATION}_001`,
-  INVALID_INPUT = `${ErrorCategory.VALIDATION}_002`,
-  MISSING_FIELD = `${ErrorCategory.VALIDATION}_003`,
-  INVALID_FORMAT = `${ErrorCategory.VALIDATION}_004`,
+  // Authentication errors (400-499)
+  UNAUTHORIZED = 'UNAUTHORIZED',
+  FORBIDDEN = 'FORBIDDEN',
+  INVALID_CREDENTIALS = 'INVALID_CREDENTIALS',
+  TOKEN_EXPIRED = 'TOKEN_EXPIRED',
   
-  // Authentication errors
-  INVALID_CREDENTIALS = `${ErrorCategory.AUTHENTICATION}_001`,
-  EXPIRED_TOKEN = `${ErrorCategory.AUTHENTICATION}_002`,
-  INVALID_TOKEN = `${ErrorCategory.AUTHENTICATION}_003`,
-  MISSING_TOKEN = `${ErrorCategory.AUTHENTICATION}_004`,
-  AUTHENTICATION_REQUIRED = `${ErrorCategory.AUTHENTICATION}_005`,
-  ACCOUNT_LOCKED = `${ErrorCategory.AUTHENTICATION}_006`,
-  PASSWORD_EXPIRED = `${ErrorCategory.AUTHENTICATION}_007`,
-  MFA_REQUIRED = `${ErrorCategory.AUTHENTICATION}_008`,
-  MFA_FAILED = `${ErrorCategory.AUTHENTICATION}_009`,
-  SESSION_EXPIRED = `${ErrorCategory.AUTHENTICATION}_010`,
+  // Validation errors (400-499)
+  VALIDATION_FAILED = 'VALIDATION_FAILED',
+  INVALID_INPUT = 'INVALID_INPUT',
+  MISSING_REQUIRED_FIELD = 'MISSING_REQUIRED_FIELD',
   
-  // Authorization errors
-  INSUFFICIENT_PERMISSIONS = `${ErrorCategory.AUTHORIZATION}_001`,
-  FORBIDDEN_RESOURCE = `${ErrorCategory.AUTHORIZATION}_002`,
-  ROLE_REQUIRED = `${ErrorCategory.AUTHORIZATION}_003`,
-  PERMISSION_DENIED = `${ErrorCategory.AUTHORIZATION}_004`,
+  // Resource errors (400-499)
+  RESOURCE_NOT_FOUND = 'RESOURCE_NOT_FOUND',
+  RESOURCE_ALREADY_EXISTS = 'RESOURCE_ALREADY_EXISTS',
+  RESOURCE_CONFLICT = 'RESOURCE_CONFLICT',
   
-  // Not found errors
-  RESOURCE_NOT_FOUND = `${ErrorCategory.NOT_FOUND}_001`,
-  ENDPOINT_NOT_FOUND = `${ErrorCategory.NOT_FOUND}_002`,
-  USER_NOT_FOUND = `${ErrorCategory.NOT_FOUND}_003`,
+  // Rate limiting errors (400-499)
+  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
   
-  // Conflict errors
-  RESOURCE_ALREADY_EXISTS = `${ErrorCategory.CONFLICT}_001`,
-  CONFLICTING_REQUEST = `${ErrorCategory.CONFLICT}_002`,
-  OUTDATED_VERSION = `${ErrorCategory.CONFLICT}_003`,
+  // Server errors (500-599)
+  INTERNAL_SERVER_ERROR = 'INTERNAL_SERVER_ERROR',
+  SERVICE_UNAVAILABLE = 'SERVICE_UNAVAILABLE',
+  DATABASE_ERROR = 'DATABASE_ERROR',
+  EXTERNAL_API_ERROR = 'EXTERNAL_API_ERROR',
   
-  // Security errors
-  INVALID_CSRF_TOKEN = `${ErrorCategory.SECURITY}_001`,
-  RATE_LIMIT_EXCEEDED = `${ErrorCategory.SECURITY}_002`,
-  SUSPICIOUS_ACTIVITY = `${ErrorCategory.SECURITY}_003`,
-  IP_BLOCKED = `${ErrorCategory.SECURITY}_004`,
-  
-  // Server errors
-  INTERNAL_ERROR = `${ErrorCategory.SERVER}_001`,
-  SERVICE_UNAVAILABLE = `${ErrorCategory.SERVER}_002`,
-  NOT_IMPLEMENTED = `${ErrorCategory.SERVER}_003`,
-  CONFIGURATION_ERROR = `${ErrorCategory.SERVER}_004`,
-  
-  // Database errors
-  DATABASE_ERROR = `${ErrorCategory.DATABASE}_001`,
-  QUERY_FAILED = `${ErrorCategory.DATABASE}_002`,
-  CONSTRAINT_VIOLATION = `${ErrorCategory.DATABASE}_003`,
-  TRANSACTION_FAILED = `${ErrorCategory.DATABASE}_004`,
+  // Media processing errors
+  MEDIA_PROCESSING_FAILED = 'MEDIA_PROCESSING_FAILED',
+  INVALID_MEDIA_FORMAT = 'INVALID_MEDIA_FORMAT',
   
   // External service errors
-  EXTERNAL_SERVICE_ERROR = `${ErrorCategory.EXTERNAL}_001`,
-  EXTERNAL_TIMEOUT = `${ErrorCategory.EXTERNAL}_002`,
-  EXTERNAL_RATE_LIMIT = `${ErrorCategory.EXTERNAL}_003`,
-  
-  // Network errors
-  NETWORK_ERROR = `${ErrorCategory.NETWORK}_001`,
-  REQUEST_TIMEOUT = `${ErrorCategory.NETWORK}_002`,
-  CONNECTION_RESET = `${ErrorCategory.NETWORK}_003`,
-  
-  // Rate limiting
-  TOO_MANY_REQUESTS = `${ErrorCategory.RATE_LIMIT}_001`,
-  QUOTA_EXCEEDED = `${ErrorCategory.RATE_LIMIT}_002`,
-  
-  // Input errors
-  FILE_TOO_LARGE = `${ErrorCategory.INPUT}_001`,
-  UNSUPPORTED_MEDIA_TYPE = `${ErrorCategory.INPUT}_002`,
-  MALFORMED_REQUEST = `${ErrorCategory.INPUT}_003`,
-  
-  // Business logic errors
-  OPERATION_FAILED = `${ErrorCategory.BUSINESS_LOGIC}_001`,
-  INVALID_STATE_TRANSITION = `${ErrorCategory.BUSINESS_LOGIC}_002`,
-  PRECONDITION_FAILED = `${ErrorCategory.BUSINESS_LOGIC}_003`,
-  ASSET_PROCESSING_FAILED = `${ErrorCategory.BUSINESS_LOGIC}_004`
+  CREATOMATE_ERROR = 'CREATOMATE_ERROR',
+  ELEVENLABS_ERROR = 'ELEVENLABS_ERROR',
+  OPENAI_ERROR = 'OPENAI_ERROR',
+  ASSEMBLYAI_ERROR = 'ASSEMBLYAI_ERROR',
+  MUBERT_ERROR = 'MUBERT_ERROR'
 }
-
-// Map status codes to error categories
-export const StatusCodeMap: Record<ErrorCategory, number> = {
-  [ErrorCategory.VALIDATION]: 400,
-  [ErrorCategory.AUTHENTICATION]: 401,
-  [ErrorCategory.AUTHORIZATION]: 403,
-  [ErrorCategory.NOT_FOUND]: 404,
-  [ErrorCategory.CONFLICT]: 409,
-  [ErrorCategory.SERVER]: 500,
-  [ErrorCategory.DATABASE]: 500,
-  [ErrorCategory.EXTERNAL]: 502,
-  [ErrorCategory.NETWORK]: 504,
-  [ErrorCategory.RATE_LIMIT]: 429,
-  [ErrorCategory.INPUT]: 400,
-  [ErrorCategory.BUSINESS_LOGIC]: 422,
-  [ErrorCategory.SECURITY]: 403
-};
-
-// Map for user-friendly error messages
-export const UserFriendlyMessages: Record<string, string> = {
-  // Validation
-  [ErrorCode.VALIDATION_FAILED]: 'The provided information is invalid. Please check your input and try again.',
-  [ErrorCode.INVALID_INPUT]: 'The provided input is invalid. Please check your input and try again.',
-  [ErrorCode.MISSING_FIELD]: 'Required fields are missing. Please fill in all required fields.',
-  [ErrorCode.INVALID_FORMAT]: 'The format of the provided data is invalid. Please check and try again.',
-  
-  // Authentication
-  [ErrorCode.INVALID_CREDENTIALS]: 'The email or password provided is incorrect. Please try again.',
-  [ErrorCode.EXPIRED_TOKEN]: 'Your session has expired. Please log in again.',
-  [ErrorCode.MISSING_TOKEN]: 'Authentication required. Please log in to continue.',
-  [ErrorCode.INVALID_TOKEN]: 'Invalid authentication token. Please log in again.',
-  [ErrorCode.AUTHENTICATION_REQUIRED]: 'Authentication is required to access this resource.',
-  [ErrorCode.ACCOUNT_LOCKED]: 'Your account has been locked due to too many failed login attempts. Please contact support.',
-  [ErrorCode.PASSWORD_EXPIRED]: 'Your password has expired. Please reset your password to continue.',
-  [ErrorCode.MFA_REQUIRED]: 'Multi-factor authentication is required to complete this login.',
-  [ErrorCode.MFA_FAILED]: 'Multi-factor authentication verification failed. Please try again.',
-  [ErrorCode.SESSION_EXPIRED]: 'Your session has expired. Please log in again.',
-  
-  // Authorization
-  [ErrorCode.INSUFFICIENT_PERMISSIONS]: 'You do not have permission to perform this action.',
-  [ErrorCode.FORBIDDEN_RESOURCE]: 'Access to this resource is forbidden.',
-  [ErrorCode.ROLE_REQUIRED]: 'A specific role is required to perform this action.',
-  [ErrorCode.PERMISSION_DENIED]: 'Permission denied. You do not have the necessary permissions.',
-  
-  // Not found
-  [ErrorCode.RESOURCE_NOT_FOUND]: 'The requested resource was not found.',
-  [ErrorCode.USER_NOT_FOUND]: 'The requested user was not found.',
-  
-  // Conflict
-  [ErrorCode.RESOURCE_ALREADY_EXISTS]: 'A resource with this information already exists.',
-  
-  // Security
-  [ErrorCode.INVALID_CSRF_TOKEN]: 'Invalid CSRF token. Please refresh the page and try again.',
-  [ErrorCode.RATE_LIMIT_EXCEEDED]: 'Rate limit exceeded. Please try again later.',
-  [ErrorCode.SUSPICIOUS_ACTIVITY]: 'Suspicious activity detected. Please contact support if you believe this is an error.',
-  [ErrorCode.IP_BLOCKED]: 'Your IP address has been temporarily blocked due to suspicious activity.',
-  
-  // Server
-  [ErrorCode.INTERNAL_ERROR]: 'An unexpected error occurred. Our team has been notified.',
-  [ErrorCode.SERVICE_UNAVAILABLE]: 'This service is temporarily unavailable. Please try again later.',
-  [ErrorCode.NOT_IMPLEMENTED]: 'This feature is not yet implemented.',
-  [ErrorCode.CONFIGURATION_ERROR]: 'A configuration error occurred. Please contact support.',
-  
-  // Database
-  [ErrorCode.DATABASE_ERROR]: 'A database error occurred. Our team has been notified.',
-  
-  // External
-  [ErrorCode.EXTERNAL_SERVICE_ERROR]: 'An external service error occurred. Please try again later.',
-  
-  // Network
-  [ErrorCode.NETWORK_ERROR]: 'A network error occurred. Please check your connection and try again.',
-  [ErrorCode.REQUEST_TIMEOUT]: 'The request timed out. Please try again later.',
-  
-  // Rate limiting
-  [ErrorCode.TOO_MANY_REQUESTS]: 'Too many requests. Please try again later.',
-  
-  // Input
-  [ErrorCode.FILE_TOO_LARGE]: 'The file size exceeds the maximum limit.',
-  [ErrorCode.UNSUPPORTED_MEDIA_TYPE]: 'The file type is not supported.',
-  
-  // Business logic
-  [ErrorCode.OPERATION_FAILED]: 'The operation could not be completed. Please try again.',
-  [ErrorCode.ASSET_PROCESSING_FAILED]: 'Asset processing failed. Please try again with a different file.'
-};
-
-/**
- * Determines if an error is retryable
- */
-export const isRetryableError = (code: string): boolean => {
-  const retryableCodes: string[] = [
-    // Server errors
-    ErrorCode.SERVICE_UNAVAILABLE,
-    ErrorCode.INTERNAL_ERROR,
-    ErrorCode.CONFIGURATION_ERROR,
-    
-    // External service errors
-    ErrorCode.EXTERNAL_SERVICE_ERROR,
-    ErrorCode.EXTERNAL_TIMEOUT,
-    
-    // Network errors
-    ErrorCode.NETWORK_ERROR,
-    ErrorCode.REQUEST_TIMEOUT,
-    ErrorCode.CONNECTION_RESET,
-    
-    // Database errors
-    ErrorCode.DATABASE_ERROR,
-    
-    // Authentication errors
-    ErrorCode.SESSION_EXPIRED,
-    ErrorCode.EXPIRED_TOKEN,
-    
-    // Rate limiting
-    ErrorCode.RATE_LIMIT_EXCEEDED,
-    ErrorCode.TOO_MANY_REQUESTS
-  ];
-  return retryableCodes.includes(code);
-};
-
-/**
- * Get HTTP status code from error code
- */
-export const getStatusCode = (code: string): number => {
-  const lastUnderscoreIndex = code.lastIndexOf('_');
-  if (lastUnderscoreIndex === -1) {
-    // Handle case where code might not have an underscore (fallback)
-    return 500; 
-  }
-  const category = code.substring(0, lastUnderscoreIndex) as ErrorCategory;
-  return StatusCodeMap[category] || 500;
-};
-
-/**
- * Get user-friendly message for error code
- */
-export const getUserFriendlyMessage = (code: string): string => {
-  return UserFriendlyMessages[code] || 'An unexpected error occurred. Please try again later.';
-};

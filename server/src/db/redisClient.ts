@@ -1,4 +1,5 @@
 import { createClient } from 'redis';
+import { logger } from '../utils/logger';
 
 // Create a mock Redis client for environments without Redis
 class MockRedisClient {
@@ -7,7 +8,7 @@ class MockRedisClient {
   private isConnected: boolean = true;
 
   async connect() {
-    console.log('Mock Redis client connected');
+    logger.info('Mock Redis client connected');
     this.isConnected = true;
     return this;
   }
@@ -17,7 +18,7 @@ class MockRedisClient {
   }
 
   async quit() {
-    console.log('Mock Redis client disconnected');
+    logger.info('Mock Redis client disconnected');
     this.isConnected = false;
     return 'OK';
   }
@@ -140,16 +141,16 @@ if (useRealRedis) {
 
   // Error handling
   redisClient.on('error', (err) => {
-    console.error('Redis client error:', err);
+    logger.error('Redis client error:', err);
   });
 
   // Ensure we handle connection events
   redisClient.on('connect', () => {
-    console.log('Connected to Redis server');
+    logger.info('Connected to Redis server');
   });
 
   redisClient.on('reconnecting', () => {
-    console.log('Reconnecting to Redis server...');
+    logger.info('Reconnecting to Redis server...');
   });
 
   // Connect to Redis in a non-blocking way
@@ -159,7 +160,7 @@ if (useRealRedis) {
         await redisClient.connect();
       }
     } catch (error) {
-      console.error('Failed to connect to Redis:', error);
+      logger.error('Failed to connect to Redis:', error);
       // Continue execution - application can work without Redis,
       // but token revocation and session management will be limited
     }
@@ -167,19 +168,19 @@ if (useRealRedis) {
 
   // Graceful shutdown
   process.on('SIGTERM', async () => {
-    console.log('SIGTERM received, closing Redis connection...');
+    logger.info('SIGTERM received, closing Redis connection...');
     await redisClient.quit();
   });
 
   process.on('SIGINT', async () => {
-    console.log('SIGINT received, closing Redis connection...');
+    logger.info('SIGINT received, closing Redis connection...');
     await redisClient.quit();
   });
 } else {
   // Use mock Redis client
-  console.log('Using mock Redis client for development/testing');
+  logger.info('Using mock Redis client for development/testing');
   redisClient = new MockRedisClient();
-  redisClient.connect().catch(err => console.error('Error connecting mock Redis:', err));
+  redisClient.connect().catch(err => logger.error('Error connecting mock Redis:', err));
 }
 
 // Export Redis client

@@ -1,63 +1,58 @@
-/**
- * Centralized error handling middleware
- * Provides consistent error responses across all routes
- */
 import { Request, Response, NextFunction } from 'express';
-import { logger } from '../utils/logger';
 import { ApiError } from '../utils/ApiError';
-import { ApiResponse } from '../utils/ApiResponse';
 import { ErrorCode } from '../types/errorTypes';
-
-/**
- * Not found error handler - call when route doesn't exist
- */
-export const notFoundHandler = (req: Request, res: Response, next: NextFunction): void => {
-  const error = new ApiError(ErrorCode.RESOURCE_NOT_FOUND, `Not Found - ${req.originalUrl}`);
-  next(error);
-};
+import { logger } from '../utils/logger';
 
 /**
  * Global error handler middleware
- * Processes all errors through a standardized pipeline
+ * Standardizes error responses across the application
  */
 export const errorHandler = (
   err: Error | ApiError,
   req: Request,
   res: Response,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   next: NextFunction
-): void => {
-  // Log the error details
+) => {
+  // Log the error
+  logger.error(`Error in ${req.method} ${req.path}:`, err);
+  
+  // If it's already an ApiError, use its properties
   if (err instanceof ApiError) {
-    // Log ApiError specifics
-    logger.error(`ApiError caught: ${err.errorCode} - ${err.message}`, {
-      statusCode: err.statusCode,
-      errorCode: err.errorCode,
-      details: err.details,
-      stack: err.stack,
+    return res.status(err.statusCode).json(err.toResponse());
+  }
+  
+  // For other errors, create a generic server error
+  const statusCode = 500;
+  const apiError = new ApiError(
+    ErrorCode.INTERNAL_SERVER_ERROR,
+    err.message || 'An unexpected error occurred',
+    {
       path: req.path,
       method: req.method,
-      ip: req.ip,
-      internalDetails: err.internalDetails // Log internal details if present
-    });
-  } else {
-    // Log generic Error specifics
-    logger.error(`Unhandled Error caught: ${err.message}`, {
-      name: err.name,
-      stack: err.stack,
+      originalError: process.env.NODE_ENV === 'production' ? undefined : err.stack
+    }
+  );
+  
+  return res.status(statusCode).json(apiError.toResponse());
+};
+
+/**
+ * Not found handler middleware
+ * Handles requests to non-existent routes
+ */
+export const notFoundHandler = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const apiError = new ApiError(
+    ErrorCode.RESOURCE_NOT_FOUND,
+    `Route not found: ${req.method} ${req.path}`,
+    {
       path: req.path,
-      method: req.method,
-      ip: req.ip,
-    });
-  }
-
-  // Prevent sending multiple responses
-  if (res.headersSent) {
-    logger.warn('Headers already sent, skipping error response generation.');
-    return; 
-  }
-
-  // Use ApiResponse.error to send the standardized response
-  // It handles both ApiError instances and generic Errors
-  ApiResponse.error(res, err);
+      method: req.method
+    }
+  );
+  
+  return res.status(404).json(apiError.toResponse());
 };

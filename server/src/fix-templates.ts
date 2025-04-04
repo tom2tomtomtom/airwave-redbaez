@@ -1,4 +1,5 @@
 import { supabase } from './db/supabaseClient';
+import { logger } from './utils/logger';
 
 /**
  * This script fixes template format values in the database.
@@ -8,7 +9,7 @@ import { supabase } from './db/supabaseClient';
  * 3. Try alternate column names based on typical naming conventions
  */
 async function fixTemplates() {
-  console.log('Starting template format fix script...');
+  logger.info('Starting template format fix script...');
   
   try {
     // First check if the table and column exist
@@ -18,11 +19,11 @@ async function fixTemplates() {
       .limit(1);
       
     if (tableError) {
-      console.error('Error accessing templates table:', tableError);
+      logger.error('Error accessing templates table:', tableError);
       return;
     }
     
-    console.log('Templates table exists. Sample record:', tableInfo);
+    logger.info('Templates table exists. Sample record:', tableInfo);
     
     // Approach 1: Try to update using the format column
     try {
@@ -32,10 +33,10 @@ async function fixTemplates() {
         .limit(10);
         
       if (formatCheckError) {
-        console.error('Error checking format column:', formatCheckError);
-        console.log('Format column may not exist, trying alternate approaches');
+        logger.error('Error checking format column:', formatCheckError);
+        logger.info('Format column may not exist, trying alternate approaches');
       } else {
-        console.log('Format column exists. Sample data:', formatCheckData);
+        logger.info('Format column exists. Sample data:', formatCheckData);
         
         // Update templates with missing or invalid formats
         for (const template of formatCheckData) {
@@ -46,20 +47,20 @@ async function fixTemplates() {
               .eq('id', template.id);
               
             if (updateError) {
-              console.error(`Failed to update template ${template.id}:`, updateError);
+              logger.error(`Failed to update template ${template.id}:`, updateError);
             } else {
-              console.log(`Updated template ${template.id} (${template.name}) to square format`);
+              logger.info(`Updated template ${template.id} (${template.name}) to square format`);
             }
           }
         }
       }
     } catch (err) {
-      console.error('Error in approach 1:', err);
+      logger.error('Error in approach 1:', err);
     }
     
     // Approach 2: Try to add the format column if it doesn't exist
     try {
-      console.log('Attempting to add format column if it doesn\'t exist...');
+      logger.info('Attempting to add format column if it doesn\'t exist...');
       
       // This would require rpc permission or SQL execution rights
       // In a real environment, you would create a migration to add this column
@@ -70,12 +71,12 @@ async function fixTemplates() {
       });
       
       if (alterError) {
-        console.error('Could not add format column:', alterError);
+        logger.error('Could not add format column:', alterError);
       } else {
-        console.log('Successfully added format column or it already existed');
+        logger.info('Successfully added format column or it already existed');
       }
     } catch (err) {
-      console.error('Error in approach 2:', err);
+      logger.error('Error in approach 2:', err);
     }
     
     // Approach 3: Check for alternate column names (type, aspect_ratio, etc.)
@@ -89,7 +90,7 @@ async function fixTemplates() {
           .limit(1);
           
         if (!checkError) {
-          console.log(`Found alternate column: ${colName}. Sample:`, checkData);
+          logger.info(`Found alternate column: ${colName}. Sample:`, checkData);
           
           // If we found an alternate column, use it to set the format
           const { error: sqlError } = await supabase.rpc('execute_sql', {
@@ -97,21 +98,21 @@ async function fixTemplates() {
           });
           
           if (sqlError) {
-            console.error(`Could not update from ${colName}:`, sqlError);
+            logger.error(`Could not update from ${colName}:`, sqlError);
           } else {
-            console.log(`Updated format column using values from ${colName}`);
+            logger.info(`Updated format column using values from ${colName}`);
           }
         }
       }
     } catch (err) {
-      console.error('Error in approach 3:', err);
+      logger.error('Error in approach 3:', err);
     }
     
-    console.log('Template format fix script completed');
+    logger.info('Template format fix script completed');
   } catch (error) {
-    console.error('Unhandled error in fix script:', error);
+    logger.error('Unhandled error in fix script:', error);
   }
 }
 
 // Run the fix function
-fixTemplates().catch(console.error);
+fixTemplates().catch(err => logger.error('Failed to run fix templates script:', err));

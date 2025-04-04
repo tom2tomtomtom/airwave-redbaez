@@ -1,48 +1,44 @@
-import { supabase } from './db/supabaseClient';
+import { logger } from '../utils/logger';
 
 /**
- * This script prints out template information including format values
- * to help diagnose why they're showing up as square in the UI
+ * Debug script for examining template formats in the database
+ * This is a development utility and should not be used in production
  */
-async function debugTemplates() {
+export async function debugTemplates() {
   try {
-    console.log('Debugging template formats...');
+    logger.info('Debugging template formats...');
     
-    // Get all templates
-    const { data: templates, error: fetchError } = await supabase
+    // Import dependencies inside function to avoid loading in production
+    const { supabase } = await import('../db/supabaseClient');
+    
+    // Fetch all templates
+    const { data: templates, error } = await supabase
       .from('templates')
-      .select('*')
-      .limit(20);
-      
-    if (fetchError) {
-      console.error('Error fetching templates:', fetchError);
+      .select('*');
+    
+    if (error) {
+      logger.error('Error fetching templates:', error);
       return;
     }
     
-    console.log(`Found ${templates?.length || 0} templates`);
+    logger.info(`Found ${templates?.length || 0} templates`);
     
-    // Print detailed format information for each template
     if (templates && templates.length > 0) {
       templates.forEach((template, index) => {
-        console.log(`\nTemplate ${index + 1}: ${template.name}`);
-        console.log(`  ID: ${template.id}`);
-        console.log(`  Format: ${template.format}`);
-        console.log(`  Format type: ${typeof template.format}`);
-        console.log(`  Description: ${template.description}`);
-        console.log(`  Created: ${template.created_at}`);
-        
-        // Check column names
-        console.log('  All columns:', Object.keys(template).join(', '));
+        logger.debug(`\nTemplate ${index + 1}: ${template.name}`);
+        logger.debug(`  ID: ${template.id}`);
+        logger.debug(`  Format: ${template.format}`);
+        logger.debug(`  Format type: ${typeof template.format}`);
+        logger.debug(`  Description: ${template.description}`);
+        logger.debug(`  Created: ${template.created_at}`);
+        logger.debug('  All columns:', Object.keys(template).join(', '));
       });
     } else {
-      console.log('No templates found');
+      logger.warn('No templates found');
     }
     
-    console.log('\nDebug completed');
+    logger.info('\nDebug completed');
   } catch (error) {
-    console.error('Unhandled error:', error);
+    logger.error('Error in debugTemplates:', error);
   }
 }
-
-// Run the debug function
-debugTemplates().catch(console.error);

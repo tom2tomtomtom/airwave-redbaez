@@ -1,77 +1,93 @@
-/**
- * Logging utility for consistent logging across the application
- */
-// @ts-nocheck
-// @ts-ignore - We need to import winston this way due to incompatible typings
-import * as winston from 'winston';
+import winston from 'winston';
 
-// Extend the Winston TransformableInfo interface
-interface LogEntry extends winston.Logform.TransformableInfo {
-  timestamp: string;
-  [key: string]: any;
-}
+// Define log levels
+const levels = {
+  error: 0,
+  warn: 1,
+  info: 2,
+  http: 3,
+  debug: 4,
+};
 
-// Define log format
-const logFormat = winston.format.printf((info: LogEntry) => {
-  const { level, message, timestamp, ...metadata } = info;
-  let msg = `${timestamp} [${level}]: ${message}`;
+// Define log level based on environment
+const level = () => {
+  const env = process.env.NODE_ENV || 'development';
+  return env === 'production' ? 'info' : 'debug';
+};
+
+// Define colors for each level
+const colors = {
+  error: 'red',
+  warn: 'yellow',
+  info: 'green',
+  http: 'magenta',
+  debug: 'blue',
+};
+
+// Add colors to winston
+winston.addColors(colors);
+
+// Define the format for logs
+const format = winston.format.combine(
+  winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss:ms' }),
+  winston.format.colorize({ all: true }),
+  winston.format.printf(
+    (info) => `${info.timestamp} ${info.level}: ${info.message}`,
+  ),
+);
+
+// Define transports
+const transports = [
+  // Console transport for all logs
+  new winston.transports.Console(),
   
-  if (Object.keys(metadata).length > 0) {
-    msg += ` ${JSON.stringify(metadata)}`;
-  }
+  // File transport for error logs
+  new winston.transports.File({
+    filename: 'logs/error.log',
+    level: 'error',
+  }),
   
-  return msg;
-});
+  // File transport for all logs
+  new winston.transports.File({ filename: 'logs/all.log' }),
+];
 
 // Create the logger
-// Create the logger instance
 export const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.colorize(),
-    logFormat
-  ),
-  transports: [
-    new winston.transports.Console(),
-    new winston.transports.File({ 
-      filename: 'error.log', 
-      level: 'error',
-      dirname: 'logs' 
-    }),
-    new winston.transports.File({ 
-      filename: 'combined.log',
-      dirname: 'logs'
-    })
-  ]
+  level: level(),
+  levels,
+  format,
+  transports,
 });
 
-// Create a directory for logs if it doesn't exist
-import * as fs from 'fs';
-import * as path from 'path';
+// Ensure log directory exists
+import fs from 'fs';
+import path from 'path';
 
-const logsDir = path.join(process.cwd(), 'logs');
-if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir, { recursive: true });
+const logDir = 'logs';
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir);
 }
 
-/**
- * Create a logger with a specific context
- * @param context The context for the logger (e.g., the service or component name)
- */
-export function createLogger(context: string) {
-  return {
-    debug: (message: string, meta?: Record<string, any>) => {
-      logger.debug(`[${context}] ${message}`, meta);
-    },
-    info: (message: string, meta?: Record<string, any>) => {
-      logger.info(`[${context}] ${message}`, meta);
-    },
-    warn: (message: string, meta?: Record<string, any>) => {
-      logger.warn(`[${context}] ${message}`, meta);
-    },
-    error: (message: string, meta?: Record<string, any>) => {
-      logger.error(`[${context}] ${message}`, meta);
+// Export a simplified logger interface for easy use
+export default {
+  error: (message: string, meta?: any) => logger.error(formatMessage(message, meta)),
+  warn: (message: string, meta?: any) => logger.warn(formatMessage(message, meta)),
+  info: (message: string, meta?: any) => logger.info(formatMessage(message, meta)),
+  http: (message: string, meta?: any) => logger.http(formatMessage(message, meta)),
+  debug: (message: string, meta?: any) => logger.debug(formatMessage(message, meta)),
+};
+
+// Helper function to format messages with metadata
+function formatMessage(message: string, meta?: any): string {
+  if (!meta) return message;
+  
+  try {
+    if (typeof meta === 'object') {
+      return `${message} ${JSON.stringify(meta)}`;
+    } else {
+      return `${message} ${meta}`;
     }
-  };
+  } catch (error) {
+    return `${message} [Unserializable data]`;
+  }
 }
