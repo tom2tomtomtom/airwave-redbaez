@@ -8,8 +8,8 @@ import {
   Asset, DbAsset, AssetFilters, ServiceResult, AssetUploadOptions,
   AssetProcessor, AssetRepository, AssetCache, IAssetService
 } from '../types/assetTypes';
-import path from 'path';
-import fs from 'fs';
+import * as path from 'path';
+import * as fs from 'fs';
 import sharp from 'sharp';
 import ffmpeg from 'fluent-ffmpeg';
 import { v4 as uuidv4 } from 'uuid';
@@ -54,8 +54,8 @@ try {
   logger = {
     debug: (message: string, meta?: any) => console.debug(`[assetService] ${message}`, meta),
     info: (message: string, meta?: any) => console.info(`[assetService] ${message}`, meta),
-    warn: (message: string, meta?: any) => console.warn(`[assetService] ${message}`, meta),
-    error: (message: string, meta?: any) => console.error(`[assetService] ${message}`, meta)
+    warn: (message: string, meta?: any) => logger.warn(`[assetService] ${message}`, meta),
+    error: (message: string, meta?: any) => logger.error(`[assetService] ${message}`, meta)
   };
 }
 
@@ -798,7 +798,7 @@ class FileSystemAssetProcessor implements AssetProcessor {
             ffmpeg.ffprobe(file.path, (err: Error, metadata: any) => {
               if (err) return reject(err);
               
-              const videoStream = metadata.streams.find((s: any) => s.codec_type === 'video');
+              const videoStream = metadata.streams.find(($1: unknown) => s.codec_type === 'video');
               if (!videoStream) return resolve({});
               
               resolve({
@@ -817,7 +817,7 @@ class FileSystemAssetProcessor implements AssetProcessor {
             ffmpeg.ffprobe(file.path, (err: Error, metadata: any) => {
               if (err) return reject(err);
               
-              const audioStream = metadata.streams.find((s: any) => s.codec_type === 'audio');
+              const audioStream = metadata.streams.find(($1: unknown) => s.codec_type === 'audio');
               if (!audioStream) return resolve({});
               
               resolve({

@@ -58,7 +58,7 @@ export class CreatomateService {
   isConfigured(): boolean {
     const isValid = this.apiKey !== '' && this.apiKey.length > 10;
     if (!isValid) {
-      console.error('Creatomate service is not properly configured. Missing or invalid API key.');
+      logger.error('Creatomate service is not properly configured. Missing or invalid API key.');
     }
     return isValid;
   }
@@ -67,14 +67,14 @@ export class CreatomateService {
   async generateImage(options: CreatomateRenderOptions): Promise<RenderJob> {
     try {
       if (process.env.PROTOTYPE_MODE === 'true') {
-        console.log('Running in PROTOTYPE_MODE. Using mock Creatomate image response.');
+        logger.info('Running in PROTOTYPE_MODE. Using mock Creatomate image response.');
         return this.mockGenerateImage(options);
       }
 
-      console.log('Making real API call to Creatomate for image generation');
-      // console.log('Using API key:', this.apiKey ? `${this.apiKey.substring(0, 5)}...` : 'Missing'); // Security: Removed API key logging
-      console.log('Template ID:', options.templateId);
-      console.log('Using modifications:', JSON.stringify(options.modifications));
+      logger.info('Making real API call to Creatomate for image generation');
+      // logger.info('Using API key:', this.apiKey ? `${this.apiKey.substring(0, 5)}...` : 'Missing'); // Security: Removed API key logging
+      logger.info('Template ID:', options.templateId);
+      logger.info('Using modifications:', JSON.stringify(options.modifications));
 
       // Verify that we have a valid API key
       if (!this.isConfigured()) {
@@ -89,7 +89,7 @@ export class CreatomateService {
         output_format: options.outputFormat || 'jpg'
       };
       
-      console.log('API request payload:', JSON.stringify(payload));
+      logger.info('API request payload:', JSON.stringify(payload));
 
       const response = await axios.post(
         `${this.baseUrl}/renders`,
@@ -102,7 +102,7 @@ export class CreatomateService {
         }
       );
 
-      console.log('Creatomate API response:', JSON.stringify(response.data));
+      logger.info('Creatomate API response:', JSON.stringify(response.data));
 
       if (!response.data || !response.data.id) {
         throw new Error('Creatomate API returned an invalid response (no job ID)');
@@ -113,7 +113,7 @@ export class CreatomateService {
         status: response.data.status || 'queued'
       };
 
-      console.log(`Created render job with ID: ${job.id}`);
+      logger.info(`Created render job with ID: ${job.id}`);
 
       // Store job for status tracking
       this.activeJobs.set(job.id, job);
@@ -122,8 +122,8 @@ export class CreatomateService {
       this.pollJobStatus(job.id);
 
       return job;
-    } catch (error: any) {
-      console.error('Creatomate API error:', error.response?.data || error.message);
+    } catch ($1: unknown) {
+      logger.error('Creatomate API error:', error.response?.data || error.message);
       throw new Error(`Failed to generate image: ${error.message}`);
     }
   }
@@ -132,14 +132,14 @@ export class CreatomateService {
   async generateVideo(options: CreatomateRenderOptions): Promise<RenderJob> {
     try {
       if (process.env.PROTOTYPE_MODE === 'true') {
-        console.log('Running in PROTOTYPE_MODE. Using mock Creatomate video response.');
+        logger.info('Running in PROTOTYPE_MODE. Using mock Creatomate video response.');
         return this.mockGenerateVideo(options);
       }
 
-      console.log('Making real API call to Creatomate for video generation');
-      // console.log('Using API key:', this.apiKey ? `${this.apiKey.substring(0, 5)}...` : 'Missing'); // Security: Removed API key logging
-      console.log('Template ID:', options.templateId);
-      console.log('Using modifications:', JSON.stringify(options.modifications));
+      logger.info('Making real API call to Creatomate for video generation');
+      // logger.info('Using API key:', this.apiKey ? `${this.apiKey.substring(0, 5)}...` : 'Missing'); // Security: Removed API key logging
+      logger.info('Template ID:', options.templateId);
+      logger.info('Using modifications:', JSON.stringify(options.modifications));
 
       // Verify that we have a valid API key
       if (!this.isConfigured()) {
@@ -154,7 +154,7 @@ export class CreatomateService {
         output_format: options.outputFormat || 'mp4'
       };
       
-      console.log('API request payload:', JSON.stringify(payload));
+      logger.info('API request payload:', JSON.stringify(payload));
 
       const response = await axios.post(
         `${this.baseUrl}/renders`,
@@ -167,7 +167,7 @@ export class CreatomateService {
         }
       );
 
-      console.log('Creatomate API response:', JSON.stringify(response.data));
+      logger.info('Creatomate API response:', JSON.stringify(response.data));
 
       if (!response.data || !response.data.id) {
         throw new Error('Creatomate API returned an invalid response (no job ID)');
@@ -178,7 +178,7 @@ export class CreatomateService {
         status: response.data.status || 'queued'
       };
 
-      console.log(`Created render job with ID: ${job.id}`);
+      logger.info(`Created render job with ID: ${job.id}`);
 
       // Store job for status tracking
       this.activeJobs.set(job.id, job);
@@ -187,8 +187,8 @@ export class CreatomateService {
       this.pollJobStatus(job.id);
 
       return job;
-    } catch (error: any) {
-      console.error('Creatomate API error:', error.response?.data || error.message);
+    } catch ($1: unknown) {
+      logger.error('Creatomate API error:', error.response?.data || error.message);
       throw new Error(`Failed to generate video: ${error.message}`);
     }
   }
@@ -196,7 +196,7 @@ export class CreatomateService {
   // Generate a preview (faster, lower quality)
   async generatePreview(options: CreatomateRenderOptions): Promise<RenderJob> {
     if (process.env.PROTOTYPE_MODE === 'true') {
-      console.log('Running in PROTOTYPE_MODE. Using mock Creatomate preview.');
+      logger.info('Running in PROTOTYPE_MODE. Using mock Creatomate preview.');
       return this.mockGeneratePreview(options);
     }
     
@@ -222,10 +222,10 @@ export class CreatomateService {
         throw new Error('No job ID provided to checkRenderStatus');
       }
 
-      console.log(`Checking render status for job: ${jobId}`);
+      logger.info(`Checking render status for job: ${jobId}`);
 
       if (process.env.PROTOTYPE_MODE === 'true') {
-        console.log('Using mock job status in prototype mode');
+        logger.info('Using mock job status in prototype mode');
         const job = this.activeJobs.get(jobId);
         if (!job) {
           throw new Error(`Job not found: ${jobId}`);
@@ -238,7 +238,7 @@ export class CreatomateService {
         throw new Error('Creatomate API key is not configured');
       }
 
-      console.log(`Making real API call to check status for job: ${jobId}`);
+      logger.info(`Making real API call to check status for job: ${jobId}`);
 
       const response = await axios.get(
         `${this.baseUrl}/renders/${jobId}`,
@@ -249,7 +249,7 @@ export class CreatomateService {
         }
       );
 
-      console.log(`Received status response for job ${jobId}:`, JSON.stringify(response.data));
+      logger.info(`Received status response for job ${jobId}:`, JSON.stringify(response.data));
 
       const data = response.data;
       const job: RenderJob = {
@@ -260,7 +260,7 @@ export class CreatomateService {
         error: data.error
       };
 
-      console.log(`Job ${jobId} status: ${job.status}, url: ${job.url || 'not available yet'}`);
+      logger.info(`Job ${jobId} status: ${job.status}, url: ${job.url || 'not available yet'}`);
 
       // Update job in storage
       this.activeJobs.set(jobId, job);
@@ -288,8 +288,8 @@ export class CreatomateService {
       });
 
       return job;
-    } catch (error: any) {
-      console.error('Error checking render status:', error.response?.data || error.message);
+    } catch ($1: unknown) {
+      logger.error('Error checking render status:', error.response?.data || error.message);
       throw new Error(`Failed to check render status: ${error.message}`);
     }
   }
@@ -317,7 +317,7 @@ export class CreatomateService {
         // Continue polling
         setTimeout(poll, interval);
       } catch (error) {
-        console.error(`Error polling job ${jobId}:`, error);
+        logger.error(`Error polling job ${jobId}:`, error);
       }
     };
 
@@ -335,17 +335,17 @@ export class CreatomateService {
     const job = this.activeJobs.get(jobId);
     
     if (!job) {
-      console.error(`Cannot simulate status changes for job ${jobId}: Job not found`);
+      logger.error(`Cannot simulate status changes for job ${jobId}: Job not found`);
       return;
     }
 
-    console.log(`Starting status simulation for job ${jobId}`);
+    logger.info(`Starting status simulation for job ${jobId}`);
 
     const updateStatus = () => {
       if (index >= statuses.length) return;
       
       const newStatus = statuses[index];
-      console.log(`Updating job ${jobId} status to ${newStatus}`);
+      logger.info(`Updating job ${jobId} status to ${newStatus}`);
       
       const updatedJob: RenderJob = { ...job, status: newStatus };
       
@@ -401,7 +401,7 @@ export class CreatomateService {
         // Schedule next update
         setTimeout(updateStatus, 3000); // Faster updates for prototype mode
       } else {
-        console.log(`Finished simulation for job ${jobId}. Final status: ${newStatus}`);
+        logger.info(`Finished simulation for job ${jobId}. Final status: ${newStatus}`);
       }
     };
     
@@ -419,8 +419,8 @@ export class CreatomateService {
     };
     
     // Log the mock job creation for debugging
-    console.log(`Creating mock image job ${jobId} with template: ${options.templateId}`);
-    console.log('Modifications:', JSON.stringify(options.modifications));
+    logger.info(`Creating mock image job ${jobId} with template: ${options.templateId}`);
+    logger.info('Modifications:', JSON.stringify(options.modifications));
     
     // Start the simulation
     this.activeJobs.set(jobId, job);
@@ -441,8 +441,8 @@ export class CreatomateService {
     this.activeJobs.set(jobId, job);
     
     // Log the mock job creation for debugging
-    console.log(`Creating mock video job ${jobId} with template: ${options.templateId}`);
-    console.log('Modifications:', JSON.stringify(options.modifications));
+    logger.info(`Creating mock video job ${jobId} with template: ${options.templateId}`);
+    logger.info('Modifications:', JSON.stringify(options.modifications));
     
     // Start the simulation
     this.simulateStatusChanges(jobId);

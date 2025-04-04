@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
+import { logger } from './logger';
 
 // Load environment variables
 dotenv.config();
@@ -9,10 +10,10 @@ const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KE
 
 // Create a mock Supabase client for development/testing
 class MockSupabaseClient {
-  private storage: Map<string, any[]> = new Map();
+  private storage: Map<string, Record<string, unknown>[]> = new Map();
   
   constructor() {
-    console.log('Using mock Supabase client for development/testing');
+    logger.info('Using mock Supabase client for development/testing');
     
     // Initialize with some mock data
     this.storage.set('users', [
@@ -72,7 +73,7 @@ class MockSupabaseClient {
           }
         };
       },
-      insert: (data: any) => {
+      insert: ($1: unknown) => {
         if (!this.storage.has(table)) {
           this.storage.set(table, []);
         }
@@ -85,7 +86,7 @@ class MockSupabaseClient {
           error: null
         };
       },
-      update: (data: any) => {
+      update: ($1: unknown) => {
         return {
           eq: (column: string, value: any) => {
             const items = this.storage.get(table) || [];
@@ -140,7 +141,7 @@ class MockSupabaseClient {
 
 // Determine whether to use real Supabase or mock
 const useRealSupabase = process.env.USE_REAL_SUPABASE === 'true';
-let supabase: SupabaseClient | any = null;
+let supabase: SupabaseClient | MockSupabaseClient;
 
 if (useRealSupabase) {
   supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -153,7 +154,7 @@ if (useRealSupabase) {
   supabase = new MockSupabaseClient();
 }
 
-export const getSupabaseClient = (): SupabaseClient | any => {
+export const getSupabaseClient = (): SupabaseClient | MockSupabaseClient => {
   return supabase;
 };
 

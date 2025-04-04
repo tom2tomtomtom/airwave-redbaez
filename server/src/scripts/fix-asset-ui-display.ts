@@ -1,7 +1,8 @@
+import { logger } from '../utils/logger';
 import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
+import * as dotenv from 'dotenv';
+import * as fs from 'fs';
+import * as path from 'path';
 dotenv.config();
 
 // Initialize Supabase client
@@ -13,11 +14,11 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const ASSET_ID = '3feaa091-bd0b-4501-8c67-a5f96c767e1a';
 
 async function fixAssetForUI() {
-  console.log('=== Fixing Asset for UI Display ===');
+  logger.info('=== Fixing Asset for UI Display ===');
   
   try {
     // 1. Check if asset exists in database
-    console.log(`\nChecking current asset status in database (ID: ${ASSET_ID}):`);
+    logger.info(`\nChecking current asset status in database (ID: ${ASSET_ID}):`);
     const { data: asset, error: assetError } = await supabase
       .from('assets')
       .select('*')
@@ -25,14 +26,14 @@ async function fixAssetForUI() {
       .single();
       
     if (assetError) {
-      console.error('Error fetching asset by ID:', assetError);
+      logger.error('Error fetching asset by ID:', assetError);
       return;
     }
     
-    console.log('Asset found in database:', asset);
+    logger.info('Asset found in database:', asset);
     
     // 2. Update the asset with proper metadata field names to match frontend expectations
-    console.log('\nUpdating asset with proper field structure for UI:');
+    logger.info('\nUpdating asset with proper field structure for UI:');
     
     // Add additional fields expected by the frontend
     const updatedAsset = {
@@ -64,7 +65,7 @@ async function fixAssetForUI() {
       }
     };
     
-    console.log('Updating with:', updatedAsset);
+    logger.info('Updating with:', updatedAsset);
     
     // Update the asset in the database
     const { data: updateResult, error: updateError } = await supabase
@@ -75,14 +76,14 @@ async function fixAssetForUI() {
       .single();
       
     if (updateError) {
-      console.error('Update failed:', updateError);
+      logger.error('Update failed:', updateError);
     } else {
-      console.log('Update successful:', updateResult);
-      console.log('\nAsset should now appear in the UI.');
+      logger.info('Update successful:', updateResult);
+      logger.info('\nAsset should now appear in the UI.');
     }
     
     // 3. Verify that the file exists and is accessible
-    console.log('\nVerifying file accessibility:');
+    logger.info('\nVerifying file accessibility:');
     const mainFile = path.join(
       process.cwd(),
       'uploads',
@@ -91,31 +92,31 @@ async function fixAssetForUI() {
     
     try {
       const fileStats = fs.statSync(mainFile);
-      console.log(`File exists (${fileStats.size} bytes)`);
+      logger.info(`File exists (${fileStats.size} bytes)`);
       
       // Make sure the file has proper permissions
       fs.chmodSync(mainFile, 0o644);
-      console.log('File permissions updated to ensure it\'s readable');
+      logger.info('File permissions updated to ensure it\'s readable');
     } catch (fsError) {
       if (fsError instanceof Error) {
-        console.error('File access error:', fsError.message);
+        logger.error('File access error:', fsError.message);
       } else {
-        console.error('File access error:', fsError);
+        logger.error('File access error:', fsError);
       }
     }
     
     // 4. Log debugging information for the client
-    console.log('\nClient debugging information:');
-    console.log('- UI should be requesting assets with client_id:', asset.client_id);
-    console.log('- Make sure the client selector is set to a client with ID:', asset.client_id);
-    console.log('- Asset type filter should include "image" or be set to "all"');
-    console.log('- Try refreshing the browser to clear any cache');
+    logger.info('\nClient debugging information:');
+    logger.info('- UI should be requesting assets with client_id:', asset.client_id);
+    logger.info('- Make sure the client selector is set to a client with ID:', asset.client_id);
+    logger.info('- Asset type filter should include "image" or be set to "all"');
+    logger.info('- Try refreshing the browser to clear any cache');
     
   } catch (error) {
-    console.error('Unexpected error:', error);
+    logger.error('Unexpected error:', error);
   }
   
-  console.log('\n=== Asset Fix Complete ===');
+  logger.info('\n=== Asset Fix Complete ===');
 }
 
 // Run the fix

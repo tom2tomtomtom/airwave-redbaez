@@ -244,7 +244,7 @@ export class UnifiedAssetService extends AbstractAssetService {
    * @param dbAsset Database asset record
    * @returns Asset interface
    */
-  private mapDatabaseAsset(dbAsset: any): Asset {
+  private mapDatabaseAsset($1: unknown): Asset {
     return {
       id: dbAsset.id,
       name: dbAsset.name,

@@ -1,6 +1,7 @@
+import { logger } from '../utils/logger';
 import { createClient } from '@supabase/supabase-js'
-import fs from 'fs'
-import path from 'path'
+import * as fs from 'fs'
+import * as path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
 // Constants for development user - UPDATED to match actual DB values
@@ -32,7 +33,7 @@ export async function verifyUserExists(userId: string): Promise<boolean> {
   try {
     // Special case for dev user in development mode
     if (process.env.NODE_ENV === 'development' && userId === DEV_USER.id) {
-      console.log('Verifying development user...');
+      logger.info('Verifying development user...');
       const { data, error } = await supabase
         .from('users')
         .select('id, email, role')
@@ -40,11 +41,11 @@ export async function verifyUserExists(userId: string): Promise<boolean> {
         .single();
         
       if (error) {
-        console.error('Error verifying development user:', error);
+        logger.error('Error verifying development user:', error);
         return false;
       }
       
-      console.log('Development user found in database:', data);
+      logger.info('Development user found in database:', data);
       return !!data;
     }
     
@@ -57,7 +58,7 @@ export async function verifyUserExists(userId: string): Promise<boolean> {
       
     return !error && !!data;
   } catch (error) {
-    console.error('Error verifying user:', error);
+    logger.error('Error verifying user:', error);
     return false;
   }
 }
@@ -85,40 +86,40 @@ async function saveFileToFilesystem(file: any, metadata: any, userId: string) {
     };
     
     inMemoryAssets.set(fileId, asset);
-    console.log(`Asset saved to filesystem: ${filePath}`);
+    logger.info(`Asset saved to filesystem: ${filePath}`);
     
     return { success: true, asset };
   } catch (error) {
-    console.error('Error saving to filesystem:', error);
+    logger.error('Error saving to filesystem:', error);
     return { success: false, error };
   }
 }
 
 // Upload asset to Supabase
 export async function uploadAsset(file: any, metadata: any, userId: string) {
-  console.log(`Uploading asset for user ${userId}...`);
+  logger.info(`Uploading asset for user ${userId}...`);
   
   try {
     // If no user ID provided, use development user ID
     if (!userId && process.env.NODE_ENV === 'development') {
-      console.log('No user ID provided, using development user ID');
+      logger.info('No user ID provided, using development user ID');
       userId = DEV_USER.id;
     }
     
     // Development mode with prototype flag - use filesystem approach
     if (process.env.NODE_ENV === 'development' && process.env.PROTOTYPE_MODE === 'true') {
-      console.log('Using filesystem approach (PROTOTYPE_MODE=true)');
+      logger.info('Using filesystem approach (PROTOTYPE_MODE=true)');
       return await saveFileToFilesystem(file, metadata, userId);
     }
     
     // Verify user exists before attempting upload
     const userExists = await verifyUserExists(userId);
     if (!userExists) {
-      console.error(`User ${userId} not found in database`);
+      logger.error(`User ${userId} not found in database`);
       
       // Fall back to filesystem in development
       if (process.env.NODE_ENV === 'development') {
-        console.log('Falling back to filesystem approach due to user verification failure');
+        logger.info('Falling back to filesystem approach due to user verification failure');
         return await saveFileToFilesystem(file, metadata, userId);
       }
       
@@ -136,7 +137,7 @@ export async function uploadAsset(file: any, metadata: any, userId: string) {
       created_at: new Date().toISOString(),
     };
     
-    console.log('Inserting asset data:', assetData);
+    logger.info('Inserting asset data:', assetData);
     
     // Insert asset record
     const { data, error } = await supabase
@@ -146,18 +147,18 @@ export async function uploadAsset(file: any, metadata: any, userId: string) {
       .single();
       
     if (error) {
-      console.error('Database insertion error:', error);
+      logger.error('Database insertion error:', error);
       
       // Special handling for development environment
       if (process.env.NODE_ENV === 'development') {
-        console.log('Database insertion failed, falling back to filesystem approach');
+        logger.info('Database insertion failed, falling back to filesystem approach');
         return await saveFileToFilesystem(file, metadata, userId);
       }
       
       return { success: false, error };
     }
     
-    console.log('Asset record created successfully:', data);
+    logger.info('Asset record created successfully:', data);
     
     // Upload file content to storage
     const { error: storageError } = await supabase.storage
@@ -165,25 +166,25 @@ export async function uploadAsset(file: any, metadata: any, userId: string) {
       .upload(`${data.id}/${file.originalname}`, file.buffer);
       
     if (storageError) {
-      console.error('Storage upload error:', storageError);
+      logger.error('Storage upload error:', storageError);
       return { success: false, error: storageError };
     }
     
     return { success: true, asset: data };
   } catch (error) {
-    console.error('Unexpected error during asset upload:', error);
+    logger.error('Unexpected error during asset upload:', error);
     return { success: false, error };
   }
 }
 
 // Get assets by user ID
 export async function getAssetsByUserId(userId: string) {
-  console.log(`Getting assets for user ${userId}...`);
+  logger.info(`Getting assets for user ${userId}...`);
   
   try {
     // Development mode with filesystem storage
     if (process.env.NODE_ENV === 'development' && process.env.PROTOTYPE_MODE === 'true') {
-      console.log('Using in-memory assets (PROTOTYPE_MODE=true)');
+      logger.info('Using in-memory assets (PROTOTYPE_MODE=true)');
       const userAssets = Array.from(inMemoryAssets.values())
         .filter(asset => asset.user_id === userId);
       return { success: true, assets: userAssets };
@@ -196,13 +197,13 @@ export async function getAssetsByUserId(userId: string) {
       .eq('user_id', userId);
       
     if (error) {
-      console.error('Error fetching assets:', error);
+      logger.error('Error fetching assets:', error);
       return { success: false, error };
     }
     
     return { success: true, assets: data };
   } catch (error) {
-    console.error('Unexpected error getting assets:', error);
+    logger.error('Unexpected error getting assets:', error);
     return { success: false, error };
   }
 }

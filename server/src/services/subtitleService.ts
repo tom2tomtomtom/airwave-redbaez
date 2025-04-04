@@ -1,6 +1,6 @@
 import axios from 'axios';
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { createLogger } from '../utils/logger';
 import { assetService } from './assetService.new';
@@ -434,7 +434,7 @@ class SubtitleService {
       
       logger.info(`Successfully completed subtitle job ${jobId}`);
       
-    } catch (error: any) {
+    } catch ($1: unknown) {
       logger.error(`Error in subtitle job ${jobId}: ${error.message}`);
       this.updateJobStatus(jobId, {
         status: 'failed',

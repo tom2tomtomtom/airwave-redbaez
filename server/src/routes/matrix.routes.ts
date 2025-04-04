@@ -39,8 +39,8 @@ router.post('/', checkAuth, async (req: AuthenticatedRequest, res: Response) => 
       message: 'Matrix configuration created successfully',
       data: matrix
     });
-  } catch (error: any) {
-    console.error('Error creating matrix configuration:', error);
+  } catch ($1: unknown) {
+    logger.error('Error creating matrix configuration:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to create matrix configuration',
@@ -68,7 +68,7 @@ router.get('/campaign/:campaignId', checkAuth, async (req: AuthenticatedRequest,
       .order('createdAt', { ascending: false });
     
     if (error) {
-      console.error('Error fetching matrix configurations:', error);
+      logger.error('Error fetching matrix configurations:', error);
       throw new Error('Failed to fetch matrix configurations');
     }
     
@@ -76,8 +76,8 @@ router.get('/campaign/:campaignId', checkAuth, async (req: AuthenticatedRequest,
       success: true,
       data
     });
-  } catch (error: any) {
-    console.error('Error fetching matrix configurations:', error);
+  } catch ($1: unknown) {
+    logger.error('Error fetching matrix configurations:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch matrix configurations',
@@ -104,8 +104,8 @@ router.get('/:id', checkAuth, async (req: AuthenticatedRequest, res: Response) =
       success: true,
       data: matrix
     });
-  } catch (error: any) {
-    console.error('Error fetching matrix configuration:', error);
+  } catch ($1: unknown) {
+    logger.error('Error fetching matrix configuration:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch matrix configuration',
@@ -140,8 +140,8 @@ router.put('/:id', checkAuth, async (req: AuthenticatedRequest, res: Response) =
       message: 'Matrix configuration updated successfully',
       data: matrix
     });
-  } catch (error: any) {
-    console.error('Error updating matrix configuration:', error);
+  } catch ($1: unknown) {
+    logger.error('Error updating matrix configuration:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to update matrix configuration',
@@ -171,8 +171,8 @@ router.post('/:id/combinations', checkAuth, async (req: AuthenticatedRequest, re
       message: 'Combinations generated successfully',
       data: matrix
     });
-  } catch (error: any) {
-    console.error('Error generating combinations:', error);
+  } catch ($1: unknown) {
+    logger.error('Error generating combinations:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to generate combinations',
@@ -201,8 +201,8 @@ router.post('/:id/rows/:rowId/render', checkAuth, async (req: AuthenticatedReque
       message: 'Render job started successfully',
       data: row
     });
-  } catch (error: any) {
-    console.error('Error rendering matrix row:', error);
+  } catch ($1: unknown) {
+    logger.error('Error rendering matrix row:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to render matrix row',
@@ -253,8 +253,8 @@ router.put('/:id/rows/:rowId/lock', checkAuth, async (req: AuthenticatedRequest,
       message: `Row ${locked ? 'locked' : 'unlocked'} successfully`,
       data: updatedMatrix.rows[rowIndex]
     });
-  } catch (error: any) {
-    console.error('Error updating row lock status:', error);
+  } catch ($1: unknown) {
+    logger.error('Error updating row lock status:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to update row lock status',
@@ -305,8 +305,8 @@ router.put('/:id/slots/:slotId/lock', checkAuth, async (req: AuthenticatedReques
       message: `Slot ${locked ? 'locked' : 'unlocked'} successfully`,
       data: updatedMatrix.slots[slotIndex]
     });
-  } catch (error: any) {
-    console.error('Error updating slot lock status:', error);
+  } catch ($1: unknown) {
+    logger.error('Error updating slot lock status:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to update slot lock status',
@@ -344,7 +344,7 @@ router.post('/:id/render-all', checkAuth, async (req: AuthenticatedRequest, res:
     const renderPromises = draftRows.map(row => 
       matrixService.renderMatrixRow(id, row.id)
         .catch(error => {
-          console.error(`Error rendering row ${row.id}:`, error);
+          logger.error(`Error rendering row ${row.id}:`, error);
           return null;
         })
     );
@@ -362,8 +362,8 @@ router.post('/:id/render-all', checkAuth, async (req: AuthenticatedRequest, res:
         rows: successfulRows
       }
     });
-  } catch (error: any) {
-    console.error('Error rendering all rows:', error);
+  } catch ($1: unknown) {
+    logger.error('Error rendering all rows:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to render rows',

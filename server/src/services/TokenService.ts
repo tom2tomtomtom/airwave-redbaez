@@ -227,7 +227,7 @@ class TokenService {
       await redis.sAdd(userTokensKey, tokenHash);
       await redis.expire(userTokensKey, expirySeconds);
     } catch (error) {
-      console.error('Failed to store refresh token:', error);
+      logger.error('Failed to store refresh token:', error);
       // Continue execution - token will still work but won't be in Redis
     }
   }
@@ -364,7 +364,7 @@ class TokenService {
       await redis.sRem(`user:${decoded.userId}:refresh_tokens`, tokenHash);
     } catch (error) {
       // If token is invalid, we don't need to revoke it
-      console.error('Error revoking token:', error);
+      logger.error('Error revoking token:', error);
     }
   }
 
@@ -385,7 +385,7 @@ class TokenService {
       // Delete the set itself
       await redis.del(userTokensKey);
     } catch (error) {
-      console.error('Error revoking all user tokens:', error);
+      logger.error('Error revoking all user tokens:', error);
     }
   }
 

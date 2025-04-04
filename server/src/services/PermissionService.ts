@@ -128,7 +128,7 @@ class PermissionService {
       // Default to empty permissions for unknown roles
       return [];
     } catch (error) {
-      console.error('Error fetching role permissions:', error);
+      logger.error('Error fetching role permissions:', error);
       // Fall back to default roles in case of error
       return this.DEFAULT_ROLES[role] || [];
     }
@@ -192,7 +192,7 @@ class PermissionService {
       
       return uniquePermissions;
     } catch (error) {
-      console.error('Error getting user permissions:', error);
+      logger.error('Error getting user permissions:', error);
       if (error instanceof ApiError) throw error;
       
       throw new ApiError({
@@ -245,7 +245,7 @@ class PermissionService {
       
       return userData;
     } catch (error) {
-      console.error('Error getting user role:', error);
+      logger.error('Error getting user role:', error);
       return null;
     }
   }
@@ -280,7 +280,7 @@ class PermissionService {
         permissions
       }));
     } catch (error) {
-      console.error('Error fetching roles:', error);
+      logger.error('Error fetching roles:', error);
       
       // Fall back to default roles
       return Object.entries(this.DEFAULT_ROLES).map(([name, permissions]) => ({

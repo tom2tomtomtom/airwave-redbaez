@@ -21,8 +21,8 @@ router.get('/', checkAuth, async (req: AuthenticatedRequest, res: Response) => {
     if (error) throw error;
 
     res.json(data.map(transformCampaignFromDb));
-  } catch (error: any) {
-    console.error('Error fetching campaigns:', error.message);
+  } catch ($1: unknown) {
+    logger.error('Error fetching campaigns:', error.message);
     res.status(500).json({ message: 'Failed to fetch campaigns' });
   }
 });
@@ -51,8 +51,8 @@ router.get('/:id', checkAuth, async (req: AuthenticatedRequest, res: Response) =
     }
 
     res.json(transformCampaignFromDb(data));
-  } catch (error: any) {
-    console.error('Error fetching campaign:', error.message);
+  } catch ($1: unknown) {
+    logger.error('Error fetching campaign:', error.message);
     res.status(500).json({ message: 'Failed to fetch campaign' });
   }
 });
@@ -103,8 +103,8 @@ router.post('/', checkAuth, async (req: AuthenticatedRequest, res: Response) => 
     data.executions = [];
 
     res.status(201).json(transformCampaignFromDb(data));
-  } catch (error: any) {
-    console.error('Error creating campaign:', error.message);
+  } catch ($1: unknown) {
+    logger.error('Error creating campaign:', error.message);
     res.status(500).json({ 
       success: false,
       message: 'Failed to create campaign',
@@ -167,8 +167,8 @@ router.put('/:id', checkAuth, async (req: AuthenticatedRequest, res: Response) =
     if (error) throw error;
 
     res.json(transformCampaignFromDb(data));
-  } catch (error: any) {
-    console.error('Error updating campaign:', error.message);
+  } catch ($1: unknown) {
+    logger.error('Error updating campaign:', error.message);
     res.status(500).json({ 
       success: false,
       message: 'Failed to update campaign',
@@ -216,8 +216,8 @@ router.delete('/:id', checkAuth, async (req: AuthenticatedRequest, res: Response
       success: true,
       message: 'Campaign deleted successfully'
     });
-  } catch (error: any) {
-    console.error('Error deleting campaign:', error.message);
+  } catch ($1: unknown) {
+    logger.error('Error deleting campaign:', error.message);
     res.status(500).json({ 
       success: false,
       message: 'Failed to delete campaign',
@@ -277,8 +277,8 @@ router.post('/:id/executions', checkAuth, async (req: AuthenticatedRequest, res:
       success: true,
       data: transformExecutionFromDb(data)
     });
-  } catch (error: any) {
-    console.error('Error adding execution:', error.message);
+  } catch ($1: unknown) {
+    logger.error('Error adding execution:', error.message);
     res.status(500).json({ 
       success: false,
       message: 'Failed to add execution to campaign',
@@ -371,8 +371,8 @@ router.post('/:id/render', checkAuth, async (req: AuthenticatedRequest, res: Res
           jobId: renderJob.id,
           status: renderJob.status
         });
-      } catch (executionError: any) {
-        console.error(`Error rendering execution ${execution.id}:`, executionError);
+      } catch ($1: unknown) {
+        logger.error(`Error rendering execution ${execution.id}:`, executionError);
         
         // Update execution with error status
         await supabase
@@ -396,8 +396,8 @@ router.post('/:id/render', checkAuth, async (req: AuthenticatedRequest, res: Res
       message: `Started rendering ${renderResults.length} executions`,
       data: renderResults
     });
-  } catch (error: any) {
-    console.error('Error rendering campaign:', error.message);
+  } catch ($1: unknown) {
+    logger.error('Error rendering campaign:', error.message);
     res.status(500).json({ 
       success: false,
       message: 'Failed to render campaign',
@@ -416,7 +416,7 @@ router.post('/:id/render', checkAuth, async (req: AuthenticatedRequest, res: Res
 });
 
 // Helper function to transform campaign from database format to API format
-function transformCampaignFromDb(campaign: any) {
+function transformCampaignFromDb($1: unknown) {
   return {
     id: campaign.id,
     name: campaign.name,
@@ -435,7 +435,7 @@ function transformCampaignFromDb(campaign: any) {
 }
 
 // Helper function to transform execution from database format to API format
-function transformExecutionFromDb(execution: any) {
+function transformExecutionFromDb($1: unknown) {
   return {
     id: execution.id,
     name: execution.name,

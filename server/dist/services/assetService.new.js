@@ -4,27 +4,44 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.assetService = void 0;
-const supabaseClient_1 = require("../db/supabaseClient");
+const supabase_js_1 = require("@supabase/supabase-js");
 const uuid_1 = require("uuid");
-const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
-const sharp_1 = __importDefault(require("sharp"));
-const fluent_ffmpeg_1 = __importDefault(require("fluent-ffmpeg"));
-const util_1 = require("util");
-const auth_1 = require("../middleware/auth");
-// Convert fs methods to promise-based
-const mkdir = (0, util_1.promisify)(fs_1.default.mkdir);
-const writeFile = (0, util_1.promisify)(fs_1.default.writeFile);
-const readFile = (0, util_1.promisify)(fs_1.default.readFile);
-const unlink = (0, util_1.promisify)(fs_1.default.unlink);
-const stat = (0, util_1.promisify)(fs_1.default.stat);
+const promises_1 = __importDefault(require("fs/promises")); // Import promise-based fs
+const fs_1 = __importDefault(require("fs")); // Import standard fs for sync methods
+const util_1 = require("util"); // Re-add promisify import
+const fluent_ffmpeg_1 = __importDefault(require("fluent-ffmpeg")); // Ensure ffmpeg types are imported
+const sharp_1 = __importDefault(require("sharp")); // Import sharp
+// Added imports for standardized error handling
+const ApiError_1 = require("../utils/ApiError");
+const errorTypes_1 = require("../types/errorTypes");
+// Import AI service for asset analysis
+const assetAI_1 = require("./assetAI");
+const logger_1 = require("../utils/logger");
+// Use fs/promises directly - no need for promisify
+const { mkdir, readFile, unlink, stat, writeFile } = promises_1.default;
 /**
  * Service for managing assets
  */
 class AssetService {
+    // Make constructor private for singleton pattern
     constructor() {
-        this.uploadsDir = path_1.default.join(process.cwd(), 'uploads');
-        this.ensureUploadsDir();
+        this.logger = logger_1.logger;
+        // Initialize Supabase client
+        // Ensure SUPABASE_URL and SUPABASE_KEY are in your environment variables
+        const supabaseUrl = process.env.SUPABASE_URL;
+        const supabaseKey = process.env.SUPABASE_KEY;
+        if (!supabaseUrl || !supabaseKey) {
+            // Refactored: Use ApiError for configuration issues
+            throw new ApiError_1.ApiError(errorTypes_1.ErrorCode.INTERNAL_ERROR, 'Server configuration error: Supabase URL and Key must be provided in environment variables');
+        }
+        this.supabase = (0, supabase_js_1.createClient)(supabaseUrl, supabaseKey);
+        // Set uploads directory
+        this.uploadsDir = path_1.default.resolve(process.env.UPLOAD_DIR || './uploads');
+        // Ensure uploads directory exists (using standard fs for sync check)
+        if (!fs_1.default.existsSync(this.uploadsDir)) {
+            fs_1.default.mkdirSync(this.uploadsDir, { recursive: true });
+        }
     }
     /**
      * Initialize the uploads directory
@@ -45,85 +62,50 @@ class AssetService {
      * Ensures all required fields for UI compatibility are present
      */
     transformAssetFromDb(dbAsset) {
-        // Extract metadata from the DB format
-        const meta = dbAsset.meta || {};
-        // Normalize owner_id to ensure it's never null (use user_id if owner_id is missing)
-        const normalizedOwnerId = dbAsset.owner_id || dbAsset.user_id || '';
-        // If the owner_id is missing in the database, update it
-        if (!dbAsset.owner_id && dbAsset.user_id) {
-            try {
-                console.log(`Fixing missing owner_id for asset ${dbAsset.id} using user_id ${dbAsset.user_id}`);
-                // Don't await this to avoid slowing down the response
-                supabaseClient_1.supabase
-                    .from('assets')
-                    .update({
-                    owner_id: dbAsset.user_id
-                })
-                    .eq('id', dbAsset.id)
-                    .then(({ error }) => {
-                    if (error) {
-                        console.error(`Failed to update owner_id for asset ${dbAsset.id}:`, error);
-                    }
-                    else {
-                        console.log(`Successfully updated owner_id for asset ${dbAsset.id}`);
-                    }
-                });
-            }
-            catch (error) {
-                console.error(`Error updating owner_id for asset ${dbAsset.id}:`, error);
-            }
+        // Basic validation - ensure essential fields exist
+        if (!dbAsset || typeof dbAsset !== 'object' || !dbAsset.id || !dbAsset.name || !dbAsset.type) {
+            console.error('Invalid or incomplete DbAsset object provided to transformAssetFromDb', dbAsset);
+            // Refactored: Use ApiError for unexpected internal data issues
+            throw new ApiError_1.ApiError(errorTypes_1.ErrorCode.INTERNAL_ERROR, 'Invalid internal data encountered during asset transformation.');
         }
-        // Create normalized metadata for UI compatibility
-        const normalizedMetadata = {
-            originalName: meta.originalName || `${dbAsset.name}.${dbAsset.type}`,
-            mimeType: meta.mimeType || this.getMimeTypeFromType(dbAsset.type),
-            description: meta.description || '',
-            size: meta.size || 0,
-            width: meta.width || 0,
-            height: meta.height || 0,
-            duration: meta.duration || 0,
-            tags: meta.tags || [],
-            categories: meta.categories || [],
-            isFavourite: meta.isFavourite || false,
-            usageCount: meta.usageCount || 0
-        };
-        // Create asset with both snake_case and camelCase properties for maximum compatibility
-        return {
-            // DB fields (direct mapping)
+        // Extract metadata from the DB format (now uses 'metadata' field)
+        const metadata = (dbAsset.metadata || {});
+        // Normalize ownerId from potential user_id or ownerId in metadata for consistency
+        // DbAsset now directly uses owner_id, so normalization focuses on that.
+        const normalizedOwnerId = dbAsset.owner_id || metadata?.ownerId || '';
+        // Map DbAsset (snake_case) to Asset (camelCase, extends SharedAsset)
+        const appAsset = {
+            // Core fields from SharedAsset (defined in ../types/shared.ts)
             id: dbAsset.id,
-            name: dbAsset.name,
-            type: dbAsset.type,
-            url: dbAsset.url,
-            thumbnailUrl: dbAsset.thumbnail_url || '',
-            previewUrl: meta.previewUrl || '',
-            // UI expected fields (derived from meta or with defaults)
-            description: normalizedMetadata.description,
-            size: normalizedMetadata.size,
-            width: normalizedMetadata.width,
-            height: normalizedMetadata.height,
-            duration: normalizedMetadata.duration,
-            tags: normalizedMetadata.tags,
-            categories: normalizedMetadata.categories,
-            isFavourite: normalizedMetadata.isFavourite,
-            usageCount: normalizedMetadata.usageCount,
-            // User/client identifiers - standardized to camelCase
-            userId: dbAsset.user_id || '',
-            ownerId: normalizedOwnerId,
-            clientId: dbAsset.client_id || meta.clientId || '',
-            // Store the clientSlug if available for URL-friendly identification
-            clientSlug: meta.clientSlug || '',
-            // Timestamps in both formats
-            createdAt: dbAsset.created_at,
-            created_at: dbAsset.created_at,
-            updatedAt: dbAsset.updated_at,
-            updated_at: dbAsset.updated_at,
-            // Both metadata formats
-            metadata: normalizedMetadata,
-            meta: {
-                ...meta,
-                ...normalizedMetadata
-            }
+            name: dbAsset.name || 'Untitled Asset', // Provide default for name
+            type: dbAsset.type || this.determineAssetType(dbAsset.mime_type), // Ensure type is set
+            url: dbAsset.file_path || '', // Map file_path
+            thumbnailUrl: dbAsset.thumbnail_path || '', // Map thumbnail_path
+            description: ('description' in dbAsset && dbAsset.description) ? dbAsset.description : (metadata.description || ''), // From metadata
+            tags: dbAsset.tags || metadata.tags || [], // Prefer direct column, fallback to metadata
+            clientId: dbAsset.client_id || '', // Direct mapping
+            isFavourite: dbAsset.is_favourite || false, // Map is_favourite
+            size: dbAsset.size || 0,
+            width: dbAsset.width,
+            height: dbAsset.height,
+            duration: dbAsset.duration,
+            // Ensure dates are converted to ISO strings for the Asset interface
+            createdAt: dbAsset.created_at ? new Date(dbAsset.created_at).toISOString() : '',
+            updatedAt: dbAsset.updated_at ? new Date(dbAsset.updated_at).toISOString() : '',
+            ownerId: normalizedOwnerId, // Use normalized camelCase ownerId (derived above)
+            status: dbAsset.status || 'unknown', // Default status if missing
+            metadata: metadata, // Assign the whole metadata object
+            // Additional fields specific to the Asset interface (defined in ../types/assetTypes.ts)
+            processingStatus: metadata.processingStatus || 'complete', // Default if not in metadata
+            categories: dbAsset.categories || metadata?.categories || [], // Prefer direct column, safe access metadata
+            alternativeText: dbAsset.alternative_text || metadata.alternativeText || '', // Prefer direct column
+            // Ensure expiresAt is a string for the Asset interface
+            expiresAt: dbAsset.expires_at ? new Date(dbAsset.expires_at).toISOString() : '',
+            // Derive fileExtension from file_path
+            fileExtension: dbAsset.file_path ? path_1.default.extname(dbAsset.file_path).toLowerCase().substring(1) : '',
+            clientSlug: `client-${dbAsset.client_id}`,
         };
+        return appAsset;
     }
     /**
      * Helper method to get MIME type from asset type
@@ -142,7 +124,7 @@ class AssetService {
      */
     async lookupClientId(slug) {
         try {
-            const { data, error } = await supabaseClient_1.supabase
+            const { data, error } = await this.supabase
                 .from('clients')
                 .select('id')
                 .eq('slug', slug.toLowerCase())
@@ -165,307 +147,172 @@ class AssetService {
      * @param assetData Additional metadata for the asset
      */
     async uploadAsset(file, userId, assetData) {
-        // Import AUTH_MODE here to avoid circular dependency
-        const { AUTH_MODE } = require('../middleware/auth');
         try {
-            console.log('Asset upload initiated:', {
-                fileName: file.originalname,
-                fileType: file.mimetype,
-                fileSize: file.size,
-                userId,
-                clientId: assetData.clientId
-            });
-            // Use proper auth user when in development mode
-            if (!userId || userId === 'null' || userId === 'undefined' || userId === AUTH_MODE.DEV_USER_ID) {
-                // Admin user from auth.users table (dev@example.com) - this user exists in the auth system
-                const ADMIN_USER_ID = 'd53c7f82-42af-4ed0-a83b-2cbf505748db'; // Correct ID for dev@example.com
-                console.log('⚠️ DEV MODE: Using authenticated admin user with ID:', ADMIN_USER_ID);
-                // Verify the admin user exists in the database
-                const { data: adminUser, error: adminUserError } = await supabaseClient_1.supabase
-                    .from('users')
-                    .select('id, email, name, role')
-                    .eq('id', ADMIN_USER_ID)
-                    .single();
-                if (adminUserError || !adminUser) {
-                    console.error('❌ Admin user not found in database:', adminUserError);
-                    return {
-                        success: false,
-                        message: 'Failed to verify admin user exists in database. Asset upload aborted.',
-                        asset: null
-                    };
-                }
-                else {
-                    console.log('✅ Admin user verified in database:', adminUser);
-                    // Set the userId to the admin user
-                    userId = ADMIN_USER_ID;
-                }
+            // 1. Validate input
+            if (!file || !userId || !assetData.clientId) {
+                console.error('Upload validation failed:', { file: !!file, userId, clientId: assetData.clientId });
+                return { success: false, message: 'Missing required file, userId, or clientId for upload.' };
             }
-            // Validate essential parameters
-            if (!file) {
-                return {
-                    success: false,
-                    message: 'No file provided',
-                    asset: null
-                };
-            }
-            if (!userId) {
-                return {
-                    success: false,
-                    message: 'User ID is required',
-                    asset: null
-                };
-            }
-            if (!assetData.clientId) {
-                return {
-                    success: false,
-                    message: 'Client ID is required',
-                    asset: null
-                };
-            }
-            // Generate a unique ID for the asset
+            // 2. Determine asset type and process file (metadata, thumbnail)
+            const fileExtension = path_1.default.extname(file.originalname).toLowerCase().substring(1);
+            const mimeType = file.mimetype;
+            const assetType = this.determineAssetType(mimeType);
             const assetId = (0, uuid_1.v4)();
-            // Determine asset type based on MIME type if not specified
-            const assetType = assetData.type || this.determineAssetType(file.mimetype);
-            // Create relative path for the file within uploads directory
-            const relativePath = path_1.default.join('clients', assetData.clientId, 'assets', assetType, assetId);
-            // Create absolute path for the file
-            const assetDir = path_1.default.join(this.uploadsDir, relativePath);
-            await mkdir(assetDir, { recursive: true });
-            // Original filename with extension
-            const originalExt = path_1.default.extname(file.originalname);
-            const originalFileName = `original${originalExt}`;
-            const filePath = path_1.default.join(assetDir, originalFileName);
-            // Write the file to disk
-            await writeFile(filePath, file.buffer);
-            // Create the asset object
-            const asset = {
-                id: assetId,
-                name: assetData.name || file.originalname,
-                type: assetType,
-                description: assetData.description || '',
-                url: `/uploads/${relativePath}/${originalFileName}`,
-                thumbnailUrl: '',
-                size: file.size,
-                userId,
-                ownerId: userId,
-                clientId: assetData.clientId,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                tags: assetData.tags || [],
-                categories: assetData.categories || [],
-                isFavourite: false,
-                usageCount: 0,
-                metadata: assetData.additionalMetadata || {}
-            };
-            // Process the asset based on its type
-            if (assetType === 'image') {
-                await this.processImageAsset(asset, filePath);
-            }
-            else if (assetType === 'video') {
-                await this.processVideoAsset(asset, filePath);
-            }
-            else if (assetType === 'audio') {
-                await this.processAudioAsset(asset, filePath);
-            }
-            // Check if we need to use the development user ID
-            if (!userId || userId === 'null' || userId === 'undefined') {
-                console.log(`No valid user ID provided, using development user ID (${AUTH_MODE.DEV_USER_ID}) for upload`);
-                userId = AUTH_MODE.DEV_USER_ID;
-            }
-            console.log(`[ASSET UPLOAD] Using user ID: ${userId}`);
-            // Check if the user exists in the database, especially important for development user
-            if (userId === AUTH_MODE.DEV_USER_ID) {
-                console.log('🔍 Checking if development user exists in database...');
-                const { data: userExists, error: userCheckError } = await supabaseClient_1.supabase
-                    .from('users')
-                    .select('id')
-                    .eq('id', userId)
-                    .single();
-                if (userCheckError || !userExists) {
-                    console.log('⚠️ Development user not found, creating it now...');
-                    // Create development user if it doesn't exist
-                    const { error: createError } = await supabaseClient_1.supabase
-                        .from('users')
-                        .insert({
-                        id: AUTH_MODE.DEV_USER_ID,
-                        email: 'dev@airwave.dev',
-                        name: 'Development User',
-                        role: 'admin',
-                        created_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString()
-                    });
-                    if (createError) {
-                        console.error('❌ Failed to create development user:', createError);
-                        return {
-                            success: false,
-                            message: `Failed to create development user: ${createError.message}`,
-                            asset: asset
-                        };
-                    }
-                    console.log('✅ Development user created successfully');
-                }
-                else {
-                    console.log('✅ Development user exists in database');
-                }
-            }
-            // Always save to database regardless of mode
+            const uniqueFilename = `${assetId}.${fileExtension}`;
+            const clientUploadsPath = path_1.default.join(this.uploadsDir, assetData.clientId); // Use instance var
+            const relativeFilePath = path_1.default.join(assetData.clientId, uniqueFilename); // Relative path for DB/URL
+            const absoluteFilePath = path_1.default.join(this.uploadsDir, relativeFilePath);
+            let relativeThumbnailPath = undefined;
+            let fileMetadata = {}; // Metadata extracted from file
+            // Ensure client directory exists
+            await mkdir(clientUploadsPath, { recursive: true });
+            // Save the original file
+            await writeFile(absoluteFilePath, file.buffer); // Use direct promise-based writeFile
+            // Process based on type
+            const processingPromises = [];
             try {
-                // First, perform an explicit check if the asset will work with this user
-                const { data: userCheck, error: userCheckError } = await supabaseClient_1.supabase
-                    .from('users')
-                    .select('id')
-                    .eq('id', userId);
-                if (userCheckError || !userCheck || userCheck.length === 0) {
-                    console.log('⚠️ Final validation failed - user not found in database. Attempting alternative approach...');
-                    // If user still doesn't exist after our checks, try one final approach
-                    // Insert user directly with all fields
-                    const { error: lastResortError } = await supabaseClient_1.supabase
-                        .from('users')
-                        .upsert({
-                        id: userId === AUTH_MODE.DEV_USER_ID ? AUTH_MODE.DEV_USER_ID : userId,
-                        email: userId === AUTH_MODE.DEV_USER_ID ? 'dev@airwave.dev' : `user-${userId}@example.com`,
-                        name: userId === AUTH_MODE.DEV_USER_ID ? 'Development User' : 'Unknown User',
-                        role: 'user',
-                        created_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString()
-                    }, { onConflict: 'id' });
-                    if (lastResortError) {
-                        console.error('❌ Final user creation attempt failed:', lastResortError);
-                    }
-                    else {
-                        console.log('✅ User created/updated using upsert approach');
-                    }
+                if (assetType === 'image') {
+                    processingPromises.push((async () => {
+                        const imageMetadata = await (0, sharp_1.default)(absoluteFilePath).metadata();
+                        fileMetadata.width = imageMetadata.width;
+                        fileMetadata.height = imageMetadata.height;
+                        fileMetadata.format = imageMetadata.format;
+                        fileMetadata.size = file.size; // From multer file object
+                        // Generate thumbnail
+                        const thumbnailFilename = `${assetId}_thumb.jpg`;
+                        const absoluteThumbnailPath = path_1.default.join(clientUploadsPath, thumbnailFilename);
+                        relativeThumbnailPath = path_1.default.join(assetData.clientId, thumbnailFilename); // Relative path for DB/URL
+                        await (0, sharp_1.default)(absoluteFilePath)
+                            .resize(200)
+                            .jpeg({ quality: 80 })
+                            .toFile(absoluteThumbnailPath);
+                    })());
                 }
-                // Now insert the asset with explicit field setting
-                console.log(`Inserting asset with user_id: ${userId}`);
-                // Ensure URL is always set - this is a required field
-                if (!asset.url) {
-                    console.warn('⚠️ Asset URL is not set - using fallback');
-                    asset.url = `/uploads/${asset.id}`;
+                else if (assetType === 'video') {
+                    processingPromises.push((async () => {
+                        const videoMetadata = await this.getVideoMetadata(absoluteFilePath);
+                        fileMetadata = { ...fileMetadata, ...videoMetadata }; // Merge video metadata
+                        fileMetadata.size = file.size; // Ensure size is set
+                        // Generate thumbnail from video
+                        const thumbnailFilename = `${assetId}_thumb.jpg`;
+                        const absoluteThumbnailPath = path_1.default.join(clientUploadsPath, thumbnailFilename);
+                        relativeThumbnailPath = path_1.default.join(assetData.clientId, thumbnailFilename);
+                        await this.generateVideoThumbnail(absoluteFilePath, absoluteThumbnailPath);
+                    })());
                 }
-                const dbAsset = {
-                    id: asset.id,
-                    name: asset.name,
-                    type: asset.type,
-                    url: asset.url, // Required field - NOT NULL constraint
-                    thumbnail_url: asset.thumbnailUrl || null,
-                    user_id: userId, // Use the userId we've determined
-                    owner_id: userId, // Use the userId we've determined
-                    client_id: asset.clientId || 'default',
-                    meta: {
-                        description: asset.description || '',
-                        tags: asset.tags || [],
-                        categories: asset.categories || []
-                    },
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
+                // Add simple size metadata for other types if not already set by specific processing
+                if (!fileMetadata.size) {
+                    fileMetadata.size = file.size;
+                }
+                // Wait for all processing (metadata, thumbnail) to complete
+                await Promise.all(processingPromises);
+                // 3. Construct DbAsset object (using imported DbAsset type with snake_case)
+                const finalMetadata = {
+                    // Start with file-extracted metadata
+                    ...fileMetadata,
+                    // Add provided metadata from options (takes precedence if keys overlap)
+                    ...(assetData.metadata || {}),
+                    // Ensure some standard fields are present from options
+                    description: assetData.description || fileMetadata.description || '',
+                    originalName: file.originalname, // Always store original name
                 };
-                // Perform the insert operation
-                const { data, error } = await supabaseClient_1.supabase
-                    .from('assets')
-                    .insert(dbAsset)
-                    .select()
-                    .single();
-                if (error) {
-                    console.error('Error saving asset to database:', error);
-                    // If we still get a foreign key error, try more approaches with the dev user
-                    if (error.code === '23503' && userId === AUTH_MODE.DEV_USER_ID) {
-                        console.log('⚠️ Foreign key constraint still failing. Trying alternative approaches...');
-                        console.log('Details:', error.details);
-                        // APPROACH 1: Try inserting with stringified meta data
+                const dbAssetPayload = {
+                    id: assetId,
+                    name: assetData.name || path_1.default.parse(file.originalname).name, // Use provided name or base filename
+                    type: assetType, // corrected: align with DbAsset type
+                    mime_type: mimeType, // corrected: align with DbAsset type
+                    file_path: relativeFilePath, // corrected: align with DbAsset type
+                    thumbnail_path: relativeThumbnailPath, // corrected: align with DbAsset type
+                    size: fileMetadata.size || 0, // corrected: align with DbAsset type
+                    width: fileMetadata.width, // corrected: align with DbAsset type
+                    height: fileMetadata.height, // corrected: align with DbAsset type
+                    duration: fileMetadata.duration, // corrected: align with DbAsset type
+                    owner_id: userId, // Assume uploader is owner - corrected: Use owner_id as per DbAsset
+                    client_id: assetData.clientId, // FK to clients table
+                    tags: assetData.tags || [], // Use tags from options
+                    categories: assetData.categories || [], // Use categories from options
+                    is_favourite: assetData.isFavourite || false,
+                    status: 'active', // Initial status
+                    alternative_text: assetData.alternativeText || '',
+                    metadata: finalMetadata, // Combined metadata
+                    expires_at: assetData.expiresAt, // Assign Date object or undefined directly, matching DbAsset type
+                };
+                // 4. Save to database using the initialized Supabase client
+                try {
+                    const { data, error } = await this.supabase
+                        .from('assets')
+                        .insert(dbAssetPayload)
+                        .select()
+                        .single();
+                    if (error) {
+                        console.error(`Supabase insert error for asset ${assetId}:`, error);
+                        // Attempt cleanup: delete the saved file
                         try {
-                            console.log('Approach 1: Inserting with stringified meta data');
-                            const { data: approach1Data, error: approach1Error } = await supabaseClient_1.supabase
-                                .from('assets')
-                                .insert({
-                                ...dbAsset,
-                                meta: JSON.stringify(dbAsset.meta)
-                            })
-                                .select()
-                                .single();
-                            if (!approach1Error) {
-                                console.log('✅ Asset saved using approach 1');
-                                return {
-                                    success: true,
-                                    message: 'Asset uploaded successfully with approach 1',
-                                    asset: this.transformAssetFromDb(approach1Data)
-                                };
+                            fs_1.default.unlinkSync(absoluteFilePath); // Use synchronous unlink
+                            if (relativeThumbnailPath) {
+                                fs_1.default.unlinkSync(path_1.default.join(this.uploadsDir, relativeThumbnailPath)); // Use synchronous unlink
                             }
-                            console.log('Approach 1 failed:', approach1Error);
-                            // APPROACH 2: Try upsert instead of insert
-                            console.log('Approach 2: Using upsert instead of insert');
-                            const { data: approach2Data, error: approach2Error } = await supabaseClient_1.supabase
-                                .from('assets')
-                                .upsert(dbAsset)
-                                .select()
-                                .single();
-                            if (!approach2Error) {
-                                console.log('✅ Asset saved using approach 2');
-                                return {
-                                    success: true,
-                                    message: 'Asset uploaded successfully with approach 2',
-                                    asset: this.transformAssetFromDb(approach2Data)
-                                };
-                            }
-                            console.log('Approach 2 failed:', approach2Error);
-                            // APPROACH 3: Minimal insert with only required fields
-                            console.log('Approach 3: Minimal insert with only required fields');
-                            const { data: approach3Data, error: approach3Error } = await supabaseClient_1.supabase
-                                .from('assets')
-                                .insert({
-                                id: asset.id,
-                                name: asset.name,
-                                type: asset.type,
-                                url: asset.url || `/uploads/${asset.id}`, // Ensure URL is never null
-                                user_id: AUTH_MODE.DEV_USER_ID,
-                                client_id: asset.clientId || 'default',
-                                created_at: new Date().toISOString(),
-                                updated_at: new Date().toISOString()
-                            })
-                                .select()
-                                .single();
-                            if (!approach3Error) {
-                                console.log('✅ Asset saved using approach 3');
-                                return {
-                                    success: true,
-                                    message: 'Asset uploaded successfully with approach 3',
-                                    asset: this.transformAssetFromDb(approach3Data)
-                                };
-                            }
-                            console.log('Approach 3 failed:', approach3Error);
                         }
-                        catch (alternativeError) {
-                            console.error('❌ All alternative approaches failed:', alternativeError);
+                        catch (cleanupError) {
+                            console.error(`Failed to cleanup files for failed upload ${assetId}:`, cleanupError);
+                        }
+                        return { success: false, message: `Database insert failed: ${error.message}`, error };
+                    }
+                    if (!data) {
+                        console.error(`Supabase insert error: No data returned for asset ${assetId}`);
+                        // Attempt cleanup
+                        try {
+                            fs_1.default.unlinkSync(absoluteFilePath); // Use synchronous unlink
+                            if (relativeThumbnailPath) {
+                                fs_1.default.unlinkSync(path_1.default.join(this.uploadsDir, relativeThumbnailPath)); // Use synchronous unlink
+                            }
+                        }
+                        catch (cleanupError) {
+                            console.error(`Failed to cleanup files for failed upload ${assetId}:`, cleanupError);
+                        }
+                        return { success: false, message: 'Database insert failed: No data returned.' };
+                    }
+                    // 5. Transform DbAsset to Asset for the response
+                    const createdAsset = this.transformAssetFromDb(data); // data is already DbAsset
+                    // Use ServiceResult<Asset> structure
+                    return { success: true, data: createdAsset, message: 'Asset uploaded and processed successfully.' };
+                }
+                catch (dbError) {
+                    console.error(`Unexpected database operation error for asset ${assetId}:`, dbError);
+                    // Attempt cleanup
+                    try {
+                        fs_1.default.unlinkSync(absoluteFilePath); // Use synchronous unlink
+                        if (relativeThumbnailPath) {
+                            fs_1.default.unlinkSync(path_1.default.join(this.uploadsDir, relativeThumbnailPath)); // Use synchronous unlink
                         }
                     }
-                    return {
-                        success: false,
-                        message: `Failed to save asset: ${error.message}`,
-                        asset: asset
-                    };
+                    catch (cleanupError) {
+                        console.error(`Failed to cleanup files for failed upload ${assetId}:`, cleanupError);
+                    }
+                    return { success: false, message: `Database operation failed: ${dbError.message || 'Unknown error'}`, error: dbError };
                 }
-                console.log(`Successfully saved asset to database with ID: ${data.id}`);
-                return {
-                    success: true,
-                    message: 'Asset uploaded successfully',
-                    asset: this.transformAssetFromDb(data)
-                };
             }
-            catch (dbError) {
-                console.error('Exception saving asset to database:', dbError);
-                return {
-                    success: false,
-                    message: `Failed to save asset: ${dbError.message}`,
-                    asset: asset
-                };
+            catch (processError) {
+                console.error('Error processing file:', processError);
+                // Attempt cleanup
+                try {
+                    fs_1.default.unlinkSync(absoluteFilePath); // Use synchronous unlink
+                    if (relativeThumbnailPath) {
+                        fs_1.default.unlinkSync(path_1.default.join(this.uploadsDir, relativeThumbnailPath)); // Use synchronous unlink
+                    }
+                }
+                catch (cleanupError) {
+                    console.error(`Failed to cleanup files for failed upload ${assetId}:`, cleanupError);
+                }
+                return { success: false, message: `Failed to process file: ${processError instanceof Error ? processError.message : 'Unknown error'}`, error: processError };
             }
         }
         catch (error) {
-            console.error('Error uploading asset:', error);
+            console.error('Unhandled error during asset upload:', error);
             return {
                 success: false,
-                message: `Failed to upload asset: ${error.message}`,
-                asset: null
+                message: `Upload failed: ${error.message || 'Unknown error'}`,
+                error: error,
             };
         }
     }
@@ -495,11 +342,69 @@ class AssetService {
         }
     }
     /**
+     * Helper method to get video metadata
+     */
+    async getVideoMetadata(filePath) {
+        const ffprobeAsync = (0, util_1.promisify)(fluent_ffmpeg_1.default.ffprobe);
+        try {
+            // Pass the filePath to ffprobe
+            const metadata = await ffprobeAsync(filePath);
+            // Extract relevant data (example: dimensions, duration, codec)
+            const videoStream = metadata.streams.find(
+            // Added explicit type for stream parameter 's' with type predicate
+            (s) => s.codec_type === 'video');
+            const format = metadata.format;
+            // Return relevant format data, adjust as needed
+            return {
+                duration: format.duration,
+                size: format.size,
+                bit_rate: format.bit_rate,
+                format_name: format.format_name,
+                width: videoStream?.width,
+                height: videoStream?.height,
+                codec: videoStream?.codec_name,
+                // Add other stream info if needed
+            };
+        }
+        catch (err) {
+            const error = err; // Type assertion for potential stderr
+            console.error(`Error probing video ${filePath}:`, error.message);
+            if (error.stderr) {
+                console.error('FFprobe stderr:', error.stderr);
+            }
+            // Re-throw a more specific error or return a default object
+            throw new ApiError_1.ApiError(errorTypes_1.ErrorCode.OPERATION_FAILED, `Failed to extract video metadata for ${path_1.default.basename(filePath)}`);
+        }
+    }
+    /**
+     * Helper method to generate video thumbnail
+     */
+    async generateVideoThumbnail(videoPath, outputPath) {
+        return new Promise((resolve, reject) => {
+            (0, fluent_ffmpeg_1.default)(videoPath)
+                .on('end', () => {
+                resolve();
+            })
+                .on('error', (err) => {
+                console.error(`Error generating thumbnail for ${videoPath}:`, err.message);
+                reject(new ApiError_1.ApiError(errorTypes_1.ErrorCode.OPERATION_FAILED, `Failed to generate video thumbnail: ${err.message}`));
+            })
+                .screenshots({
+                count: 1,
+                folder: path_1.default.dirname(outputPath),
+                filename: path_1.default.basename(outputPath),
+                timemarks: ['1'], // Capture frame at 1 second, adjust as needed
+                size: `${200}x?`, // Keep aspect ratio
+            });
+        });
+    }
+    /**
      * Process image assets - generate thumbnails and extract metadata
+     * Enhanced with AI-powered content analysis
      */
     async processImageAsset(asset, filePath) {
         try {
-            console.log(`Processing image asset: ${asset.name}`);
+            this.logger.info(`Processing image asset: ${asset.name}`);
             // Extract metadata using sharp
             const metadata = await (0, sharp_1.default)(filePath).metadata();
             // Update asset with metadata
@@ -515,60 +420,125 @@ class AssetService {
                 .toFile(thumbnailPath);
             // Update asset with thumbnail URL
             asset.thumbnailUrl = `${asset.url.substring(0, asset.url.lastIndexOf('/'))}/${thumbnailFileName}`;
+            // Use AI to analyse the image content
+            try {
+                this.logger.info(`Starting AI analysis for image: ${asset.name}`);
+                const aiAnalysis = await assetAI_1.assetAI.analyseImage(filePath);
+                // Add AI-generated tags and categories
+                if (aiAnalysis.tags && aiAnalysis.tags.length > 0) {
+                    // Combine existing tags with AI tags, ensuring uniqueness
+                    const existingTags = asset.tags || [];
+                    asset.aiTags = aiAnalysis.tags;
+                    asset.tags = [...new Set([...existingTags, ...aiAnalysis.tags])];
+                }
+                if (aiAnalysis.categories && aiAnalysis.categories.length > 0) {
+                    // Combine existing categories with AI categories, ensuring uniqueness
+                    const existingCategories = asset.categories || [];
+                    asset.categories = [...new Set([...existingCategories, ...aiAnalysis.categories])];
+                }
+                // Add content description
+                asset.contentDescription = aiAnalysis.contentDescription;
+                // Add dominant colours
+                asset.dominantColours = aiAnalysis.dominantColours;
+                // Add safety labels
+                asset.safetyLabels = aiAnalysis.safetyLabels;
+                this.logger.info(`AI analysis complete for image: ${asset.name}`);
+            }
+            catch (aiError) {
+                this.logger.error(`AI image analysis error: ${aiError.message}`);
+                // Continue without AI analysis if it fails
+            }
         }
         catch (error) {
-            console.error(`Error processing image asset: ${error.message}`);
+            this.logger.error(`Error processing image asset: ${error.message}`);
             // Continue with the upload even if image processing fails
         }
     }
     /**
      * Process video assets - generate thumbnails and extract metadata
+     * Enhanced with AI-powered content analysis
      */
     async processVideoAsset(asset, filePath) {
         try {
-            console.log(`Processing video asset: ${asset.name}`);
+            this.logger.info(`Processing video asset: ${asset.name}`);
             // Get video directory
             const assetDir = path_1.default.dirname(filePath);
             const thumbnailFileName = 'thumbnail.jpg';
             const thumbnailPath = path_1.default.join(assetDir, thumbnailFileName);
+            // Create additional preview frames for AI analysis
+            const previewsDir = path_1.default.join(assetDir, 'previews');
+            if (!fs_1.default.existsSync(previewsDir)) {
+                fs_1.default.mkdirSync(previewsDir, { recursive: true });
+            }
             // Extract a thumbnail from the video at the 1 second mark
             return new Promise((resolve, reject) => {
                 (0, fluent_ffmpeg_1.default)(filePath)
                     .on('error', (err) => {
-                    console.error('Error generating video thumbnail:', err);
+                    this.logger.error('Error generating video thumbnail:', err);
                     resolve(); // Continue even if thumbnail generation fails
                 })
-                    .on('end', () => {
+                    .on('end', async () => {
                     // Update asset with thumbnail URL
                     asset.thumbnailUrl = `${asset.url.substring(0, asset.url.lastIndexOf('/'))}/${thumbnailFileName}`;
-                    // Try to get video metadata
-                    fluent_ffmpeg_1.default.ffprobe(filePath, (err, metadata) => {
-                        if (err) {
-                            console.error('Error getting video metadata:', err);
-                            resolve();
-                            return;
+                    // Try to get video metadata using a more structured approach
+                    try {
+                        const { data: metadata, error } = await this.getVideoMetadataDetails(filePath);
+                        if (error) {
+                            this.logger.error('Error extracting video metadata:', error);
                         }
+                        else if (metadata) {
+                            // Update basic asset properties
+                            asset.width = metadata.width;
+                            asset.height = metadata.height;
+                            asset.duration = metadata.duration;
+                            // Add extended metadata
+                            const extendedMetadata = {
+                                codec: metadata.codec,
+                                frameRate: metadata.frameRate,
+                                bitrate: metadata.bitrate,
+                                aspectRatio: metadata.aspectRatio,
+                                audioChannels: metadata.audioChannels,
+                                audioCodec: metadata.audioCodec
+                            };
+                            // Store in asset metadata
+                            asset.metadata = { ...asset.metadata, ...extendedMetadata };
+                        }
+                        // Use AI to analyse the thumbnail for video content understanding
                         try {
-                            if (metadata && metadata.streams && metadata.streams.length > 0) {
-                                const videoStream = metadata.streams.find(s => s.codec_type === 'video');
-                                if (videoStream) {
-                                    asset.width = videoStream.width;
-                                    asset.height = videoStream.height;
-                                    // Convert duration from seconds to milliseconds
-                                    if (videoStream.duration) {
-                                        asset.duration = Math.round(parseFloat(videoStream.duration) * 1000);
-                                    }
-                                    else if (metadata.format && metadata.format.duration) {
-                                        asset.duration = Math.round(parseFloat(metadata.format.duration) * 1000);
-                                    }
+                            if (fs_1.default.existsSync(thumbnailPath)) {
+                                this.logger.info(`Starting AI analysis of video thumbnail for: ${asset.name}`);
+                                const aiAnalysis = await assetAI_1.assetAI.analyseImage(thumbnailPath);
+                                // Add AI-generated tags and categories
+                                if (aiAnalysis.tags && aiAnalysis.tags.length > 0) {
+                                    // Combine existing tags with AI tags, ensuring uniqueness
+                                    const existingTags = asset.tags || [];
+                                    asset.aiTags = aiAnalysis.tags;
+                                    // Add video-specific tags
+                                    asset.tags = [...new Set([...existingTags, ...aiAnalysis.tags, 'video'])];
                                 }
+                                if (aiAnalysis.categories && aiAnalysis.categories.length > 0) {
+                                    // Combine existing categories with AI categories, ensuring uniqueness
+                                    const existingCategories = asset.categories || [];
+                                    asset.categories = [...new Set([...existingCategories, ...aiAnalysis.categories, 'videos'])];
+                                }
+                                // Add content description with video context
+                                asset.contentDescription = `Video ${aiAnalysis.contentDescription}`;
+                                // Add dominant colours from thumbnail
+                                asset.dominantColours = aiAnalysis.dominantColours;
+                                // Add safety labels
+                                asset.safetyLabels = aiAnalysis.safetyLabels;
+                                this.logger.info(`AI analysis complete for video: ${asset.name}`);
                             }
                         }
-                        catch (metadataError) {
-                            console.error('Error parsing video metadata:', metadataError);
+                        catch (aiError) {
+                            this.logger.error(`AI video analysis error: ${aiError.message}`);
+                            // Continue without AI analysis if it fails
                         }
-                        resolve();
-                    });
+                    }
+                    catch (metadataError) {
+                        this.logger.error('Error processing video metadata:', metadataError);
+                    }
+                    resolve();
                 })
                     .screenshots({
                     count: 1,
@@ -579,40 +549,196 @@ class AssetService {
             });
         }
         catch (error) {
-            console.error(`Error processing video asset: ${error.message}`);
+            this.logger.error(`Error processing video asset: ${error.message}`);
             // Continue with the upload even if video processing fails
         }
     }
     /**
+     * Extract detailed video metadata
+     */
+    async getVideoMetadataDetails(filePath) {
+        return new Promise((resolve) => {
+            fluent_ffmpeg_1.default.ffprobe(filePath, (err, metadata) => {
+                if (err) {
+                    resolve({ error: err });
+                    return;
+                }
+                try {
+                    const result = {};
+                    if (metadata && metadata.format) {
+                        // Convert duration from seconds to milliseconds
+                        result.duration = metadata.format.duration ?
+                            Math.round(parseFloat(metadata.format.duration) * 1000) : undefined;
+                        result.bitrate = metadata.format.bit_rate ?
+                            parseInt(metadata.format.bit_rate, 10) : undefined;
+                    }
+                    if (metadata && metadata.streams) {
+                        const videoStream = metadata.streams.find((s) => s.codec_type === 'video');
+                        if (videoStream) {
+                            result.width = videoStream.width;
+                            result.height = videoStream.height;
+                            result.codec = videoStream.codec_name;
+                            result.aspectRatio = videoStream.display_aspect_ratio ||
+                                (videoStream.width && videoStream.height ? `${videoStream.width}:${videoStream.height}` : undefined);
+                            // Calculate frame rate
+                            if (videoStream.r_frame_rate) {
+                                const fpsRatio = videoStream.r_frame_rate.split('/');
+                                if (fpsRatio.length === 2) {
+                                    const num = parseInt(fpsRatio[0], 10);
+                                    const den = parseInt(fpsRatio[1], 10);
+                                    if (!isNaN(num) && !isNaN(den) && den !== 0) {
+                                        result.frameRate = Math.round((num / den) * 100) / 100; // Round to 2 decimal places
+                                    }
+                                }
+                            }
+                        }
+                        const audioStream = metadata.streams.find((s) => s.codec_type === 'audio');
+                        if (audioStream) {
+                            result.audioCodec = audioStream.codec_name;
+                            result.audioChannels = audioStream.channels;
+                        }
+                    }
+                    resolve({ data: result });
+                }
+                catch (error) {
+                    resolve({ error: error });
+                }
+            });
+        });
+    }
+    /**
      * Process audio assets - generate waveform images and extract metadata
+     * Enhanced with AI-powered content analysis
      */
     async processAudioAsset(asset, filePath) {
         try {
-            console.log(`Processing audio asset: ${asset.name}`);
-            // This would typically generate a waveform image and extract audio metadata
-            // For now, we'll just extract basic metadata
+            this.logger.info(`Processing audio asset: ${asset.name}`);
+            // Get asset directory for storing additional files
+            const assetDir = path_1.default.dirname(filePath);
+            const waveformFileName = 'waveform.png';
+            const waveformPath = path_1.default.join(assetDir, waveformFileName);
+            // Extract audio metadata and generate waveform
             return new Promise((resolve, reject) => {
-                fluent_ffmpeg_1.default.ffprobe(filePath, (err, metadata) => {
+                // First get the audio metadata
+                fluent_ffmpeg_1.default.ffprobe(filePath, async (err, metadata) => {
                     if (err) {
-                        console.error('Error getting audio metadata:', err);
+                        this.logger.error('Error getting audio metadata:', err);
                         resolve();
                         return;
                     }
                     try {
-                        if (metadata && metadata.format && metadata.format.duration) {
+                        // Extract basic metadata
+                        if (metadata && metadata.format) {
                             // Convert duration from seconds to milliseconds
-                            asset.duration = Math.round(parseFloat(metadata.format.duration) * 1000);
+                            if (metadata.format.duration) {
+                                asset.duration = Math.round(parseFloat(metadata.format.duration) * 1000);
+                            }
+                            // Extract additional audio metadata
+                            const audioMetadata = {};
+                            if (metadata.format.bit_rate) {
+                                audioMetadata.bitrate = parseInt(metadata.format.bit_rate, 10);
+                            }
+                            if (metadata.format.tags) {
+                                // Extract any available tags from audio file (e.g., ID3 tags)
+                                if (metadata.format.tags.title)
+                                    audioMetadata.title = metadata.format.tags.title;
+                                if (metadata.format.tags.artist)
+                                    audioMetadata.artist = metadata.format.tags.artist;
+                                if (metadata.format.tags.album)
+                                    audioMetadata.album = metadata.format.tags.album;
+                                if (metadata.format.tags.genre)
+                                    audioMetadata.genre = metadata.format.tags.genre;
+                                if (metadata.format.tags.date)
+                                    audioMetadata.year = metadata.format.tags.date;
+                            }
+                            // Extract details from the audio stream
+                            const audioStream = metadata.streams.find((s) => s.codec_type === 'audio');
+                            if (audioStream) {
+                                if (audioStream.codec_name)
+                                    audioMetadata.codec = audioStream.codec_name;
+                                if (audioStream.sample_rate)
+                                    audioMetadata.sampleRate = parseInt(audioStream.sample_rate, 10);
+                                if (audioStream.channels)
+                                    audioMetadata.channels = audioStream.channels;
+                                if (audioStream.channel_layout)
+                                    audioMetadata.channelLayout = audioStream.channel_layout;
+                            }
+                            // Store metadata in asset
+                            asset.metadata = { ...asset.metadata, ...audioMetadata };
+                            // Add to asset tags based on available metadata
+                            const metadataTags = [];
+                            if (audioMetadata.genre)
+                                metadataTags.push(audioMetadata.genre.toLowerCase());
+                            if (audioMetadata.channels === 1)
+                                metadataTags.push('mono');
+                            if (audioMetadata.channels === 2)
+                                metadataTags.push('stereo');
+                            // Add audio-related tags
+                            const existingTags = asset.tags || [];
+                            asset.tags = [...new Set([...existingTags, ...metadataTags, 'audio'])];
+                            // Try to use AI to analyse the audio content
+                            try {
+                                this.logger.info(`Starting AI analysis for audio: ${asset.name}`);
+                                const aiAnalysis = await assetAI_1.assetAI.analyseAudio(filePath);
+                                // Add AI-generated tags and attributes
+                                if (aiAnalysis.tags && aiAnalysis.tags.length > 0) {
+                                    asset.aiTags = aiAnalysis.tags;
+                                    // Combine with existing tags, ensuring uniqueness
+                                    asset.tags = [...new Set([...asset.tags, ...aiAnalysis.tags])];
+                                }
+                                if (aiAnalysis.categories && aiAnalysis.categories.length > 0) {
+                                    // Add categories, ensuring uniqueness
+                                    const existingCategories = asset.categories || [];
+                                    asset.categories = [...new Set([...existingCategories, ...aiAnalysis.categories, 'audio'])];
+                                }
+                                // Create a content description from audio metadata or transcription
+                                const description = aiAnalysis.transcription ||
+                                    `Audio file${audioMetadata.title ? ` titled "${audioMetadata.title}"` : ''}`;
+                                asset.contentDescription = description;
+                                this.logger.info(`AI analysis complete for audio: ${asset.name}`);
+                            }
+                            catch (aiError) {
+                                this.logger.error(`AI audio analysis error: ${aiError.message}`);
+                                // Set basic content description from metadata if AI fails
+                                if (audioMetadata.title || audioMetadata.artist) {
+                                    asset.contentDescription = [
+                                        audioMetadata.title ? `"${audioMetadata.title}"` : 'Untitled',
+                                        audioMetadata.artist ? `by ${audioMetadata.artist}` : ''
+                                    ].filter(Boolean).join(' ');
+                                }
+                            }
                         }
                     }
                     catch (metadataError) {
-                        console.error('Error parsing audio metadata:', metadataError);
+                        this.logger.error('Error parsing audio metadata:', metadataError);
                     }
-                    resolve();
+                    // Attempt to generate waveform visualization
+                    try {
+                        // Generate waveform image as the thumbnail using ffmpeg
+                        (0, fluent_ffmpeg_1.default)(filePath)
+                            .audioFilters('showwavespic=s=600x120:colors=#2198f3')
+                            .outputOptions('-frames:v 1')
+                            .saveToFile(waveformPath)
+                            .on('end', () => {
+                            // Set waveform as thumbnail
+                            asset.thumbnailUrl = `${asset.url.substring(0, asset.url.lastIndexOf('/'))}/${waveformFileName}`;
+                            this.logger.info(`Generated waveform for audio: ${asset.name}`);
+                            resolve();
+                        })
+                            .on('error', (waveformErr) => {
+                            this.logger.error(`Error generating waveform: ${waveformErr.message}`);
+                            resolve(); // Continue despite the error
+                        });
+                    }
+                    catch (waveformError) {
+                        this.logger.error(`Failed to generate waveform: ${waveformError.message}`);
+                        resolve(); // Continue despite the error
+                    }
                 });
             });
         }
         catch (error) {
-            console.error(`Error processing audio asset: ${error.message}`);
+            this.logger.error(`Error processing audio asset: ${error.message}`);
             // Continue with the upload even if audio processing fails
         }
     }
@@ -622,36 +748,23 @@ class AssetService {
      */
     async getAssets(filters = {}) {
         try {
-            console.log('🔍 DEBUG: Asset fetch initiated with filters:', JSON.stringify(filters, null, 2));
-            // Debug check if development user ID exists
-            const { data: devUserCheck, error: devUserError } = await supabaseClient_1.supabase
-                .from('users')
-                .select('id')
-                .eq('id', auth_1.AUTH_MODE.DEV_USER_ID)
-                .single();
-            console.log('🔍 DEBUG: Development user check:', devUserCheck ? 'User exists' : 'User DOES NOT exist', devUserError ? `Error: ${devUserError.message}` : 'No error');
-            // Debug check if any assets exist for dev user
-            const { data: assetCountCheck, error: assetCountError } = await supabaseClient_1.supabase
-                .from('assets')
-                .select('id', { count: 'exact' })
-                .eq('user_id', auth_1.AUTH_MODE.DEV_USER_ID);
-            console.log('🔍 DEBUG: Asset count for dev user:', assetCountCheck !== null ? `Found ${assetCountCheck.length} assets` : 'No assets found', assetCountError ? `Error: ${assetCountError.message}` : 'No error');
+            this.logger.info('Asset fetch initiated with filters:', JSON.stringify(filters, null, 2));
             // Default pagination values
             const limit = filters.limit || 50;
             const offset = filters.offset || 0;
             // First, get the count for pagination
-            let countQuery = supabaseClient_1.supabase
+            let countQuery = this.supabase
                 .from('assets')
                 .select('id', { count: 'exact' });
             // Apply filters to count query
             countQuery = this.applyFiltersToQuery(countQuery, filters);
             const { count, error: countError } = await countQuery;
             if (countError) {
-                console.error('Error counting assets:', countError);
+                this.logger.error('Error counting assets:', countError);
                 return { assets: [], total: 0 };
             }
             // Then, get the paginated data
-            let dataQuery = supabaseClient_1.supabase
+            let dataQuery = this.supabase
                 .from('assets')
                 .select('*');
             // Apply the same filters to data query
@@ -672,9 +785,14 @@ class AssetService {
                 if (dbSortField === 'date')
                     dbSortField = 'created_at'; // Map 'date' to 'created_at'
                 if (dbSortField === 'usageCount')
-                    dbSortField = 'meta->>usageCount';
+                    dbSortField = 'metadata->>usageCount';
                 if (dbSortField === 'name')
                     dbSortField = 'name';
+                // Support sorting by AI-generated metrics
+                if (dbSortField === 'contentRelevance')
+                    dbSortField = 'metadata->>contentRelevance';
+                if (dbSortField === 'engagementScore')
+                    dbSortField = 'metadata->>engagementScore';
                 const sortDirection = filters.sortDirection || 'desc';
                 dataQuery = dataQuery.order(dbSortField, { ascending: sortDirection === 'asc' });
             }
@@ -682,73 +800,387 @@ class AssetService {
                 // Default sorting by most recently created
                 dataQuery = dataQuery.order('created_at', { ascending: false });
             }
+            // Apply additional filters for content-based searches
+            if (filters.contentSearch) {
+                // This is a natural language search against content descriptions
+                this.logger.info(`Performing content-based search: ${filters.contentSearch}`);
+                // This would typically use a vector search or full-text search
+                // For now, we'll use a simple LIKE query on the content description
+                const contentSearchTerm = `%${filters.contentSearch}%`;
+                dataQuery = dataQuery.ilike('content_description', contentSearchTerm);
+            }
             const { data, error: dataError } = await dataQuery;
             if (dataError) {
-                console.error('Error fetching assets:', dataError);
+                this.logger.error('Error fetching assets:', dataError);
                 return { assets: [], total: 0 };
             }
             // Transform DB assets to application assets
             const assets = data.map(item => this.transformAssetFromDb(item));
+            // Apply any additional client-side filtering for advanced AI features
+            // that might not be directly queryable in the database
+            let filteredAssets = assets;
+            // Client-side colour filtering (if dominantColours is being used)
+            if (filters.colourFilter) {
+                this.logger.info(`Applying colour filter: ${filters.colourFilter}`);
+                filteredAssets = filteredAssets.filter(asset => {
+                    // Check if asset has dominant colours and if any of them is close to the requested colour
+                    return asset.dominantColours &&
+                        asset.dominantColours.some(colour => this.areColoursRelated(colour, filters.colourFilter));
+                });
+            }
             return {
-                assets,
-                total: count || 0
+                assets: filteredAssets,
+                total: filters.colourFilter ? filteredAssets.length : (count || 0)
             };
         }
         catch (error) {
-            console.error('Error in getAssets:', error);
+            this.logger.error('Error in getAssets:', error);
             return { assets: [], total: 0 };
         }
     }
+    // Methods for colour analysis are now implemented using the enhanced versions below
     /**
      * Helper method to apply filters to a Supabase query
+     * Enhanced to support AI-generated metadata filters
      */
     applyFiltersToQuery(query, filters) {
-        // Filter by client ID 
+        // Client Filter (crucial for multi-tenancy)
         if (filters.clientId) {
             query = query.eq('client_id', filters.clientId);
         }
-        // Handle client filtering by slug (more reliable)
-        if (filters.clientSlug) {
-            // We need to handle this case separately as it requires a join or subquery
-            // For simplicity in this implementation, we'll log this case
-            console.warn('Client slug filtering requires a join or subquery - implement based on your DB schema');
+        // Owner Filter
+        if (filters.ownerId) {
+            query = query.eq('owner_id', filters.ownerId);
         }
-        // Filter by user ID - always ensure there's a valid user ID filter
-        if (filters.userId) {
-            query = query.eq('user_id', filters.userId);
-        }
-        else {
-            // If no user ID provided, use the development user ID
-            console.log(`Using development user ID (${auth_1.AUTH_MODE.DEV_USER_ID}) for asset retrieval`);
-            query = query.eq('user_id', auth_1.AUTH_MODE.DEV_USER_ID);
-        }
-        // Filter by type
+        // Type Filter
         if (filters.type && filters.type.length > 0) {
             query = query.in('type', filters.type);
         }
-        // Filter by search term (search in name, description)
-        if (filters.searchTerm) {
-            const term = filters.searchTerm.trim();
-            if (term) {
-                // Use ILIKE for case-insensitive search
-                query = query.or(`name.ilike.%${term}%, meta->>description.ilike.%${term}%`);
+        // Tag Filter (array contains)
+        if (filters.tags && filters.tags.length > 0) {
+            query = query.contains('tags', filters.tags);
+        }
+        // AI Tag Filter - specifically search in AI-generated tags
+        if (filters.aiTags && filters.aiTags.length > 0) {
+            query = query.contains('ai_tags', filters.aiTags);
+        }
+        // Category Filter (array contains)
+        if (filters.categories && filters.categories.length > 0) {
+            query = query.contains('categories', filters.categories);
+        }
+        // Favourites Filter
+        if (filters.favourite) {
+            query = query.eq('is_favourite', true);
+        }
+        // Search Term Filter (searches name, description, and content description)
+        if (filters.search) {
+            const searchTerm = `%${filters.search}%`;
+            // Enhanced to search in AI-generated content description as well
+            query = query.or(`name.ilike.${searchTerm},content_description.ilike.${searchTerm},metadata->>description.ilike.${searchTerm}`);
+            // Additionally, if the search term might be a concept rather than exact text,
+            // we try to match against AI-generated tags as well
+            if (filters.includeConceptSearch) {
+                // This would be more sophisticated in production with proper vector search
+                query = query.or(`ai_tags.cs.{${filters.search}}`);
             }
         }
-        // Filter by favourites
-        if (filters.favouritesOnly) {
-            query = query.eq('meta->>isFavourite', 'true');
+        // Date Range Filter
+        if (filters.startDate) {
+            query = query.gte('created_at', new Date(filters.startDate).toISOString());
         }
-        // Tags and categories filters use containment operators
-        if (filters.tags && filters.tags.length > 0) {
-            // Assumes tags are stored as a JSON array in the meta field
-            const tagConditions = filters.tags.map(tag => `meta->tags.cs.{"${tag}"}`).join(',');
-            query = query.or(tagConditions);
+        if (filters.endDate) {
+            query = query.lte('created_at', new Date(filters.endDate).toISOString());
         }
-        if (filters.categories && filters.categories.length > 0) {
-            const categoryConditions = filters.categories.map(category => `meta->categories.cs.{"${category}"}`).join(',');
-            query = query.or(categoryConditions);
+        // Status Filter
+        if (filters.status) {
+            query = query.eq('status', filters.status);
+        }
+        // Safety Level Filter
+        if (filters.safetyLevel) {
+            // Filter assets based on their safety labels
+            // Assuming safety labels are stored in the database
+            switch (filters.safetyLevel) {
+                case 'all':
+                    // No filter, show all content
+                    break;
+                case 'moderate':
+                    // Filter out content with high adult or violence scores
+                    query = query.lt('safety_adult', 0.7);
+                    query = query.lt('safety_violence', 0.7);
+                    break;
+                case 'strict':
+                    // Filter out content with any significant adult, violence, or racy content
+                    query = query.lt('safety_adult', 0.3);
+                    query = query.lt('safety_violence', 0.3);
+                    query = query.lt('safety_racy', 0.5);
+                    break;
+            }
+        }
+        // Engagement Score Filter - filter for content with high engagement potential
+        if (filters.minEngagementScore) {
+            query = query.gte('engagement_score', filters.minEngagementScore);
+        }
+        // Content Relevance Filter - for targeting specific concepts or subjects
+        if (filters.contentRelevance && filters.contentRelevance.topic) {
+            const relevanceTopic = filters.contentRelevance.topic;
+            const relevanceThreshold = filters.contentRelevance.threshold || 0.6; // Default threshold
+            // This would be implemented using vector similarity in production
+            // For now, we'll use a simplified approach with tags
+            query = query.contains('ai_tags', [relevanceTopic]);
         }
         return query;
+    }
+    /**
+     * Find similar assets based on AI metadata
+     * @param assetId ID of the reference asset
+     * @param options Options for similarity search
+     */
+    async findSimilarAssets(assetId, options = {}) {
+        try {
+            // Get the reference asset first
+            const { asset: referenceAsset, success } = await this.getAssetById(assetId);
+            if (!success || !referenceAsset) {
+                return {
+                    assets: [],
+                    success: false,
+                    message: 'Reference asset not found'
+                };
+            }
+            // Default options
+            const limit = options.limit || 10;
+            const includeSameType = options.includeSameType !== false; // Default to true
+            // Build filters based on the reference asset's AI-generated metadata
+            const filters = {
+                clientId: options.clientId || referenceAsset.clientId,
+                limit: limit,
+            };
+            // If AI tags exist, use them for similarity matching
+            if (referenceAsset.aiTags && referenceAsset.aiTags.length > 0) {
+                // Take the top 3 AI tags for more relevant results
+                filters.aiTags = referenceAsset.aiTags.slice(0, 3);
+            }
+            // For visual assets, use dominant colours for visual similarity
+            if ((referenceAsset.type === 'image' || referenceAsset.type === 'video') &&
+                referenceAsset.dominantColours &&
+                referenceAsset.dominantColours.length > 0) {
+                // Use the primary dominant colour
+                filters.colourFilter = referenceAsset.dominantColours[0];
+            }
+            // Filter by same type if requested
+            if (includeSameType && referenceAsset.type) {
+                filters.type = referenceAsset.type;
+            }
+            // If there's a content description, use it for content search
+            if (referenceAsset.contentDescription) {
+                // Extract key terms from content description for more specific matching
+                const keyTerms = this.extractKeyTerms(referenceAsset.contentDescription);
+                if (keyTerms.length > 0) {
+                    filters.contentSearch = keyTerms.join(' ');
+                }
+            }
+            // Exclude the reference asset itself
+            const { assets } = await this.getAssets(filters);
+            const filteredAssets = assets.filter(asset => asset.id !== assetId);
+            // Rank assets by similarity if we have sufficient metadata
+            if (referenceAsset.aiTags && referenceAsset.aiTags.length > 0) {
+                const rankedAssets = this.rankAssetsBySimilarity(filteredAssets, referenceAsset);
+                return {
+                    assets: rankedAssets,
+                    success: true,
+                    message: `Found ${rankedAssets.length} similar assets`
+                };
+            }
+            return {
+                assets: filteredAssets,
+                success: true,
+                message: `Found ${filteredAssets.length} similar assets`
+            };
+        }
+        catch (error) {
+            this.logger.error('Error finding similar assets:', error);
+            return {
+                assets: [],
+                success: false,
+                message: `Error finding similar assets: ${error.message}`
+            };
+        }
+    }
+    /**
+     * Extract key terms from a content description for better similarity matching
+     * @param description The content description to extract terms from
+     */
+    extractKeyTerms(description) {
+        if (!description)
+            return [];
+        // Remove common stop words and split into words
+        const stopWords = ['a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'with', 'by', 'of'];
+        const words = description.toLowerCase()
+            .replace(/[^a-z0-9\s]/g, '') // Remove non-alphanumeric characters
+            .split(/\s+/) // Split by whitespace
+            .filter(word => word.length > 2 && !stopWords.includes(word)); // Remove stop words and short words
+        // Count word frequency
+        const wordCounts = {};
+        words.forEach(word => {
+            wordCounts[word] = (wordCounts[word] || 0) + 1;
+        });
+        // Sort by frequency and take the top 5 most frequent words
+        return Object.entries(wordCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(entry => entry[0]);
+    }
+    /**
+     * Rank assets by similarity to a reference asset
+     * @param assets Assets to rank
+     * @param referenceAsset Reference asset for comparison
+     */
+    rankAssetsBySimilarity(assets, referenceAsset) {
+        return assets
+            .map(asset => {
+            const similarityScore = this.calculateSimilarityScore(asset, referenceAsset);
+            return { ...asset, similarityScore };
+        })
+            .sort((a, b) => (b.similarityScore || 0) - (a.similarityScore || 0));
+    }
+    /**
+     * Calculate a similarity score between two assets using their AI-generated metadata
+     * @param asset1 First asset to compare
+     * @param asset2 Second asset to compare
+     * @returns Similarity score from 0 to 1, where 1 is most similar
+     */
+    calculateSimilarityScore(asset1, asset2) {
+        let score = 0;
+        let factors = 0;
+        // Compare AI tags if both assets have them
+        if (asset1.aiTags && asset1.aiTags.length > 0 && asset2.aiTags && asset2.aiTags.length > 0) {
+            const commonTags = asset1.aiTags.filter(tag => asset2.aiTags.includes(tag));
+            const tagSimilarity = commonTags.length / Math.max(asset1.aiTags.length, asset2.aiTags.length);
+            score += tagSimilarity;
+            factors++;
+        }
+        // Compare dominant colours if both assets have them
+        if (asset1.dominantColours && asset1.dominantColours.length > 0 &&
+            asset2.dominantColours && asset2.dominantColours.length > 0) {
+            // Compare primary colours
+            const colourSimilarity = this.areColoursRelated(asset1.dominantColours[0], asset2.dominantColours[0]) ? 0.8 : 0;
+            score += colourSimilarity;
+            factors++;
+        }
+        // Compare categories if both assets have them
+        if (asset1.categories && asset1.categories.length > 0 &&
+            asset2.categories && asset2.categories.length > 0) {
+            const commonCategories = asset1.categories.filter(category => asset2.categories.includes(category));
+            const categorySimilarity = commonCategories.length / Math.max(asset1.categories.length, asset2.categories.length);
+            score += categorySimilarity;
+            factors++;
+        }
+        // If there are no factors to compare, return 0
+        if (factors === 0)
+            return 0;
+        // Return the average similarity score
+        return score / factors;
+    }
+    /**
+     * Determine if two colours are visually related
+     * @param colour1 First colour in hex format (e.g., '#ff0000')
+     * @param colour2 Second colour in hex format (e.g., '#ff5555')
+     * @returns True if the colours are considered related
+     */
+    areColoursRelated(colour1, colour2) {
+        // Ensure both colours are in hex format
+        if (!colour1 || !colour2 || !colour1.startsWith('#') || !colour2.startsWith('#')) {
+            return false;
+        }
+        try {
+            // Parse hex colours to RGB
+            const rgb1 = this.hexToRgb(colour1);
+            const rgb2 = this.hexToRgb(colour2);
+            if (!rgb1 || !rgb2)
+                return false;
+            // Convert RGB to HSL to better compare colour relationships
+            const hsl1 = this.rgbToHsl(rgb1.r, rgb1.g, rgb1.b);
+            const hsl2 = this.rgbToHsl(rgb2.r, rgb2.g, rgb2.b);
+            // Colours are considered related if they have similar hue (within a threshold)
+            // or if they are both very dark or both very light
+            const hueThreshold = 30; // Degrees of difference in hue that we consider "related"
+            const hueDiff = Math.abs(hsl1.h - hsl2.h);
+            const normalizedHueDiff = Math.min(hueDiff, 360 - hueDiff); // Handle hue wraparound at 360 degrees
+            // Colours with similar hue are related
+            if (normalizedHueDiff <= hueThreshold) {
+                return true;
+            }
+            // Both are very dark (low lightness) or both very light (high lightness)
+            if ((hsl1.l < 0.2 && hsl2.l < 0.2) || (hsl1.l > 0.8 && hsl2.l > 0.8)) {
+                return true;
+            }
+            // Both are very desaturated (grayscale-like)
+            if (hsl1.s < 0.2 && hsl2.s < 0.2) {
+                return true;
+            }
+            return false;
+        }
+        catch (e) {
+            // If any error occurs during colour calculation, return false
+            return false;
+        }
+    }
+    /**
+     * Convert a hex colour string to RGB values
+     */
+    hexToRgb(hex) {
+        // Remove # if present
+        hex = hex.replace(/^#/, '');
+        // Parse 3-digit hex
+        if (hex.length === 3) {
+            hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+        }
+        // Validate hex format
+        if (hex.length !== 6) {
+            return null;
+        }
+        // Parse the RGB components
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        // Check for valid parsing
+        if (isNaN(r) || isNaN(g) || isNaN(b)) {
+            return null;
+        }
+        return { r, g, b };
+    }
+    /**
+     * Convert RGB to HSL colour space
+     * @returns Object with h (0-360), s (0-1), l (0-1)
+     */
+    rgbToHsl(r, g, b) {
+        // Normalize RGB values
+        r /= 255;
+        g /= 255;
+        b /= 255;
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        let h = 0;
+        let s = 0;
+        const l = (max + min) / 2;
+        if (max !== min) {
+            const d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            switch (max) {
+                case r:
+                    h = (g - b) / d + (g < b ? 6 : 0);
+                    break;
+                case g:
+                    h = (b - r) / d + 2;
+                    break;
+                case b:
+                    h = (r - g) / d + 4;
+                    break;
+            }
+            h /= 6;
+        }
+        // Convert hue to degrees
+        h = Math.round(h * 360);
+        return { h, s, l };
     }
     /**
      * Get a single asset by ID
@@ -756,14 +1188,14 @@ class AssetService {
     async getAssetById(id, userId) {
         try {
             // Build up our query
-            let query = supabaseClient_1.supabase
+            let query = this.supabase
                 .from('assets')
                 .select('*');
             // Apply id filter
             query = query.eq('id', id);
             // Only restrict by user ID if specified and not bypassing auth
             if (userId) {
-                query = query.eq('user_id', userId);
+                query = query.eq('owner_id', userId);
             }
             // Execute as single query
             const { data, error } = await query.single();
@@ -800,10 +1232,10 @@ class AssetService {
     async getAvailableCategories() {
         try {
             // This query gets all unique categories from the assets
-            const { data, error } = await supabaseClient_1.supabase
+            const { data, error } = await this.supabase
                 .from('assets')
-                .select('meta->categories')
-                .not('meta->categories', 'is', null);
+                .select('metadata->categories')
+                .not('metadata->categories', 'is', null);
             if (error) {
                 console.error('Error fetching categories:', error);
                 return [];
@@ -811,8 +1243,10 @@ class AssetService {
             // Extract and flatten categories from all assets
             const allCategories = [];
             data.forEach(item => {
-                if (item.meta && item.meta.categories && Array.isArray(item.meta.categories)) {
-                    item.meta.categories.forEach((category) => {
+                // Use type assertion (as any) to access nested metadata correctly
+                const typedItem = item;
+                if (typedItem.metadata && typedItem.metadata.categories && Array.isArray(typedItem.metadata.categories)) {
+                    typedItem.metadata.categories.forEach((category) => {
                         if (category && !allCategories.includes(category)) {
                             allCategories.push(category);
                         }
@@ -827,117 +1261,274 @@ class AssetService {
         }
     }
     /**
-     * Delete an asset
+     * Deletes an asset, including its database record and associated files.
      */
-    async deleteAsset(id, userId) {
-        try {
-            // First get the asset to check permissions and get file path
-            const { asset, success, message } = await this.getAssetById(id, userId);
-            if (!success || !asset) {
-                return { success: false, message: message || 'Asset not found' };
-            }
-            // Delete from database
-            const { error } = await supabaseClient_1.supabase
-                .from('assets')
-                .delete()
-                .eq('id', id);
-            if (error) {
-                return { success: false, message: `Database error: ${error.message}` };
-            }
-            // Delete the files from storage
-            try {
-                // Extract the relative path from URL
-                const urlPath = asset.url;
-                if (urlPath.startsWith('/uploads/')) {
-                    const relativePath = urlPath.substring('/uploads/'.length);
-                    const assetDir = path_1.default.dirname(path_1.default.join(this.uploadsDir, relativePath));
-                    // Recursively delete the asset directory
-                    fs_1.default.rm(assetDir, { recursive: true, force: true }, (err) => {
-                        if (err) {
-                            console.error(`Error deleting asset files for ${id}:`, err);
-                        }
-                    });
-                }
-            }
-            catch (fileError) {
-                console.error(`Error cleaning up asset files for ${id}:`, fileError);
-                // Continue anyway since the DB record is deleted
-            }
-            return { success: true, message: 'Asset deleted successfully' };
-        }
-        catch (error) {
+    async deleteAsset(id, clientId) {
+        // 1. Add Supabase configuration check
+        if (!this.isSupabaseConfigured()) {
             return {
                 success: false,
-                message: `Error deleting asset: ${error.message}`
+                // Use ApiError for consistency
+                error: new ApiError_1.ApiError(errorTypes_1.ErrorCode.CONFIGURATION_ERROR, 'Supabase client not configured.'),
+                message: 'Service configuration error.',
+                data: false,
+            };
+        }
+        // 2. Validate input
+        if (!id || !clientId) {
+            const message = 'Asset ID and Client ID are required.';
+            // 3. Replace logger.warn with console.warn
+            console.warn(message, { id, clientId });
+            return {
+                success: false,
+                error: new ApiError_1.ApiError(errorTypes_1.ErrorCode.INVALID_INPUT, message),
+                message: message,
+                data: false,
+            };
+        }
+        let filePathToDelete;
+        let thumbPathToDelete;
+        try {
+            // 4. Get asset details first to know which files to delete
+            const { data: assetData, error: fetchError } = await this.supabase
+                .from('assets')
+                .select('file_path, thumbnail_path')
+                .eq('id', id)
+                .eq('client_id', clientId)
+                .maybeSingle();
+            if (fetchError) {
+                console.error(`Error fetching asset ${id} before deletion:`, fetchError);
+                // Use ApiError for database errors
+                return {
+                    success: false,
+                    error: new ApiError_1.ApiError(errorTypes_1.ErrorCode.DATABASE_ERROR, `Database error checking asset before delete: ${fetchError.message}`, fetchError),
+                    message: `Database error checking asset before delete: ${fetchError.message}`,
+                    data: false,
+                };
+            }
+            if (!assetData) {
+                // Asset doesn't exist or doesn't belong to client - treat as success (idempotent delete)
+                console.log(`Asset ${id} not found for client ${clientId} during delete attempt. Assuming already deleted.`);
+                return { success: true, message: 'Asset not found, assumed already deleted.', data: true };
+            }
+            // Resolve full paths based on uploadsDir
+            filePathToDelete = assetData.file_path ? path_1.default.resolve(this.uploadsDir, assetData.file_path) : undefined;
+            thumbPathToDelete = assetData.thumbnail_path ? path_1.default.resolve(this.uploadsDir, assetData.thumbnail_path) : undefined;
+            // 5. Delete the database record
+            const { error: deleteError } = await this.supabase
+                .from('assets')
+                .delete()
+                .match({ id: id, client_id: clientId });
+            if (deleteError) {
+                // Check if it was a 'not found' error again (e.g., race condition)
+                if (deleteError.code === 'PGRST204') { // Not found or RLS failed
+                    console.log(`Asset ${id} not found during delete confirmation (PGRST204). Assuming deleted.`);
+                    // Use ApiError for consistency, even though we proceed to file cleanup
+                    // Note: We still proceed to file cleanup, but log this specific condition.
+                }
+                else {
+                    console.error(`Error deleting asset ${id} from database:`, deleteError);
+                    // Standardize error reporting using ApiError
+                    return {
+                        success: false,
+                        error: new ApiError_1.ApiError(errorTypes_1.ErrorCode.DATABASE_ERROR, `Failed to delete asset record for ID: ${id}. Reason: ${deleteError.message}`, deleteError),
+                        message: `Database error deleting asset: ${deleteError.message}`,
+                        data: false,
+                    };
+                }
+            }
+            else {
+                console.log(`Asset ${id} deleted from database.`);
+            }
+            // 6. Delete files from filesystem asynchronously using Promise.allSettled
+            const fileDeletePromises = [];
+            const filesToDelete = [
+                { path: filePathToDelete, type: 'asset file' },
+                { path: thumbPathToDelete, type: 'thumbnail file' },
+            ];
+            filesToDelete.forEach(({ path: currentPath, type }) => {
+                if (currentPath) {
+                    fileDeletePromises.push(unlink(currentPath).then(() => {
+                        console.log(`Deleted ${type}: ${currentPath}`);
+                    }).catch((fsError) => {
+                        // Throw a specific error object to capture details in allSettled
+                        const errorMsg = `Failed to delete ${type} ${currentPath}: ${fsError instanceof Error ? fsError.message : String(fsError)}`;
+                        console.error(errorMsg);
+                        throw new Error(errorMsg); // Throw to mark as rejected
+                    }));
+                }
+            });
+            const results = await Promise.allSettled(fileDeletePromises);
+            const fileDeleteErrors = results
+                .filter((result) => result.status === 'rejected')
+                .map(result => result.reason?.message || 'Unknown file deletion error');
+            if (fileDeleteErrors.length > 0) {
+                // Return success=true because the DB record is gone (primary goal),
+                // but include a message about the file cleanup issues.
+                return {
+                    success: true,
+                    message: `Asset record deleted, but encountered errors cleaning up files: ${fileDeleteErrors.join('; ')}`,
+                    // Optionally include errors in a separate field if needed downstream
+                    // fileErrors: fileDeleteErrors,
+                    data: true
+                };
+            }
+            return { success: true, message: 'Asset deleted successfully, including associated files.', data: true };
+        }
+        catch (error) {
+            console.error('Unexpected error in deleteAsset:', error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            // Wrap unexpected errors in ApiError
+            return {
+                success: false,
+                error: new ApiError_1.ApiError(errorTypes_1.ErrorCode.INTERNAL_ERROR, `An unexpected error occurred during asset deletion: ${errorMessage}`, error),
+                message: `An unexpected error occurred during asset deletion: ${errorMessage}`,
+                data: false,
             };
         }
     }
     /**
-     * Update an asset
+     * Helper function to map Asset update fields to DbAsset update fields.
+     * Only includes fields typically allowed for update.
      */
-    async updateAsset(id, userId, updateData) {
+    mapAssetToDbUpdate(updates) {
+        const dbUpdates = {};
+        if ('name' in updates)
+            dbUpdates.name = updates.name;
+        if ('description' in updates)
+            dbUpdates.description = updates.description;
+        if ('isFavourite' in updates)
+            dbUpdates.is_favourite = updates.isFavourite;
+        // Map Asset 'status' or 'processingStatus' to DbAsset 'status'
+        if ('status' in updates)
+            dbUpdates.status = updates.status;
+        if ('processingStatus' in updates)
+            dbUpdates.status = updates.processingStatus; // Allow updating via processingStatus
+        if ('tags' in updates)
+            dbUpdates.tags = updates.tags;
+        if ('categories' in updates)
+            dbUpdates.categories = updates.categories;
+        if ('alternativeText' in updates)
+            dbUpdates.alternative_text = updates.alternativeText;
+        // Convert incoming string date (from Asset.expiresAt) to Date object
+        if ('expiresAt' in updates) {
+            // Check if expiresAt is a non-empty string before parsing
+            dbUpdates.expires_at = updates.expiresAt ? new Date(updates.expiresAt) : undefined;
+        }
+        // Handle metadata - merge if existing, otherwise set
+        // Note: This assumes a simple merge; complex merges might need specific logic
+        if ('metadata' in updates) {
+            // We need the existing metadata to merge properly. This helper might not be the best place.
+            // For now, just overwrite. Consider moving merge logic to updateAsset itself.
+            dbUpdates.metadata = updates.metadata;
+        }
+        // Fields like id, client_id, owner_id, file paths, type, size, dimensions, created_at, updated_at
+        // are generally not updated via this method.
+        return dbUpdates;
+    }
+    /**
+     * Updates an existing asset.
+     */
+    async updateAsset(id, clientId, updates) {
+        if (!this.isSupabaseConfigured()) {
+            return { success: false, error: 'Supabase client not configured.', message: 'Service configuration error.' };
+        }
+        if (!id || !clientId) {
+            return { success: false, error: 'Asset ID and Client ID are required.', message: 'Missing required parameters.' };
+        }
+        if (Object.keys(updates).length === 0) {
+            return { success: false, error: 'No update data provided.', message: 'At least one field must be provided for update.' };
+        }
+        // Map application-level updates to database fields
+        const dbUpdates = this.mapAssetToDbUpdate(updates);
+        // Check if there are any valid fields to update after mapping
+        if (Object.keys(dbUpdates).length === 0) {
+            return { success: false, error: 'No updatable fields provided.', message: 'None of the provided fields are allowed for update.' };
+        }
         try {
-            // First get the asset to check permissions
-            const { asset, success, message } = await this.getAssetById(id, userId);
-            if (!success || !asset) {
-                return { success: false, message: message || 'Asset not found' };
-            }
-            // Prepare the update
-            const updates = {};
-            // Handle simple name field
-            if (updateData.name !== undefined) {
-                updates.name = updateData.name;
-            }
-            // Prepare meta updates
-            const metaUpdates = {};
-            if (updateData.description !== undefined) {
-                metaUpdates.description = updateData.description;
-            }
-            if (updateData.tags !== undefined) {
-                metaUpdates.tags = updateData.tags;
-            }
-            if (updateData.categories !== undefined) {
-                metaUpdates.categories = updateData.categories;
-            }
-            if (updateData.isFavourite !== undefined) {
-                metaUpdates.isFavourite = updateData.isFavourite;
-            }
-            if (updateData.metadata !== undefined) {
-                metaUpdates.metadata = updateData.metadata;
-            }
-            // Update the asset in the database
-            const { data, error } = await supabaseClient_1.supabase
+            // Add updated_at manually if database doesn't handle it automatically
+            // dbUpdates.updated_at = new Date();
+            const { data: updatedData, error: updateError } = await this.supabase
                 .from('assets')
-                .update({
-                ...updates,
-                // Update meta fields that need updating
-                ...(Object.keys(metaUpdates).length > 0 ? {
-                    meta: supabaseClient_1.supabase.rpc('jsonb_merge', {
-                        a: asset.clientId ? { clientId: asset.clientId } : {},
-                        b: metaUpdates
-                    })
-                } : {})
-            })
+                .update(dbUpdates)
                 .eq('id', id)
+                .eq('client_id', clientId)
                 .select()
                 .single();
-            if (error) {
-                return { success: false, message: `Failed to update asset: ${error.message}` };
+            if (updateError) {
+                console.error(`Error updating asset ${id}:`, updateError);
+                if (updateError.code === 'PGRST204') { // Not found or RLS failed
+                    return { success: false, error: 'Asset not found or access denied.', message: `Asset with ID ${id} not found for client ${clientId} or update failed.` };
+                }
+                return { success: false, error: updateError.message, message: `Database error updating asset: ${updateError.message}` };
             }
-            return {
-                success: true,
-                message: 'Asset updated successfully',
-                asset: this.transformAssetFromDb(data)
-            };
+            if (!updatedData) {
+                return { success: false, error: 'Update operation returned no data.', message: 'Failed to retrieve the updated asset after update.' };
+            }
+            const transformedAsset = this.transformAssetFromDb(updatedData);
+            return { success: true, data: transformedAsset, message: 'Asset updated successfully.' };
         }
         catch (error) {
-            return {
-                success: false,
-                message: `Error updating asset: ${error.message}`
-            };
+            console.error('Error in updateAsset:', error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            return { success: false, error: errorMessage, message: `An unexpected error occurred while updating asset: ${errorMessage}` };
         }
+    }
+    /**
+     * Toggles the favourite status of an asset.
+     */
+    async toggleFavourite(id, clientId, isFavourite) {
+        if (!this.isSupabaseConfigured()) {
+            return { success: false, error: 'Supabase client not configured.', message: 'Service configuration error.' };
+        }
+        if (!id || !clientId) {
+            return { success: false, error: 'Asset ID and Client ID are required.', message: 'Missing required parameters.' };
+        }
+        try {
+            const { data: updatedData, error: updateError } = await this.supabase
+                .from('assets')
+                .update({ is_favourite: isFavourite })
+                .eq('id', id)
+                .eq('client_id', clientId)
+                .select()
+                .single();
+            if (updateError) {
+                console.error(`Error toggling favourite for asset ${id}:`, updateError);
+                // Check for specific errors, like RowLevelSecurity or not found
+                if (updateError.code === 'PGRST204') { // PostgREST code for no rows found
+                    return { success: false, error: 'Asset not found or access denied.', message: `Asset with ID ${id} not found for client ${clientId} or update failed.` };
+                }
+                return { success: false, error: updateError.message, message: `Database error updating favourite status: ${updateError.message}` };
+            }
+            if (!updatedData) {
+                // This case might be covered by PGRST204 check, but added for robustness
+                return { success: false, error: 'Update operation returned no data.', message: 'Failed to retrieve the updated asset after toggling favourite status.' };
+            }
+            const transformedAsset = this.transformAssetFromDb(updatedData);
+            return { success: true, data: transformedAsset, message: `Asset favourite status updated successfully to ${isFavourite}.` };
+        }
+        catch (error) {
+            console.error('Error in toggleFavourite:', error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            return { success: false, error: errorMessage, message: `An unexpected error occurred while toggling favourite: ${errorMessage}` };
+        }
+    }
+    /**
+     * Checks if the Supabase client is configured.
+     */
+    isSupabaseConfigured() {
+        // Simple check if the client object exists
+        // Add more robust checks if necessary (e.g., check connection status if possible)
+        return !!this.supabase;
+    }
+    // Create singleton instance
+    static getInstance() {
+        if (!AssetService.instance) {
+            AssetService.instance = new AssetService();
+        }
+        return AssetService.instance;
     }
 }
 // Create singleton instance
-const assetService = new AssetService();
+const assetService = AssetService.getInstance();
 exports.assetService = assetService;

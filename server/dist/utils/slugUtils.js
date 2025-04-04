@@ -15,7 +15,7 @@ function generateSlug(name) {
     // Replace spaces with hyphens
     slug = slug.replace(/\s+/g, '-');
     // Remove special characters
-    slug = slug.replace(/[^\w\-]/g, '');
+    slug = slug.replace(/[^\w-]/g, '');
     // Trim hyphens from start and end
     slug = slug.replace(/^-+|-+$/g, '');
     return slug;

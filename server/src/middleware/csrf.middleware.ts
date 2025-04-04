@@ -30,7 +30,7 @@ export const csrfProtection = (req: Request, res: Response, next: NextFunction) 
 
   // Skip in development mode if configured to do so
   if (process.env.NODE_ENV === 'development' && process.env.SKIP_CSRF === 'true') {
-    console.warn('[DEV] Skipping CSRF protection');
+    logger.warn('[DEV] Skipping CSRF protection');
     return next();
   }
 
@@ -68,7 +68,7 @@ export const csrfProtection = (req: Request, res: Response, next: NextFunction) 
     
     next();
   } catch (error) {
-    console.error('CSRF verification error:', error);
+    logger.error('CSRF verification error:', error);
     next(new ApiError({
       statusCode: 403,
       message: 'CSRF verification failed',

@@ -154,7 +154,7 @@ export class UnifiedAssetService {
    * @param options Optional filtering and pagination options
    * @returns Object containing paginated assets and total count
    */
-  public async getAssetsByClientSlug(slug: string, options: any = {}): Promise<{assets: Asset[], total: number}> {
+  public async getAssetsByClientSlug(slug: string, options: Record<string, unknown> = {}): Promise<{assets: Asset[], total: number}> {
     try {
       this.serviceLogger.info(`Getting assets for client slug: ${slug}`);
       
@@ -285,7 +285,7 @@ export class UnifiedAssetService {
    * @param dbAsset Database asset record
    * @returns Mapped Asset object
    */
-  private mapAssetFromDatabase(dbAsset: any): Asset {
+  private mapAssetFromDatabase($1: unknown): Asset {
     return {
       id: dbAsset.id,
       name: dbAsset.name,
@@ -302,7 +302,7 @@ export class UnifiedAssetService {
       updatedAt: dbAsset.updated_at ? new Date(dbAsset.updated_at).toISOString() : new Date().toISOString(),
       metadata: dbAsset.metadata || {},
       isFavourite: dbAsset.is_favourite || dbAsset.favourite || false,
-      tags: dbAsset.tags?.map((tag: any) => tag.name) || [],
+      tags: dbAsset.tags?.map(($1: unknown) => tag.name) || [],
       status: dbAsset.status || 'active'
     };
   }

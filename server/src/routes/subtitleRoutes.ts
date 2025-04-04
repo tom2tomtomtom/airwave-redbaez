@@ -57,7 +57,7 @@ router.post('/generate', authMiddleware, async (req, res) => {
       success: true,
       data: result
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error(`Error in subtitle generation: ${error.message}`);
     res.status(500).json({
       success: false,
@@ -96,7 +96,7 @@ router.get('/status/:jobId', authMiddleware, async (req, res) => {
       success: true,
       data: result
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error(`Error checking subtitle status: ${error.message}`);
     res.status(500).json({
       success: false,
@@ -118,7 +118,7 @@ router.get('/languages', authMiddleware, async (_req, res) => {
       success: true,
       data: languages
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error(`Error retrieving available languages: ${error.message}`);
     res.status(500).json({
       success: false,
@@ -149,7 +149,7 @@ router.get('/jobs', authMiddleware, async (req, res) => {
       success: true,
       data: jobs
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error(`Error retrieving subtitle jobs: ${error.message}`);
     res.status(500).json({
       success: false,

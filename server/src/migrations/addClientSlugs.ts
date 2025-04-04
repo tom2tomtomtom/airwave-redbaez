@@ -1,4 +1,5 @@
 import { supabase } from '../db/supabaseClient';
+import { logger } from './logger';
 
 /**
  * Generates a URL-friendly slug from a client name
@@ -51,7 +52,7 @@ async function ensureUniqueSlug(slug: string, clientId?: string): Promise<string
  * Adds the client_slug column to the clients table if it doesn't exist
  */
 export async function addClientSlugColumn(): Promise<void> {
-  console.log('Checking if client_slug column exists...');
+  logger.info('Checking if client_slug column exists...');
   
   // Check if column exists
   const { data: columnExists, error: checkError } = await supabase
@@ -61,33 +62,33 @@ export async function addClientSlugColumn(): Promise<void> {
     });
   
   if (checkError) {
-    console.error('Error checking column existence:', checkError);
+    logger.error('Error checking column existence:', checkError);
     
     // Try an alternative approach
     try {
       // Using raw SQL might require additional permissions
       await supabase.rpc('add_client_slug_column');
-      console.log('Added client_slug column using RPC');
+      logger.info('Added client_slug column using RPC');
     } catch (err) {
-      console.error('Failed to add column using RPC:', err);
+      logger.error('Failed to add column using RPC:', err);
       throw new Error('Could not add client_slug column');
     }
     return;
   }
   
   if (columnExists) {
-    console.log('client_slug column already exists');
+    logger.info('client_slug column already exists');
     return;
   }
   
-  console.log('Adding client_slug column...');
+  logger.info('Adding client_slug column...');
   
   try {
     // Add the column using raw SQL via RPC
     await supabase.rpc('add_client_slug_column');
-    console.log('Added client_slug column');
+    logger.info('Added client_slug column');
   } catch (err) {
-    console.error('Failed to add column using RPC:', err);
+    logger.error('Failed to add column using RPC:', err);
     throw new Error('Could not add client_slug column');
   }
 }
@@ -106,11 +107,11 @@ export async function migrateClientsToSlugs(): Promise<void> {
     .is('client_slug', null);
   
   if (error) {
-    console.error('Error fetching clients:', error);
+    logger.error('Error fetching clients:', error);
     return;
   }
   
-  console.log(`Found ${clients?.length || 0} clients without slugs`);
+  logger.info(`Found ${clients?.length || 0} clients without slugs`);
   
   // Update each client with a slug
   for (const client of clients || []) {
@@ -119,7 +120,7 @@ export async function migrateClientsToSlugs(): Promise<void> {
     
     // Special handling for Juniper client
     if (client.id === 'fd790d19-6610-4cd5-b90f-214808e94a19') {
-      console.log('Setting slug for Juniper client:', uniqueSlug);
+      logger.info('Setting slug for Juniper client:', uniqueSlug);
     }
     
     const { error: updateError } = await supabase
@@ -128,18 +129,18 @@ export async function migrateClientsToSlugs(): Promise<void> {
       .eq('id', client.id);
     
     if (updateError) {
-      console.error(`Error updating slug for client ${client.id}:`, updateError);
+      logger.error(`Error updating slug for client ${client.id}:`, updateError);
     } else {
-      console.log(`Updated client ${client.id} with slug: ${uniqueSlug}`);
+      logger.info(`Updated client ${client.id} with slug: ${uniqueSlug}`);
     }
   }
   
   // Create an index on the client_slug column for faster lookups
   try {
     await supabase.rpc('create_client_slug_index');
-    console.log('Created index on client_slug column');
+    logger.info('Created index on client_slug column');
   } catch (err) {
-    console.error('Failed to create index:', err);
+    logger.error('Failed to create index:', err);
   }
 }
 
@@ -147,13 +148,13 @@ export async function migrateClientsToSlugs(): Promise<void> {
  * Function to run the migration
  */
 export async function runClientSlugMigration(): Promise<void> {
-  console.log('Running client slug migration...');
+  logger.info('Running client slug migration...');
   
   try {
     await migrateClientsToSlugs();
-    console.log('Client slug migration completed successfully');
+    logger.info('Client slug migration completed successfully');
   } catch (err) {
-    console.error('Client slug migration failed:', err);
+    logger.error('Client slug migration failed:', err);
   }
 }
 
@@ -166,7 +167,7 @@ export async function getClientBySlug(slug: string) {
     .single();
   
   if (error) {
-    console.error('Error fetching client by slug:', error);
+    logger.error('Error fetching client by slug:', error);
     return null;
   }
   

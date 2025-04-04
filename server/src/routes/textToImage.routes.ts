@@ -3,8 +3,8 @@ import { BaseRouter } from './BaseRouter';
 import { textToImageService } from '../services/textToImageService';
 import { authenticateToken } from '../middleware/auth';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
+import * as path from 'path';
+import * as fs from 'fs';
 import { createLogger } from '../utils/logger';
 
 // Create a logger with the appropriate context

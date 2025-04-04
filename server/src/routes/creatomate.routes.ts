@@ -68,7 +68,7 @@ router.post('/generate', checkAuth, async (req, res, next) => {
         status: renderJob.status
       }
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error('Error in POST /generate:', error);
     next(error);
   }
@@ -100,7 +100,7 @@ router.post('/preview', checkAuth, async (req, res, next) => {
         thumbnailUrl: previewJob.thumbnailUrl
       }
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error('Preview generation error:', error);
     next(error);
   }
@@ -171,7 +171,7 @@ router.get('/render/:jobId', checkAuth, async (req, res, next) => {
         }
       }
     }
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error('Check render status error:', error);
     next(error);
   }
@@ -218,7 +218,7 @@ router.get('/templates', checkAuth, async (req, res, next) => {
       success: true,
       data: templates
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error('Creatomate templates error:', error);
     next(error);
   }
@@ -292,7 +292,7 @@ router.post('/batch', checkAuth, async (req, res, next) => {
         jobs
       }
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error('Creatomate batch error:', error);
     next(error);
   }
@@ -351,7 +351,7 @@ router.post('/platform-formats', checkAuth, async (req, res, next) => {
         jobs: jobResults
       }
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error('Creatomate platform formats error:', error);
     next(error);
   }
@@ -397,7 +397,7 @@ router.post('/webhook', async (req, res, next) => {
       success: true,
       message: 'Webhook received'
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error('Webhook processing error:', error);
     next(error);
   }
@@ -414,7 +414,7 @@ router.get('/status', async (req, res, next) => {
       apiKey: process.env.CREATOMATE_API_KEY ? 'configured' : 'missing',
       timestamp: new Date().toISOString()
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error('Error checking Creatomate status:', error);
     next(error);
   }

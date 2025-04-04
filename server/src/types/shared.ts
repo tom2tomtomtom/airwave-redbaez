@@ -21,7 +21,7 @@ export interface Asset {
   updatedAt: string;
   ownerId: string;
   status?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface Client {
@@ -40,11 +40,11 @@ export interface Client {
 /**
  * Standardised response structure for services
  */
-export interface ServiceResult<T = any> {
+export interface ServiceResult<T = unknown> {
   success: boolean;
   message?: string;
   data?: T;
-  error?: any; // Consider a more specific error type
+  error?: unknown; // More specific error type
   statusCode?: number;
 }
 

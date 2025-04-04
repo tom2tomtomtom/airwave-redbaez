@@ -57,7 +57,7 @@ router.post('/generate', authMiddleware, async (req, res) => {
       success: true,
       data: result
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error(`Error in voiceover generation: ${error.message}`);
     res.status(500).json({
       success: false,
@@ -96,7 +96,7 @@ router.get('/status/:jobId', authMiddleware, async (req, res) => {
       success: true,
       data: result
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error(`Error checking voiceover status: ${error.message}`);
     res.status(500).json({
       success: false,
@@ -118,7 +118,7 @@ router.get('/voices', authMiddleware, async (_req, res) => {
       success: true,
       data: voices
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error(`Error retrieving available voices: ${error.message}`);
     res.status(500).json({
       success: false,
@@ -150,7 +150,7 @@ router.get('/jobs', authMiddleware, async (req, res) => {
       success: true,
       data: jobs
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error(`Error retrieving voiceover jobs: ${error.message}`);
     res.status(500).json({
       success: false,

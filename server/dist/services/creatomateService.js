@@ -3,9 +3,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.creatomateService = void 0;
+exports.creatomateService = exports.CreatomateService = void 0;
 const axios_1 = __importDefault(require("axios"));
 const websocket_types_1 = require("../types/websocket.types");
+const logger_1 = require("../utils/logger");
 // Initialize Creatomate API client
 const CREATOMATE_API_KEY = process.env.CREATOMATE_API_KEY || '';
 const CREATOMATE_API_URL = 'https://api.creatomate.com/v1';
@@ -14,6 +15,7 @@ class CreatomateService {
         this.apiKey = apiKey;
         this.baseUrl = baseUrl;
         this.activeJobs = new Map();
+        this.jobStatusCallbacks = new Map();
     }
     // Set WebSocket service for real-time updates
     setWebSocketService(wsService) {
@@ -41,7 +43,7 @@ class CreatomateService {
                 return this.mockGenerateImage(options);
             }
             console.log('Making real API call to Creatomate for image generation');
-            console.log('Using API key:', this.apiKey ? `${this.apiKey.substring(0, 5)}...` : 'Missing');
+            // console.log('Using API key:', this.apiKey ? `${this.apiKey.substring(0, 5)}...` : 'Missing'); // Security: Removed API key logging
             console.log('Template ID:', options.templateId);
             console.log('Using modifications:', JSON.stringify(options.modifications));
             // Verify that we have a valid API key
@@ -90,7 +92,7 @@ class CreatomateService {
                 return this.mockGenerateVideo(options);
             }
             console.log('Making real API call to Creatomate for video generation');
-            console.log('Using API key:', this.apiKey ? `${this.apiKey.substring(0, 5)}...` : 'Missing');
+            // console.log('Using API key:', this.apiKey ? `${this.apiKey.substring(0, 5)}...` : 'Missing'); // Security: Removed API key logging
             console.log('Template ID:', options.templateId);
             console.log('Using modifications:', JSON.stringify(options.modifications));
             // Verify that we have a valid API key
@@ -201,6 +203,12 @@ class CreatomateService {
                 };
                 this.wsService.broadcast(websocket_types_1.WebSocketEvent.JOB_PROGRESS, payload);
             }
+            // Invoke any registered callbacks for this job
+            this.notifyJobStatusCallbacks(job.id, job.status, {
+                url: job.url,
+                thumbnailUrl: job.thumbnailUrl,
+                error: job.error
+            });
             return job;
         }
         catch (error) {
@@ -287,6 +295,12 @@ class CreatomateService {
                 };
                 this.wsService.broadcast(websocket_types_1.WebSocketEvent.JOB_PROGRESS, payload);
             }
+            // Invoke any registered callbacks for this job
+            this.notifyJobStatusCallbacks(updatedJob.id, updatedJob.status, {
+                url: updatedJob.url,
+                thumbnailUrl: updatedJob.thumbnailUrl,
+                error: updatedJob.error
+            });
             index++;
             if (index < statuses.length) {
                 // Schedule next update
@@ -355,6 +369,65 @@ class CreatomateService {
         }
         return job;
     }
+    /**
+     * Register a callback for job status updates
+     * @param jobId The job ID to monitor
+     * @param callback Function to call when job status changes
+     */
+    onJobStatusUpdate(jobId, callback) {
+        // Initialize the array if it doesn't exist
+        if (!this.jobStatusCallbacks.has(jobId)) {
+            this.jobStatusCallbacks.set(jobId, []);
+        }
+        // Add the callback
+        const callbacks = this.jobStatusCallbacks.get(jobId);
+        if (callbacks) {
+            callbacks.push(callback);
+        }
+        logger_1.logger.debug(`Registered job status callback for job ${jobId}`);
+        // If the job already exists, immediately invoke the callback with current status
+        const job = this.activeJobs.get(jobId);
+        if (job) {
+            callback(job.status, {
+                url: job.url,
+                thumbnailUrl: job.thumbnailUrl,
+                error: job.error
+            });
+        }
+    }
+    /**
+     * Remove all callbacks for a job
+     * @param jobId The job ID
+     */
+    removeJobStatusCallbacks(jobId) {
+        this.jobStatusCallbacks.delete(jobId);
+        logger_1.logger.debug(`Removed all job status callbacks for job ${jobId}`);
+    }
+    /**
+     * Notify all registered callbacks for a job
+     * @param jobId The job ID
+     * @param status The new job status
+     * @param result The job result data
+     */
+    notifyJobStatusCallbacks(jobId, status, result) {
+        const callbacks = this.jobStatusCallbacks.get(jobId) || [];
+        if (callbacks.length > 0) {
+            logger_1.logger.debug(`Notifying ${callbacks.length} callbacks for job ${jobId} status: ${status}`);
+            for (const callback of callbacks) {
+                try {
+                    callback(status, result);
+                }
+                catch (error) {
+                    logger_1.logger.error(`Error in job status callback for job ${jobId}:`, error);
+                }
+            }
+            // If job is in a terminal state, remove callbacks to prevent memory leaks
+            if (status === 'completed' || status === 'failed') {
+                this.removeJobStatusCallbacks(jobId);
+            }
+        }
+    }
 }
+exports.CreatomateService = CreatomateService;
 // Export singleton instance
 exports.creatomateService = new CreatomateService();

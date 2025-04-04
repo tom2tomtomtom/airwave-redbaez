@@ -5,6 +5,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.llmService = void 0;
 const axios_1 = __importDefault(require("axios"));
+const ApiError_1 = require("../utils/ApiError");
+const errorTypes_1 = require("../types/errorTypes");
 class LLMService {
     constructor() {
         this.apiUrl = process.env.LLM_API_URL || 'https://api.openai.com/v1/completions';
@@ -59,7 +61,9 @@ class LLMService {
         }
         catch (error) {
             console.error('Error in processBrief:', error);
-            throw new Error(`Failed to process brief: ${error.message}`);
+            throw new ApiError_1.ApiError(errorTypes_1.ErrorCode.OPERATION_FAILED, 'Failed to process brief', undefined, // No public details
+            error // Keep original error for internal logging
+            );
         }
     }
     /**
@@ -109,7 +113,7 @@ class LLMService {
             // Extract the content from the response
             let content = response.choices?.[0]?.message?.content;
             if (!content) {
-                throw new Error('No content in LLM response');
+                throw new ApiError_1.ApiError(errorTypes_1.ErrorCode.EXTERNAL_SERVICE_ERROR, 'No content in LLM response');
             }
             // Try to extract JSON from the content
             // Sometimes the LLM might include additional text before or after the JSON
@@ -131,7 +135,7 @@ class LLMService {
         catch (error) {
             console.error('Error parsing motivations from LLM response:', error);
             console.log('Response content:', response);
-            throw new Error(`Failed to parse motivations: ${error.message}`);
+            throw new ApiError_1.ApiError(errorTypes_1.ErrorCode.EXTERNAL_SERVICE_ERROR, 'Failed to parse motivations from LLM response', undefined, error);
         }
     }
     /**
@@ -298,7 +302,7 @@ class LLMService {
         }
         catch (error) {
             console.error('Error in regenerateMotivations:', error);
-            throw new Error(`Failed to regenerate motivations: ${error.message}`);
+            throw new ApiError_1.ApiError(errorTypes_1.ErrorCode.OPERATION_FAILED, 'Failed to regenerate motivations', undefined, error);
         }
     }
     /**
@@ -350,7 +354,7 @@ class LLMService {
         }
         catch (error) {
             console.error('Error in generateCopy:', error);
-            throw new Error(`Failed to generate copy: ${error.message}`);
+            throw new ApiError_1.ApiError(errorTypes_1.ErrorCode.OPERATION_FAILED, 'Failed to generate copy variations', undefined, error);
         }
     }
     /**
@@ -421,7 +425,7 @@ class LLMService {
             // Extract the content from the response
             let content = response.choices?.[0]?.message?.content;
             if (!content) {
-                throw new Error('No content in LLM response');
+                throw new ApiError_1.ApiError(errorTypes_1.ErrorCode.EXTERNAL_SERVICE_ERROR, 'No content in LLM response');
             }
             // Try to extract JSON from the content
             // Sometimes the LLM might include additional text before or after the JSON
@@ -444,7 +448,7 @@ class LLMService {
         catch (error) {
             console.error('Error parsing copy variations from LLM response:', error);
             console.log('Response content:', response);
-            throw new Error(`Failed to parse copy variations: ${error.message}`);
+            throw new ApiError_1.ApiError(errorTypes_1.ErrorCode.EXTERNAL_SERVICE_ERROR, 'Failed to parse copy variations from LLM response', undefined, error);
         }
     }
     /**

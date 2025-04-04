@@ -20,7 +20,7 @@ export const getAllClients = async (req: Request, res: Response): Promise<void> 
     
     res.json(clients);
   } catch (error) {
-    console.error('Error fetching clients:', error);
+    logger.error('Error fetching clients:', error);
     res.status(500).json({ 
       message: 'Error fetching clients',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -51,7 +51,7 @@ export const getClientById = async (req: Request, res: Response): Promise<void> 
     
     res.json(client);
   } catch (error) {
-    console.error('Error fetching client:', error);
+    logger.error('Error fetching client:', error);
     res.status(500).json({ 
       message: 'Error fetching client',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -91,7 +91,7 @@ export const createClient = async (req: Request, res: Response): Promise<void> =
     
     res.status(201).json(client);
   } catch (error) {
-    console.error('Error creating client:', error);
+    logger.error('Error creating client:', error);
     res.status(500).json({ 
       message: 'Error creating client',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -147,7 +147,7 @@ export const updateClient = async (req: Request, res: Response): Promise<void> =
     
     res.json(client);
   } catch (error) {
-    console.error('Error updating client:', error);
+    logger.error('Error updating client:', error);
     res.status(500).json({ 
       message: 'Error updating client',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -198,7 +198,7 @@ export const deleteClient = async (req: Request, res: Response): Promise<void> =
     
     res.json({ message: 'Client deleted successfully' });
   } catch (error) {
-    console.error('Error deleting client:', error);
+    logger.error('Error deleting client:', error);
     res.status(500).json({ 
       message: 'Error deleting client',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -231,7 +231,7 @@ export const getRelatedCounts = async (req: Request, res: Response): Promise<voi
     const counts = await getClientRelatedCounts(id);
     res.json(counts);
   } catch (error) {
-    console.error('Error fetching client related counts:', error);
+    logger.error('Error fetching client related counts:', error);
     res.status(500).json({ 
       message: 'Error fetching client related counts',
       error: error instanceof Error ? error.message : 'Unknown error'

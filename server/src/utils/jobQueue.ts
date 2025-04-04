@@ -32,7 +32,7 @@ export class MediaProcessingQueue {
    * @param jobData Job data to process
    * @returns Job ID
    */
-  async add(jobData: any): Promise<string> {
+  async add($1: unknown): Promise<string> {
     try {
       // Check queue size before adding
       const queueSize = await this.getQueueSize();
@@ -136,7 +136,7 @@ export class MediaProcessingQueue {
    * Process a job
    * @param job Job to process
    */
-  private async processJob(job: any): Promise<void> {
+  private async processJob($1: unknown): Promise<void> {
     try {
       // Process the job (implementation would depend on job type)
       logger.info(`Processing job ${job.id} from queue ${this.queueName}`);

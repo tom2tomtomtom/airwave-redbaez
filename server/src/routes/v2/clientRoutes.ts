@@ -1,6 +1,7 @@
 import express from 'express';
+import { logger } from '../../utils/logger';
 import { supabase } from '../../db/supabaseClient';
-import { authenticateToken } from '../../middleware/auth';
+import { authenticateToken } from '../../middleware/auth.middleware';
 
 const router = express.Router();
 
@@ -10,13 +11,16 @@ const router = express.Router();
  */
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const { data: clients, error } = await supabase
+    const response = await supabase
       .from('clients')
       .select('*')
       .order('name');
     
+    const clients = response.data || [];
+    const error = response.error;
+    
     if (error) {
-      console.error('Error fetching clients:', error);
+      logger.error('Error fetching clients:', error);
       return res.status(500).json({
         success: false,
         message: 'Failed to fetch clients',
@@ -25,7 +29,7 @@ router.get('/', authenticateToken, async (req, res) => {
     }
     
     // Transform to new client format with slug as primary identifier
-    const transformedClients = clients.map(client => ({
+    const transformedClients = clients.map((client: any) => ({
       slug: client.client_slug,
       name: client.name,
       logoUrl: client.logo_url,
@@ -43,7 +47,7 @@ router.get('/', authenticateToken, async (req, res) => {
       clients: transformedClients
     });
   } catch (error: any) {
-    console.error('Error in GET /clients:', error);
+    logger.error('Error in GET /clients:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to fetch clients',
@@ -60,11 +64,14 @@ router.get('/by-slug/:slug', authenticateToken, async (req, res) => {
   try {
     const slug = req.params.slug.toLowerCase();
     
-    const { data: client, error } = await supabase
+    const response = await supabase
       .from('clients')
       .select('*')
       .eq('client_slug', slug)
       .single();
+    
+    const client = response.data;
+    const error = response.error;
     
     if (error) {
       if (error.code === 'PGRST116') {
@@ -74,7 +81,7 @@ router.get('/by-slug/:slug', authenticateToken, async (req, res) => {
         });
       }
       
-      console.error('Error fetching client by slug:', error);
+      logger.error('Error fetching client by slug:', error);
       return res.status(500).json({
         success: false,
         message: 'Failed to fetch client',
@@ -101,7 +108,7 @@ router.get('/by-slug/:slug', authenticateToken, async (req, res) => {
       client: transformedClient
     });
   } catch (error: any) {
-    console.error('Error in GET /clients/by-slug/:slug:', error);
+    logger.error('Error in GET /clients/by-slug/:slug:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to fetch client',

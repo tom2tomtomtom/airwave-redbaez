@@ -41,6 +41,8 @@ export class ApiError extends Error {
         return 401;
       case ErrorCode.TOKEN_EXPIRED:
         return 401;
+      case ErrorCode.AUTHENTICATION_REQUIRED:
+        return 401;
       
       // Validation errors
       case ErrorCode.VALIDATION_FAILED:
@@ -54,6 +56,10 @@ export class ApiError extends Error {
       case ErrorCode.RESOURCE_ALREADY_EXISTS:
       case ErrorCode.RESOURCE_CONFLICT:
         return 409;
+      
+      // Operation errors
+      case ErrorCode.OPERATION_FAILED:
+        return 400;
       
       // Rate limiting errors
       case ErrorCode.RATE_LIMIT_EXCEEDED:
@@ -74,6 +80,7 @@ export class ApiError extends Error {
       
       // Server errors
       case ErrorCode.INTERNAL_SERVER_ERROR:
+      case ErrorCode.INTERNAL_ERROR:
       case ErrorCode.DATABASE_ERROR:
       default:
         return 500;

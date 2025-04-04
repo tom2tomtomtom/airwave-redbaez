@@ -49,23 +49,23 @@ export class ApiResponse {
 
     if (error instanceof ApiError) {
       statusCode = error.statusCode;
-      errorCode = error.errorCode;
+      errorCode = error.code; // Fixed: use code instead of errorCode
       message = error.message;
       details = error.details;
-      // Log the internal details if available
-      if (error.internalDetails) {
-        console.error('Internal Error Details:', error.internalDetails);
+      // Log the details if available
+      if (error.details) {
+        logger.error('Error Details:', error.details);
       }
     } else if (error instanceof Error) {
       // Handle generic errors
       statusCode = defaultStatusCode;
       message = 'An unexpected server error occurred.';
-      console.error('Generic Error:', error); // Log the actual error
+      logger.error('Generic Error:', error); // Log the actual error
     } else {
       // Handle non-Error throws
       statusCode = defaultStatusCode;
       message = 'An unexpected error occurred.';
-      console.error('Unknown Error Type:', error);
+      logger.error('Unknown Error Type:', error);
     }
 
     // Attempt to get a more user-friendly message if an errorCode exists

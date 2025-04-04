@@ -40,7 +40,7 @@ export const cacheMiddleware = (
       const originalJson = res.json;
       
       // Override the json method to cache the response before sending
-      res.json = function(body: any) {
+      res.json = function($1: unknown) {
         // Don't cache error responses
         if (res.statusCode >= 400) {
           return originalJson.call(this, body);

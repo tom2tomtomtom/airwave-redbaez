@@ -7,23 +7,23 @@ const express_1 = __importDefault(require("express"));
 const creatomateService_1 = require("../services/creatomateService");
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const supabaseClient_1 = require("../db/supabaseClient");
+const ApiError_1 = require("../utils/ApiError");
+const errorTypes_1 = require("../types/errorTypes");
+const logger_1 = require("../utils/logger");
 const router = express_1.default.Router();
 // Generate a video using Creatomate API
-router.post('/generate', auth_middleware_1.checkAuth, async (req, res) => {
+router.post('/generate', auth_middleware_1.checkAuth, async (req, res, next) => {
     try {
         const { templateId, executionId, modifications, outputFormat = 'mp4' } = req.body;
         if (!templateId || !modifications) {
-            return res.status(400).json({
-                success: false,
-                message: 'Template ID and modifications are required'
-            });
+            return next(new ApiError_1.ApiError(errorTypes_1.ErrorCode.VALIDATION_FAILED, 'Template ID and modifications are required for generation.'));
         }
-        console.log(`Generating content with template: ${templateId}, format: ${outputFormat}`);
-        console.log('Modifications:', JSON.stringify(modifications));
+        logger_1.logger.info(`Generating content with template: ${templateId}, format: ${outputFormat}`);
+        logger_1.logger.debug('Modifications:', JSON.stringify(modifications));
         // Check if we're generating an image or a video based on the outputFormat
         let renderJob;
         if (outputFormat === 'jpg' || outputFormat === 'png') {
-            console.log('Generating an image');
+            logger_1.logger.info('Generating an image');
             // We're generating an image
             renderJob = await creatomateService_1.creatomateService.generateImage({
                 templateId,
@@ -32,7 +32,7 @@ router.post('/generate', auth_middleware_1.checkAuth, async (req, res) => {
             });
         }
         else {
-            console.log('Generating a video');
+            logger_1.logger.info('Generating a video');
             // We're generating a video
             renderJob = await creatomateService_1.creatomateService.generateVideo({
                 templateId,
@@ -40,7 +40,7 @@ router.post('/generate', auth_middleware_1.checkAuth, async (req, res) => {
                 modifications
             });
         }
-        console.log(`Generated job with ID: ${renderJob.id}`);
+        logger_1.logger.info(`Generated job with ID: ${renderJob.id}`);
         // If we have an execution ID, update the execution in the database
         if (executionId) {
             const { error } = await supabaseClient_1.supabase
@@ -52,7 +52,7 @@ router.post('/generate', auth_middleware_1.checkAuth, async (req, res) => {
             })
                 .eq('id', executionId);
             if (error) {
-                console.error('Error updating execution:', error);
+                logger_1.logger.error('Error updating execution:', error);
                 // Continue anyway, as the rendering has already started
             }
         }
@@ -66,23 +66,16 @@ router.post('/generate', auth_middleware_1.checkAuth, async (req, res) => {
         });
     }
     catch (error) {
-        console.error('Generate video error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to generate video',
-            error: error.message
-        });
+        logger_1.logger.error('Error in POST /generate:', error);
+        next(error);
     }
 });
 // Generate a preview (faster, lower quality)
-router.post('/preview', auth_middleware_1.checkAuth, async (req, res) => {
+router.post('/preview', auth_middleware_1.checkAuth, async (req, res, next) => {
     try {
         const { templateId, modifications } = req.body;
         if (!templateId || !modifications) {
-            return res.status(400).json({
-                success: false,
-                message: 'Template ID and modifications are required'
-            });
+            return next(new ApiError_1.ApiError(errorTypes_1.ErrorCode.VALIDATION_FAILED, 'Template ID and modifications are required for preview.'));
         }
         // Generate the preview
         const previewJob = await creatomateService_1.creatomateService.generatePreview({
@@ -102,36 +95,26 @@ router.post('/preview', auth_middleware_1.checkAuth, async (req, res) => {
         });
     }
     catch (error) {
-        console.error('Preview generation error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to generate preview',
-            error: error.message
-        });
+        logger_1.logger.error('Preview generation error:', error);
+        next(error);
     }
 });
 // Check the status of a render job
-router.get('/render/:jobId', auth_middleware_1.checkAuth, async (req, res) => {
+router.get('/render/:jobId', auth_middleware_1.checkAuth, async (req, res, next) => {
     try {
         const { jobId } = req.params;
         if (!jobId || jobId === 'undefined') {
-            console.error('Invalid jobId provided to /render endpoint:', jobId);
-            return res.status(400).json({
-                success: false,
-                message: 'Valid job ID is required'
-            });
+            logger_1.logger.error('Invalid jobId provided to /render endpoint:', jobId);
+            return next(new ApiError_1.ApiError(errorTypes_1.ErrorCode.VALIDATION_FAILED, 'A valid Creatomate job ID is required.'));
         }
-        console.log(`Checking render status for job: ${jobId}`);
+        logger_1.logger.info(`Checking render status for job: ${jobId}`);
         const job = await creatomateService_1.creatomateService.checkRenderStatus(jobId);
         // Ensure we return a valid job object
         if (!job) {
-            console.error(`Job ${jobId} not found`);
-            return res.status(404).json({
-                success: false,
-                message: `Job with ID ${jobId} not found`
-            });
+            logger_1.logger.error(`Job ${jobId} not found`);
+            return next(new ApiError_1.ApiError(errorTypes_1.ErrorCode.RESOURCE_NOT_FOUND, `Creatomate job with ID ${jobId} not found.`, { jobId, service: 'Creatomate' }));
         }
-        console.log(`Job ${jobId} status: ${job.status}`);
+        logger_1.logger.info(`Job ${jobId} status: ${job.status}`);
         res.json({
             success: true,
             data: {
@@ -151,7 +134,7 @@ router.get('/render/:jobId', auth_middleware_1.checkAuth, async (req, res) => {
                 .eq('render_job_id', jobId)
                 .single();
             if (findError) {
-                console.error('Error finding execution:', findError);
+                logger_1.logger.error('Error finding execution:', findError);
                 return; // No execution found, or error
             }
             if (execution) {
@@ -165,22 +148,18 @@ router.get('/render/:jobId', auth_middleware_1.checkAuth, async (req, res) => {
                 })
                     .eq('id', execution.id);
                 if (updateError) {
-                    console.error('Error updating execution status:', updateError);
+                    logger_1.logger.error('Error updating execution status:', updateError);
                 }
             }
         }
     }
     catch (error) {
-        console.error('Check render status error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to check render status',
-            error: error.message
-        });
+        logger_1.logger.error('Check render status error:', error);
+        next(error);
     }
 });
 // GET - Get all templates from Creatomate API
-router.get('/templates', auth_middleware_1.checkAuth, async (req, res) => {
+router.get('/templates', auth_middleware_1.checkAuth, async (req, res, next) => {
     try {
         // In production, you'd fetch templates from Creatomate API
         // For the prototype, we'll return mock data
@@ -219,44 +198,52 @@ router.get('/templates', auth_middleware_1.checkAuth, async (req, res) => {
         });
     }
     catch (error) {
-        console.error('Creatomate templates error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to fetch templates',
-            error: error.message
-        });
+        logger_1.logger.error('Creatomate templates error:', error);
+        next(error);
     }
 });
 // POST - Generate multiple ad variations at once (batch generation)
-router.post('/batch', auth_middleware_1.checkAuth, async (req, res) => {
+router.post('/batch', auth_middleware_1.checkAuth, async (req, res, next) => {
     try {
         const { campaignId, templates, assetSets, outputFormats = ['mp4'] } = req.body;
         // Validate required fields
         if (!templates || !assetSets || !campaignId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Missing required fields: templates, assetSets and campaignId are required'
-            });
+            return next(new ApiError_1.ApiError(errorTypes_1.ErrorCode.VALIDATION_FAILED, 'Missing required fields: templates, assetSets and campaignId are required for batch generation.'));
         }
-        // Create a job for each combination of template, asset set, and format
+        // Create jobs in batches instead of nested loops to improve performance
         const jobs = [];
-        for (const template of templates) {
-            for (const assetSet of assetSets) {
-                for (const format of outputFormats) {
-                    // Start the render job
-                    const renderJob = await creatomateService_1.creatomateService.generateVideo({
+        // Pre-calculate all combinations to avoid nested loops during API calls
+        const combinations = [];
+        templates.forEach(template => {
+            assetSets.forEach(assetSet => {
+                outputFormats.forEach(format => {
+                    combinations.push({
                         templateId: template.id,
-                        modifications: assetSet,
-                        outputFormat: format
+                        assetSet,
+                        format
                     });
-                    jobs.push({
-                        jobId: renderJob.id,
-                        status: renderJob.status,
-                        templateId: template.id,
-                        outputFormat: format
-                    });
-                }
-            }
+                });
+            });
+        });
+        // Process combinations in batches to avoid overwhelming the API
+        const BATCH_SIZE = 5;
+        for (let i = 0; i < combinations.length; i += BATCH_SIZE) {
+            const batch = combinations.slice(i, i + BATCH_SIZE);
+            // Process batch in parallel
+            const batchJobs = await Promise.all(batch.map(({ templateId, assetSet, format }) => creatomateService_1.creatomateService.generateVideo({
+                templateId,
+                modifications: assetSet,
+                outputFormat: format
+            })));
+            // Add batch results to jobs array
+            batchJobs.forEach((renderJob, index) => {
+                jobs.push({
+                    jobId: renderJob.id,
+                    status: renderJob.status,
+                    templateId: batch[index].templateId,
+                    outputFormat: batch[index].format
+                });
+            });
         }
         res.json({
             success: true,
@@ -269,16 +256,12 @@ router.post('/batch', auth_middleware_1.checkAuth, async (req, res) => {
         });
     }
     catch (error) {
-        console.error('Creatomate batch error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to start batch generation',
-            error: error.message
-        });
+        logger_1.logger.error('Creatomate batch error:', error);
+        next(error);
     }
 });
 // POST - Generate platform-specific formats
-router.post('/platform-formats', auth_middleware_1.checkAuth, async (req, res) => {
+router.post('/platform-formats', auth_middleware_1.checkAuth, async (req, res, next) => {
     try {
         const { templateId, modifications, platforms = ['facebook', 'instagram', 'tiktok'] // Default platforms
          } = req.body;
@@ -293,49 +276,41 @@ router.post('/platform-formats', auth_middleware_1.checkAuth, async (req, res) =
         // Get unique formats needed for the requested platforms
         const outputFormats = Array.from(new Set(platforms.flatMap((platform) => platformFormats[platform] || ['mp4'] // Default to mp4 if platform not found
         )));
-        // Start generation for each format
-        const jobs = [];
-        for (const format of outputFormats) {
-            const renderJob = await creatomateService_1.creatomateService.generateVideo({
-                templateId,
-                modifications,
-                outputFormat: format
-            });
-            jobs.push({
-                jobId: renderJob.id,
-                status: renderJob.status,
-                format
-            });
-        }
+        // Start generation for each format in parallel
+        const jobs = await Promise.all(outputFormats.map(format => creatomateService_1.creatomateService.generateVideo({
+            templateId,
+            modifications,
+            outputFormat: format
+        })));
+        // Map results to response format
+        const jobResults = jobs.map((renderJob, index) => ({
+            jobId: renderJob.id,
+            status: renderJob.status,
+            format: outputFormats[index]
+        }));
         res.json({
             success: true,
             message: `Generated formats for ${platforms.length} platforms`,
             data: {
                 platforms,
-                jobs
+                jobs: jobResults
             }
         });
     }
     catch (error) {
-        console.error('Creatomate platform formats error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to generate platform-specific formats',
-            error: error.message
-        });
+        logger_1.logger.error('Creatomate platform formats error:', error);
+        next(error);
     }
 });
 // Webhook endpoint for Creatomate to send render status updates
-router.post('/webhook', async (req, res) => {
+router.post('/webhook', async (req, res, next) => {
     try {
         const { jobId, status, url, thumbnailUrl, error } = req.body;
         if (!jobId || !status) {
-            return res.status(400).json({
-                success: false,
-                message: 'Job ID and status are required'
-            });
+            logger_1.logger.warn('Received invalid webhook payload:', req.body);
+            return next(new ApiError_1.ApiError(errorTypes_1.ErrorCode.VALIDATION_FAILED, 'Webhook requires Job ID and status.'));
         }
-        console.log(`Webhook received for job ${jobId}, status: ${status}`);
+        logger_1.logger.info(`Webhook received for job ${jobId}, status: ${status}`);
         // Find execution with this render job ID
         const { data: execution, error: findError } = await supabaseClient_1.supabase
             .from('executions')
@@ -353,7 +328,7 @@ router.post('/webhook', async (req, res) => {
             })
                 .eq('id', execution.id);
             if (updateError) {
-                console.error('Error updating execution status from webhook:', updateError);
+                logger_1.logger.error('Error updating execution status from webhook:', updateError);
             }
         }
         // Respond to Creatomate
@@ -363,16 +338,12 @@ router.post('/webhook', async (req, res) => {
         });
     }
     catch (error) {
-        console.error('Webhook processing error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to process webhook',
-            error: error.message
-        });
+        logger_1.logger.error('Webhook processing error:', error);
+        next(error);
     }
 });
 // Status check endpoint for API health monitoring
-router.get('/status', async (req, res) => {
+router.get('/status', async (req, res, next) => {
     try {
         // Check Creatomate connection
         const isConnected = creatomateService_1.creatomateService.isConnected();
@@ -383,11 +354,8 @@ router.get('/status', async (req, res) => {
         });
     }
     catch (error) {
-        return res.status(500).json({
-            connected: false,
-            error: error.message,
-            timestamp: new Date().toISOString()
-        });
+        logger_1.logger.error('Error checking Creatomate status:', error);
+        next(error);
     }
 });
 exports.default = router;

@@ -108,7 +108,7 @@ export const reviewAuth = async (
 
     next(); // Proceed to the next middleware or route handler
 
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error('Unexpected error during review token authentication:', error);
     return res.status(500).json({ message: 'Internal server error during authentication.' });
   }

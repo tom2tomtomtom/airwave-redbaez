@@ -1,6 +1,7 @@
 import express from 'express';
+import { logger } from '../../utils/logger';
 import { supabase } from '../../db/supabaseClient';
-import { authenticateToken } from '../../middleware/auth';
+import { authenticateToken } from '../../middleware/auth.middleware';
 import { Asset } from '../../types/shared';
 
 const router = express.Router();
@@ -38,8 +39,8 @@ const transformAssetFromDb = (dbAsset: any): Asset => {
  */
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    console.log('GET v2/assets request, user:', req.user?.id);
-    console.log('Query params:', req.query);
+    logger.info('GET v2/assets request, user:', req.user?.id);
+    logger.info('Query params:', req.query);
     
     if (!req.user || !req.user.id) {
       return res.status(401).json({
@@ -49,7 +50,7 @@ router.get('/', authenticateToken, async (req, res) => {
     }
     
     // Build the base query
-    let dataQuery = supabase
+    let dataQuery: any = supabase
       .from('assets')
       .select('*, clients(client_slug)');
     
@@ -100,10 +101,13 @@ router.get('/', authenticateToken, async (req, res) => {
       .range(offset, offset + limit - 1);
     
     // Execute the query
-    const { data: rawAssets, error, count } = await dataQuery;
+    const response = await dataQuery;
+    const rawAssets = response.data || [];
+    const error = response.error;
+    const count = response.count;
     
     if (error) {
-      console.error('Error fetching assets:', error);
+      logger.error('Error fetching assets:', error);
       return res.status(500).json({
         success: false,
         message: 'Failed to fetch assets',
@@ -112,7 +116,7 @@ router.get('/', authenticateToken, async (req, res) => {
     }
     
     // Transform the assets to include client slug
-    const assets = rawAssets.map(asset => {
+    const assets = rawAssets.map((asset: any) => {
       const clientSlug = asset.clients?.client_slug || '';
       delete asset.clients; // Remove the nested client object
       
@@ -128,7 +132,7 @@ router.get('/', authenticateToken, async (req, res) => {
       total: count || assets.length
     });
   } catch (error: any) {
-    console.error('Error in GET /v2/assets:', error);
+    logger.error('Error in GET /v2/assets:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to fetch assets',
@@ -144,7 +148,7 @@ router.get('/', authenticateToken, async (req, res) => {
 router.get('/by-client/:slug', authenticateToken, async (req, res) => {
   try {
     const slug = req.params.slug.toLowerCase();
-    console.log(`GET v2/assets/by-client/${slug} request`);
+    logger.info(`GET v2/assets/by-client/${slug} request`);
     
     if (!req.user || !req.user.id) {
       return res.status(401).json({
@@ -154,11 +158,14 @@ router.get('/by-client/:slug', authenticateToken, async (req, res) => {
     }
     
     // 1. Find the client using the slug
-    const { data: client, error: clientError } = await supabase
+    const clientResponse = await supabase
       .from('clients')
       .select('id, client_slug')
       .eq('client_slug', slug)
       .single();
+    
+    const client = clientResponse.data;
+    const clientError = clientResponse.error;
     
     if (clientError) {
       if (clientError.code === 'PGRST116') {
@@ -168,7 +175,7 @@ router.get('/by-client/:slug', authenticateToken, async (req, res) => {
         });
       }
       
-      console.error('Error finding client by slug:', clientError);
+      logger.error('Error finding client by slug:', clientError);
       return res.status(500).json({
         success: false,
         message: 'Failed to fetch client',
@@ -177,7 +184,7 @@ router.get('/by-client/:slug', authenticateToken, async (req, res) => {
     }
     
     // 2. Build the assets query
-    let dataQuery = supabase
+    let dataQuery: any = supabase
       .from('assets')
       .select('*', { count: 'exact' })
       .eq('client_id', client.id);
@@ -224,10 +231,13 @@ router.get('/by-client/:slug', authenticateToken, async (req, res) => {
       .range(offset, offset + limit - 1);
     
     // Execute the query
-    const { data: rawAssets, error, count } = await dataQuery;
+    const response = await dataQuery;
+    const rawAssets = response.data || [];
+    const error = response.error;
+    const count = response.count;
     
     if (error) {
-      console.error('Error fetching assets by client slug:', error);
+      logger.error('Error fetching assets by client slug:', error);
       return res.status(500).json({
         success: false,
         message: 'Failed to fetch assets',
@@ -236,12 +246,12 @@ router.get('/by-client/:slug', authenticateToken, async (req, res) => {
     }
     
     // Transform the assets to include client slug
-    const assets = rawAssets.map(asset => transformAssetFromDb({
+    const assets = rawAssets.map((asset: any) => transformAssetFromDb({
       ...asset,
       client_slug: client.client_slug
     }));
     
-    console.log(`Found ${assets.length} assets for client slug "${slug}"`);
+    logger.info(`Found ${assets.length} assets for client slug "${slug}"`);
     
     return res.status(200).json({
       success: true,
@@ -249,7 +259,7 @@ router.get('/by-client/:slug', authenticateToken, async (req, res) => {
       total: count || assets.length
     });
   } catch (error: any) {
-    console.error('Error in GET /v2/assets/by-client/:slug:', error);
+    logger.error('Error in GET /v2/assets/by-client/:slug:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to fetch assets',

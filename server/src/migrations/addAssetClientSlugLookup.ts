@@ -1,10 +1,11 @@
 import { supabase } from '../db/supabaseClient';
+import { logger } from './logger';
 
 /**
  * Creates a database function to get assets by client slug
  */
 export async function createAssetsByClientSlugFunction(): Promise<void> {
-  console.log('Creating database function for looking up assets by client slug...');
+  logger.info('Creating database function for looking up assets by client slug...');
   
   // SQL for creating the function to get assets by client slug
   const functionSQL = `
@@ -24,13 +25,13 @@ export async function createAssetsByClientSlugFunction(): Promise<void> {
     const { error } = await supabase.rpc('execute_sql', { sql: functionSQL });
     
     if (error) {
-      console.error('Error creating get_assets_by_client_slug function:', error);
+      logger.error('Error creating get_assets_by_client_slug function:', error);
       throw error;
     }
     
-    console.log('Successfully created get_assets_by_client_slug function');
+    logger.info('Successfully created get_assets_by_client_slug function');
   } catch (err) {
-    console.error('Failed to create asset lookup function:', err);
+    logger.error('Failed to create asset lookup function:', err);
     throw new Error('Could not create asset lookup function');
   }
 }
@@ -39,12 +40,12 @@ export async function createAssetsByClientSlugFunction(): Promise<void> {
  * Function to run the migration
  */
 export async function runAssetClientSlugLookupMigration(): Promise<void> {
-  console.log('Running asset client slug lookup migration...');
+  logger.info('Running asset client slug lookup migration...');
   
   try {
     await createAssetsByClientSlugFunction();
-    console.log('Asset client slug lookup migration completed successfully');
+    logger.info('Asset client slug lookup migration completed successfully');
   } catch (err) {
-    console.error('Asset client slug lookup migration failed:', err);
+    logger.error('Asset client slug lookup migration failed:', err);
   }
 }

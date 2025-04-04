@@ -1,4 +1,5 @@
 import express from 'express';
+import { logger } from './logger';
 import { supabase } from '../db/supabaseClient';
 
 const router = express.Router();
@@ -12,7 +13,7 @@ router.post('/creatomate', async (req, res) => {
       return res.status(400).json({ message: 'Invalid webhook payload' });
     }
     
-    console.log(`Received webhook for render ${render.id}, status: ${render.status}`);
+    logger.info(`Received webhook for render ${render.id}, status: ${render.status}`);
     
     // Find the execution with this render ID
     const { data: execution, error } = await supabase
@@ -22,7 +23,7 @@ router.post('/creatomate', async (req, res) => {
       .single();
     
     if (error || !execution) {
-      console.error('Could not find execution for render ID:', render.id);
+      logger.error('Could not find execution for render ID:', render.id);
       return res.status(404).json({ message: 'Execution not found' });
     }
     
@@ -48,7 +49,7 @@ router.post('/creatomate', async (req, res) => {
       .eq('id', execution.id);
       
     if (updateError) {
-      console.error('Error updating execution:', updateError);
+      logger.error('Error updating execution:', updateError);
       return res.status(500).json({ message: 'Failed to update execution status' });
     }
     
@@ -67,14 +68,14 @@ router.post('/creatomate', async (req, res) => {
         }]);
         
       if (exportError) {
-        console.error('Error creating export record:', exportError);
+        logger.error('Error creating export record:', exportError);
       }
     }
     
     // Send response to Creatomate
     res.status(200).json({ success: true });
   } catch (error) {
-    console.error('Error handling Creatomate webhook:', error);
+    logger.error('Error handling Creatomate webhook:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });

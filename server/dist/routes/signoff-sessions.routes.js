@@ -6,9 +6,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const signoffService_1 = require("../services/signoffService");
+const routeHandler_1 = require("../types/routeHandler");
 const router = express_1.default.Router();
 // Create a new signoff session
-router.post('/create', auth_middleware_1.checkAuth, async (req, res, next) => {
+router.post('/create', auth_middleware_1.checkAuth, (0, routeHandler_1.asRouteHandler)(async (req, res, next) => {
     try {
         if (!req.user) {
             return next(new Error('User not authenticated'));
@@ -46,9 +47,9 @@ router.post('/create', auth_middleware_1.checkAuth, async (req, res, next) => {
             error: error.message
         });
     }
-});
+}));
 // Send a signoff session to client
-router.post('/:id/send', auth_middleware_1.checkAuth, async (req, res, next) => {
+router.post('/:id/send', auth_middleware_1.checkAuth, (0, routeHandler_1.asRouteHandler)(async (req, res, next) => {
     try {
         if (!req.user) {
             return next(new Error('User not authenticated'));
@@ -73,9 +74,9 @@ router.post('/:id/send', auth_middleware_1.checkAuth, async (req, res, next) => 
             error: error.message
         });
     }
-});
+}));
 // Get all signoff sessions for a campaign
-router.get('/campaign/:campaignId', auth_middleware_1.checkAuth, async (req, res, next) => {
+router.get('/campaign/:campaignId', auth_middleware_1.checkAuth, (0, routeHandler_1.asRouteHandler)(async (req, res, next) => {
     try {
         if (!req.user) {
             return next(new Error('User not authenticated'));
@@ -95,9 +96,9 @@ router.get('/campaign/:campaignId', auth_middleware_1.checkAuth, async (req, res
             error: error.message
         });
     }
-});
+}));
 // Get a specific signoff session
-router.get('/:id', auth_middleware_1.checkAuth, async (req, res, next) => {
+router.get('/:id', auth_middleware_1.checkAuth, (0, routeHandler_1.asRouteHandler)(async (req, res, next) => {
     try {
         if (!req.user) {
             return next(new Error('User not authenticated'));
@@ -117,7 +118,7 @@ router.get('/:id', auth_middleware_1.checkAuth, async (req, res, next) => {
             error: error.message
         });
     }
-});
+}));
 // Client view of signoff session (no auth required, uses access token)
 router.get('/client/:id', async (req, res, next) => {
     try {

@@ -1,5 +1,6 @@
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import { logger } from './logger';
+import * as path from 'path';
 import { promisify } from 'util';
 import pdfParse from 'pdf-parse';
 import mammoth from 'mammoth';
@@ -46,7 +47,7 @@ export class DocumentService {
     try {
       await unlink(filePath);
     } catch (error) {
-      console.error(`Error cleaning up file ${filePath}:`, error);
+      logger.error(`Error cleaning up file ${filePath}:`, error);
     }
   }
 
@@ -109,7 +110,7 @@ export class DocumentService {
    * @param fileExtension The file extension (pdf, docx, doc, txt)
    */
   async extractTextFromDocument(buffer: Buffer, fileExtension: string): Promise<string> {
-    console.log(`Extracting text from ${fileExtension} document...`);
+    logger.info(`Extracting text from ${fileExtension} document...`);
     
     try {
       let text = '';
@@ -128,7 +129,7 @@ export class DocumentService {
       
       return text;
     } catch (error) {
-      console.error(`Error extracting text from ${fileExtension} document:`, error);
+      logger.error(`Error extracting text from ${fileExtension} document:`, error);
       throw error;
     }
   }
@@ -138,7 +139,7 @@ export class DocumentService {
    * that handles complex brief formats with multi-paragraph sections
    */
   extractBriefDataFromText(text: string): Partial<BriefData> {
-    console.log('Extracting brief data from text...');
+    logger.info('Extracting brief data from text...');
     const briefData: Partial<BriefData> = {};
     
     // Extract Client name - typically appears as "Client: Name"
@@ -305,7 +306,7 @@ export class DocumentService {
       briefData.keyMessages = formattedMessages;
     }
     
-    console.log('Extracted brief data:', briefData);
+    logger.info('Extracted brief data:', briefData);
     return briefData;
   }
 }

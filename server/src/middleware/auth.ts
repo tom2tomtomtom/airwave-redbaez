@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { logger } from './logger';
 import { supabase } from '../db/supabaseClient';
 import { AuthenticatedUser } from '../types/shared'; // Import canonical type
 
@@ -21,19 +22,19 @@ export const AUTH_MODE = {
 };
 
 // Log the current auth mode on startup
-console.log(`Auth Mode: ${AUTH_MODE.CURRENT} ${AUTH_MODE.BYPASS_AUTH ? '(with auth bypass)' : ''}`);
+logger.info(`Auth Mode: ${AUTH_MODE.CURRENT} ${AUTH_MODE.BYPASS_AUTH ? '(with auth bypass)' : ''}`);
 
 /**
  * Middleware to authenticate Supabase token and attach user to request
  */
 export const authenticateToken = async (req: Request, res: Response, next: NextFunction) => {
-  console.log('Running authenticateToken middleware');
+  logger.info('Running authenticateToken middleware');
   
   // For development mode, simplify the authentication process
   if (AUTH_MODE.CURRENT === 'development' || AUTH_MODE.CURRENT === 'prototype') {
     // If explicitly bypassing auth, use the development user
     if (AUTH_MODE.BYPASS_AUTH) {
-      console.log(`${AUTH_MODE.CURRENT.toUpperCase()} MODE: Bypassing authentication with DEV_USER_ID`);
+      logger.info(`${AUTH_MODE.CURRENT.toUpperCase()} MODE: Bypassing authentication with DEV_USER_ID`);
       // Assign a consistent development user
       const devUser: AuthenticatedUser = {
         userId: AUTH_MODE.DEV_USER_ID, // Consistent development user ID
@@ -49,12 +50,12 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     // This helps during development when tokens might not validate perfectly
     const authHeader = req.headers['authorization'] || req.headers['Authorization'];
     if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
-      console.log(`${AUTH_MODE.CURRENT.toUpperCase()} MODE: Using simplified auth`);
+      logger.info(`${AUTH_MODE.CURRENT.toUpperCase()} MODE: Using simplified auth`);
       
       // Check for the development token
       const token = authHeader.split(' ')[1];
       if (token === AUTH_MODE.DEV_TOKEN) {
-        console.log('Development token detected, using dev user');
+        logger.info('Development token detected, using dev user');
         // Use the development user
         const devUser: AuthenticatedUser = {
           userId: AUTH_MODE.DEV_USER_ID,
@@ -83,7 +84,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
         
         // If no session, fall through to regular auth process
       } catch (error) {
-        console.log('Error getting session in development mode:', error);
+        logger.info('Error getting session in development mode:', error);
         // Fall through to regular auth process
       }
     }
@@ -92,12 +93,12 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
   try {
     // Get the token from Authorization header
     const authHeader = req.headers['authorization'] || req.headers['Authorization'];
-    console.log('Auth header present:', !!authHeader);
+    logger.info('Auth header present:', !!authHeader);
     
     const token = authHeader && typeof authHeader === 'string' ? authHeader.split(' ')[1] : null;
     
     if (!token) {
-      console.log('No token provided in the request');
+      logger.info('No token provided in the request');
       return res.status(401).json({ 
         success: false,
         message: 'Authentication required' 
@@ -105,7 +106,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     }
 
     // Variables to hold the authenticated user data
-    let authenticatedUser: any = null;
+    let authenticatedUser: Record<string, unknown> = null;
 
     // First try to get the session directly without passing the token
     // This works better with the Supabase cookie-based auth
@@ -113,15 +114,15 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
       const { data: sessionData } = await supabase.auth.getSession();
       
       if (sessionData?.session) {
-        console.log('Using Supabase session from cookies');
+        logger.info('Using Supabase session from cookies');
         authenticatedUser = sessionData.session.user;
       } else {
         // If no session from cookies, try with the provided token
-        console.log('No session from cookies, trying with token');
+        logger.info('No session from cookies, trying with token');
         const { data: userData, error: userError } = await supabase.auth.getUser(token);
         
         if (userError || !userData.user) {
-          console.error('Supabase token verification failed:', userError?.message || 'Invalid token');
+          logger.error('Supabase token verification failed:', userError?.message || 'Invalid token');
           return res.status(403).json({ 
             success: false,
             message: 'Invalid or expired token' 
@@ -131,14 +132,14 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
         authenticatedUser = userData.user;
       }
     } catch (error) {
-      console.error('Error during Supabase authentication:', error);
+      logger.error('Error during Supabase authentication:', error);
       return res.status(403).json({ 
         success: false,
         message: 'Authentication error' 
       });
     }
 
-    console.log('Supabase token verified for user:', authenticatedUser.id);
+    logger.info('Supabase token verified for user:', authenticatedUser.id);
     
     // Get additional user data from our database
     const dbUser = null; // Placeholder
@@ -157,12 +158,12 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     // Attach user to request
     req.user = user;
     if (req.user) { // Check if user is defined before logging
-      console.log('User verified and attached to request:', req.user.userId);
+      logger.info('User verified and attached to request:', req.user.userId);
     }
     
     next();
   } catch (error) {
-    console.error('Authentication error:', error);
+    logger.error('Authentication error:', error);
     return res.status(500).json({ 
       success: false,
       message: 'Authentication failed' 
@@ -174,7 +175,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
  * Middleware to restrict access to admin users
  */
 export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
-  console.log('Checking admin permissions for user:', req.user);
+  logger.info('Checking admin permissions for user:', req.user);
   
   if (!req.user) {
     return res.status(401).json({ 
@@ -184,13 +185,13 @@ export const requireAdmin = (req: Request, res: Response, next: NextFunction) =>
   }
   
   if (req.user.role !== 'admin') {
-    console.log('Access denied - user is not admin. Role:', req.user.role);
+    logger.info('Access denied - user is not admin. Role:', req.user.role);
     return res.status(403).json({ 
       success: false,
       message: 'Access denied. Admin only.' 
     });
   }
   
-  console.log('Admin access granted');
+  logger.info('Admin access granted');
   next();
 };

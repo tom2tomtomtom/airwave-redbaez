@@ -24,7 +24,7 @@ export const reviewController = {
 
       if (!userId) {
         // Use new ApiError signature with ErrorCode
-        return next(new ApiError(ErrorCode.AUTHENTICATION_REQUIRED));
+        return next(new ApiError(ErrorCode.AUTHENTICATION_REQUIRED, 'Authentication required to initiate review'));
       }
 
       const result = await reviewService.initiateReview(req.body, userId);
@@ -45,7 +45,7 @@ export const reviewController = {
       // Wrap unexpected errors before passing to central handler
       const apiError = error instanceof ApiError 
         ? error 
-        : new ApiError(ErrorCode.INTERNAL_ERROR, 'Internal server error while initiating review.', undefined, error);
+        : new ApiError(ErrorCode.INTERNAL_ERROR, 'Internal server error while initiating review.', { originalError: error });
       next(apiError);
     }
   },
@@ -81,7 +81,7 @@ export const reviewController = {
       // Wrap unexpected errors
       const apiError = error instanceof ApiError 
         ? error 
-        : new ApiError(ErrorCode.INTERNAL_ERROR, 'Internal server error while fetching review data.', undefined, error);
+        : new ApiError(ErrorCode.INTERNAL_ERROR, 'Internal server error while fetching review data.', { originalError: error });
       next(apiError);
     }
   },
@@ -121,7 +121,7 @@ export const reviewController = {
       // Wrap unexpected errors
       const apiError = error instanceof ApiError 
         ? error 
-        : new ApiError(ErrorCode.INTERNAL_ERROR, 'Internal server error while adding comment.', undefined, error);
+        : new ApiError(ErrorCode.INTERNAL_ERROR, 'Internal server error while adding comment.', { originalError: error });
       next(apiError);
     }
   },
@@ -167,7 +167,7 @@ export const reviewController = {
       // Wrap unexpected errors
       const apiError = error instanceof ApiError 
         ? error 
-        : new ApiError(ErrorCode.INTERNAL_ERROR, 'Internal server error while recording approval.', undefined, error);
+        : new ApiError(ErrorCode.INTERNAL_ERROR, 'Internal server error while recording approval.', { originalError: error });
       next(apiError);
     }
   },
@@ -183,7 +183,7 @@ export const reviewController = {
 
       if (!userId) {
         // Use new ApiError signature
-        return next(new ApiError(ErrorCode.AUTHENTICATION_REQUIRED));
+        return next(new ApiError(ErrorCode.AUTHENTICATION_REQUIRED, 'Authentication required to access asset review history'));
       }
 
       if (!assetId) {
@@ -209,7 +209,7 @@ export const reviewController = {
       // Wrap unexpected errors
       const apiError = error instanceof ApiError 
         ? error 
-        : new ApiError(ErrorCode.INTERNAL_ERROR, 'Internal server error while fetching review history.', undefined, error);
+        : new ApiError(ErrorCode.INTERNAL_ERROR, 'Internal server error while fetching review history.', { originalError: error });
       next(apiError);
     }
   },

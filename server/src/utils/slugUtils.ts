@@ -37,7 +37,7 @@ export async function ensureUniqueSlug(slug: string, existingId?: string): Promi
     .maybeSingle();
   
   if (error) {
-    console.error('Error checking slug uniqueness:', error);
+    logger.error('Error checking slug uniqueness:', error);
     throw new Error(`Error checking slug uniqueness: ${error.message}`);
   }
   

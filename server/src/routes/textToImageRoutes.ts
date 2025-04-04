@@ -62,7 +62,7 @@ router.post('/generate', authMiddleware, async (req, res) => {
       success: true,
       data: result
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error(`Error in text-to-image generation: ${error.message}`);
     res.status(500).json({
       success: false,
@@ -101,7 +101,7 @@ router.get('/status/:jobId', authMiddleware, async (req, res) => {
       success: true,
       data: result
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error(`Error checking text-to-image status: ${error.message}`);
     res.status(500).json({
       success: false,
@@ -132,7 +132,7 @@ router.get('/jobs', authMiddleware, async (req, res) => {
       success: true,
       data: jobs
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error(`Error retrieving text-to-image jobs: ${error.message}`);
     res.status(500).json({
       success: false,

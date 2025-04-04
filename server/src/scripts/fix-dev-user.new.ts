@@ -1,7 +1,8 @@
+import { logger } from '../utils/logger';
 import { createClient } from '@supabase/supabase-js'
 
 // Load environment variables
-import dotenv from 'dotenv'
+import * as dotenv from 'dotenv'
 dotenv.config()
 
 // Constants for development user - MUST MATCH what's in the database
@@ -18,8 +19,8 @@ const supabaseKey = process.env.SUPABASE_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function fixDevUser() {
-  console.log('=== Development User Fix Script ===');
-  console.log('Checking development user in public.users table...');
+  logger.info('=== Development User Fix Script ===');
+  logger.info('Checking development user in public.users table...');
   
   try {
     // Check if dev user exists in public.users
@@ -30,38 +31,38 @@ async function fixDevUser() {
       .single();
       
     if (checkError && checkError.code !== 'PGRST116') {
-      console.error('Error checking dev user:', checkError);
+      logger.error('Error checking dev user:', checkError);
       process.exit(1);
     }
     
     if (existingUser) {
-      console.log('✅ Development user found in public.users:', existingUser);
+      logger.info('✅ Development user found in public.users:', existingUser);
       
       // Check if properties match what we expect
       let needsUpdate = false;
-      const updates: any = {};
+      const updates: Record<string, unknown> = {};
       
       if (existingUser.email !== DEV_USER.email) {
-        console.log(`❌ Email mismatch: ${existingUser.email} vs expected ${DEV_USER.email}`);
+        logger.info(`❌ Email mismatch: ${existingUser.email} vs expected ${DEV_USER.email}`);
         updates.email = DEV_USER.email;
         needsUpdate = true;
       }
       
       if (existingUser.role !== DEV_USER.role) {
-        console.log(`❌ Role mismatch: ${existingUser.role} vs expected ${DEV_USER.role}`);
+        logger.info(`❌ Role mismatch: ${existingUser.role} vs expected ${DEV_USER.role}`);
         updates.role = DEV_USER.role;
         needsUpdate = true;
       }
       
       if (existingUser.name !== DEV_USER.name) {
-        console.log(`❌ Name mismatch: ${existingUser.name} vs expected ${DEV_USER.name}`);
+        logger.info(`❌ Name mismatch: ${existingUser.name} vs expected ${DEV_USER.name}`);
         updates.name = DEV_USER.name;
         needsUpdate = true;
       }
       
       // Update user if needed
       if (needsUpdate) {
-        console.log('Updating development user with correct properties...');
+        logger.info('Updating development user with correct properties...');
         
         const { error: updateError } = await supabase
           .from('users')
@@ -69,16 +70,16 @@ async function fixDevUser() {
           .eq('id', DEV_USER.id);
           
         if (updateError) {
-          console.error('❌ Failed to update development user:', updateError);
+          logger.error('❌ Failed to update development user:', updateError);
         } else {
-          console.log('✅ Development user updated successfully');
+          logger.info('✅ Development user updated successfully');
         }
       } else {
-        console.log('✅ Development user properties match expected values');
+        logger.info('✅ Development user properties match expected values');
       }
     } else {
       // Create dev user if doesn't exist
-      console.log('❌ Development user not found in public.users, creating...');
+      logger.info('❌ Development user not found in public.users, creating...');
       
       const { error: insertError } = await supabase
         .from('users')
@@ -91,32 +92,32 @@ async function fixDevUser() {
         });
         
       if (insertError) {
-        console.error('❌ Failed to create development user:', insertError);
+        logger.error('❌ Failed to create development user:', insertError);
       } else {
-        console.log('✅ Development user created successfully');
+        logger.info('✅ Development user created successfully');
       }
     }
     
     // Try to check auth.users (might fail due to permissions)
-    console.log('Checking development user in auth.users table (may fail due to permissions)...');
+    logger.info('Checking development user in auth.users table (may fail due to permissions)...');
     try {
       const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(DEV_USER.id);
       
       if (authError) {
-        console.log('❌ Could not access auth.users table:', authError.message);
-        console.log('This is expected if you do not have admin permissions.');
+        logger.info('❌ Could not access auth.users table:', authError.message);
+        logger.info('This is expected if you do not have admin permissions.');
       } else if (authUser) {
-        console.log('✅ Development user found in auth.users:', authUser);
+        logger.info('✅ Development user found in auth.users:', authUser);
       } else {
-        console.log('❌ Development user not found in auth.users');
+        logger.info('❌ Development user not found in auth.users');
       }
     } catch (authError) {
-      console.log('❌ Could not access auth.users table:', authError);
-      console.log('This is expected if you do not have admin permissions.');
+      logger.info('❌ Could not access auth.users table:', authError);
+      logger.info('This is expected if you do not have admin permissions.');
     }
     
     // Verify constraint check directly
-    console.log('Testing foreign key constraint directly...');
+    logger.info('Testing foreign key constraint directly...');
     
     const testAsset = {
       user_id: DEV_USER.id,
@@ -135,10 +136,10 @@ async function fixDevUser() {
       .single();
       
     if (testError) {
-      console.error('❌ Foreign key constraint test failed:', testError);
-      console.log('This suggests there may be additional constraints or RLS policies in place.');
+      logger.error('❌ Foreign key constraint test failed:', testError);
+      logger.info('This suggests there may be additional constraints or RLS policies in place.');
     } else {
-      console.log('✅ Foreign key constraint test passed successfully:', testData);
+      logger.info('✅ Foreign key constraint test passed successfully:', testData);
       
       // Clean up test asset
       const { error: deleteError } = await supabase
@@ -147,21 +148,21 @@ async function fixDevUser() {
         .eq('id', testData.id);
         
       if (deleteError) {
-        console.log('❌ Failed to clean up test asset:', deleteError);
+        logger.info('❌ Failed to clean up test asset:', deleteError);
       } else {
-        console.log('✅ Test asset cleaned up successfully');
+        logger.info('✅ Test asset cleaned up successfully');
       }
     }
   } catch (error) {
-    console.error('Unexpected error fixing dev user:', error);
+    logger.error('Unexpected error fixing dev user:', error);
     process.exit(1);
   }
   
-  console.log('=== Script Complete ===');
+  logger.info('=== Script Complete ===');
 }
 
 // Execute the script
 fixDevUser().catch(err => {
-  console.error('Unhandled error:', err);
+  logger.error('Unhandled error:', err);
   process.exit(1);
 });

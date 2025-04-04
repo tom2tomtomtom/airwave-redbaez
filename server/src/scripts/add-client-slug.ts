@@ -1,8 +1,9 @@
+import { logger } from '../utils/logger';
 /**
  * Script to add slug column to clients table
  */
 import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
 dotenv.config();
 
 // Initialize Supabase client
@@ -11,7 +12,7 @@ const supabaseKey = process.env.SUPABASE_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function addSlugToClientsTable() {
-  console.log('=== Adding slug column to clients table ===');
+  logger.info('=== Adding slug column to clients table ===');
   
   try {
     // First check if we need to add the column (it may not exist yet)
@@ -21,11 +22,11 @@ async function addSlugToClientsTable() {
     );
     
     if (checkError) {
-      console.log('Cannot check if column exists, will try to add it anyway:', checkError.message);
+      logger.info('Cannot check if column exists, will try to add it anyway:', checkError.message);
     } else {
-      console.log('Column check result:', columnCheck);
+      logger.info('Column check result:', columnCheck);
       if (columnCheck) {
-        console.log('Slug column already exists in clients table');
+        logger.info('Slug column already exists in clients table');
         await updateClientSlugs();
         return;
       }
@@ -47,10 +48,10 @@ async function addSlugToClientsTable() {
     );
     
     if (error) {
-      console.error('Error adding slug column:', error);
+      logger.error('Error adding slug column:', error);
       
       // If RPC function doesn't exist, try alternative approach
-      console.log('Trying alternative approach with direct SQL...');
+      logger.info('Trying alternative approach with direct SQL...');
       
       // Use raw SQL via REST API - note this is not ideal but works in development
       const response = await fetch(`${supabaseUrl}/rest/v1/`, {
@@ -74,16 +75,16 @@ async function addSlugToClientsTable() {
       });
       
       const result = await response.json();
-      console.log('SQL execution result:', result);
+      logger.info('SQL execution result:', result);
     } else {
-      console.log('Successfully added slug column to clients table');
+      logger.info('Successfully added slug column to clients table');
     }
     
     // Now update the client slugs
     await updateClientSlugs();
     
   } catch (error) {
-    console.error('Unexpected error:', error);
+    logger.error('Unexpected error:', error);
   }
 }
 
@@ -91,7 +92,7 @@ async function addSlugToClientsTable() {
  * Update client slugs based on their names
  */
 async function updateClientSlugs() {
-  console.log('\n--- Updating client slugs ---');
+  logger.info('\n--- Updating client slugs ---');
   
   // Get all clients
   const { data: clients, error } = await supabase
@@ -99,26 +100,26 @@ async function updateClientSlugs() {
     .select('*');
     
   if (error) {
-    console.error('Error fetching clients:', error);
+    logger.error('Error fetching clients:', error);
     return;
   }
   
   if (!clients || clients.length === 0) {
-    console.log('No clients found in database');
+    logger.info('No clients found in database');
     return;
   }
   
-  console.log(`Found ${clients.length} clients`);
+  logger.info(`Found ${clients.length} clients`);
   
   let updateCount = 0;
   
   // Process each client
   for (const client of clients) {
-    console.log(`\nUpdating client: ${client.name} (ID: ${client.id})`);
+    logger.info(`\nUpdating client: ${client.name} (ID: ${client.id})`);
     
     // If client already has a slug, skip
     if (client.slug) {
-      console.log(`Client already has slug: ${client.slug}`);
+      logger.info(`Client already has slug: ${client.slug}`);
       continue;
     }
     
@@ -127,7 +128,7 @@ async function updateClientSlugs() {
       .replace(/\s+/g, '-')
       .replace(/[^\w-]+/g, '');
       
-    console.log(`Setting slug: ${slug}`);
+    logger.info(`Setting slug: ${slug}`);
     
     // Update the client
     const { error: updateError } = await supabase
@@ -136,14 +137,14 @@ async function updateClientSlugs() {
       .eq('id', client.id);
       
     if (updateError) {
-      console.error(`Error updating client ${client.id}:`, updateError);
+      logger.error(`Error updating client ${client.id}:`, updateError);
     } else {
-      console.log(`✅ Updated client ${client.name} with slug: ${slug}`);
+      logger.info(`✅ Updated client ${client.name} with slug: ${slug}`);
       updateCount++;
     }
   }
   
-  console.log(`\nUpdated ${updateCount} clients with slugs`);
+  logger.info(`\nUpdated ${updateCount} clients with slugs`);
 }
 
 // Run function

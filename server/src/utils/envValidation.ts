@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 // Environment validation utility
 // This file provides functions to validate required environment variables
 
@@ -45,12 +46,12 @@ export function validateRequiredEnvVars(requiredVars: string[]): void {
   const result = validateEnvironment(requiredVars, isProduction);
   
   if (!result.isValid) {
-    console.error(result.message);
+    logger.error(result.message);
     if (isProduction) {
       throw new Error(result.message);
     }
   } else {
-    console.log(result.message);
+    logger.info(result.message);
   }
 }
 
@@ -68,10 +69,10 @@ export function getEnvVar(name: string, fallback: string, required: boolean = fa
   if (!value) {
     if (isProduction && required) {
       const message = `Required environment variable ${name} is not set in production`;
-      console.error(message);
+      logger.error(message);
       throw new Error(message);
     } else if (isProduction) {
-      console.warn(`Warning: Using fallback value for ${name} in production`);
+      logger.warn(`Warning: Using fallback value for ${name} in production`);
     } else {
       console.info(`Using fallback value for ${name} in development`);
     }

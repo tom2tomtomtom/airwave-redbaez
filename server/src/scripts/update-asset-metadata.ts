@@ -1,7 +1,8 @@
+import { logger } from '../utils/logger';
 import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
+import * as dotenv from 'dotenv';
+import * as fs from 'fs';
+import * as path from 'path';
 dotenv.config();
 
 // Initialize Supabase client
@@ -13,11 +14,11 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const ASSET_ID = '3feaa091-bd0b-4501-8c67-a5f96c767e1a';
 
 async function updateAssetMetadata() {
-  console.log('=== Updating Asset Metadata ===');
+  logger.info('=== Updating Asset Metadata ===');
   
   try {
     // 1. Get current asset data
-    console.log(`\nFetching asset data (ID: ${ASSET_ID}):`);
+    logger.info(`\nFetching asset data (ID: ${ASSET_ID}):`);
     const { data: asset, error: assetError } = await supabase
       .from('assets')
       .select('*')
@@ -25,14 +26,14 @@ async function updateAssetMetadata() {
       .single();
       
     if (assetError) {
-      console.error('Error fetching asset by ID:', assetError);
+      logger.error('Error fetching asset by ID:', assetError);
       return;
     }
     
-    console.log('Asset found in database:', asset);
+    logger.info('Asset found in database:', asset);
     
     // 2. Update only the fields that are valid in the database schema
-    console.log('\nUpdating asset with proper metadata:');
+    logger.info('\nUpdating asset with proper metadata:');
     
     // Enhance the metadata with fields needed by the UI
     const enhancedMeta = {
@@ -53,7 +54,7 @@ async function updateAssetMetadata() {
       meta: enhancedMeta
     };
     
-    console.log('Updating with:', updatedAsset);
+    logger.info('Updating with:', updatedAsset);
     
     // Update the asset in the database
     const { data: updateResult, error: updateError } = await supabase
@@ -64,15 +65,15 @@ async function updateAssetMetadata() {
       .single();
       
     if (updateError) {
-      console.error('Update failed:', updateError);
+      logger.error('Update failed:', updateError);
     } else {
-      console.log('Update successful:', updateResult);
-      console.log('\nAsset metadata has been updated.');
+      logger.info('Update successful:', updateResult);
+      logger.info('\nAsset metadata has been updated.');
     }
     
     // 3. Check if the ClientSelector component is loading the correct client
-    console.log('\nDebugging client selection:');
-    console.log(`This asset belongs to client ID: ${asset.client_id}`);
+    logger.info('\nDebugging client selection:');
+    logger.info(`This asset belongs to client ID: ${asset.client_id}`);
     
     // Look up the client name
     const { data: client, error: clientError } = await supabase
@@ -82,24 +83,24 @@ async function updateAssetMetadata() {
       .single();
       
     if (clientError) {
-      console.log(`Could not find client with ID ${asset.client_id}`);
+      logger.info(`Could not find client with ID ${asset.client_id}`);
     } else {
-      console.log(`Client name: ${client.name}`);
-      console.log(`Make sure you've selected the client "${client.name}" in the UI`);
+      logger.info(`Client name: ${client.name}`);
+      logger.info(`Make sure you've selected the client "${client.name}" in the UI`);
     }
     
-    console.log('\nTroubleshooting steps:');
-    console.log('1. Make sure you have selected the correct client in the UI');
-    console.log('2. Check the asset type filter is set to "image" or "all"');
-    console.log('3. Try hard-refreshing the browser (Ctrl+F5 or Cmd+Shift+R)');
-    console.log('4. Clear browser cache if needed');
-    console.log('5. Check the browser console for any errors related to fetching assets');
+    logger.info('\nTroubleshooting steps:');
+    logger.info('1. Make sure you have selected the correct client in the UI');
+    logger.info('2. Check the asset type filter is set to "image" or "all"');
+    logger.info('3. Try hard-refreshing the browser (Ctrl+F5 or Cmd+Shift+R)');
+    logger.info('4. Clear browser cache if needed');
+    logger.info('5. Check the browser console for any errors related to fetching assets');
     
   } catch (error) {
-    console.error('Unexpected error:', error);
+    logger.error('Unexpected error:', error);
   }
   
-  console.log('\n=== Asset Update Complete ===');
+  logger.info('\n=== Asset Update Complete ===');
 }
 
 // Run the update

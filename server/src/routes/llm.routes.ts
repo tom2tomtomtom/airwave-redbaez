@@ -1,4 +1,5 @@
 import express from 'express';
+import { logger } from './logger';
 import multer from 'multer';
 import { checkAuth } from '../middleware/auth.middleware';
 import { llmService, BriefData, CopyGenerationRequest } from '../services/llmService';
@@ -22,7 +23,7 @@ router.post('/parse-brief', checkAuth, async (req, res) => {
     let briefData = partialBriefData;
     
     // Log received data for debugging
-    console.log('Received brief data:', JSON.stringify(partialBriefData, null, 2));
+    logger.info('Received brief data:', JSON.stringify(partialBriefData, null, 2));
     
     // Check if there are missing required fields
     const missingFields = [];
@@ -36,17 +37,17 @@ router.post('/parse-brief', checkAuth, async (req, res) => {
     
     // Log missing fields for debugging
     if (hasMissingFields) {
-      console.log('Missing fields:', missingFields.join(', '));
+      logger.info('Missing fields:', missingFields.join(', '));
     }
     
     // If any fields are missing, try to use analyzeBriefText to fill them
     if (hasMissingFields && briefData.fullText) {
-      console.log('Brief has missing fields but contains fullText. Attempting to extract missing fields...');
+      logger.info('Brief has missing fields but contains fullText. Attempting to extract missing fields...');
       try {
         briefData = await llmService.analyzeBriefText(briefData.fullText, partialBriefData) as BriefData;
-        console.log('Fields extracted successfully. Updated brief data:', JSON.stringify(briefData, null, 2));
+        logger.info('Fields extracted successfully. Updated brief data:', JSON.stringify(briefData, null, 2));
       } catch (extractionError) {
-        console.error('Error extracting fields from text:', extractionError);
+        logger.error('Error extracting fields from text:', extractionError);
         // Continue with whatever we have, the main processBrief will fail if critical fields are still missing
       }
     } else if (hasMissingFields) {
@@ -65,8 +66,8 @@ router.post('/parse-brief', checkAuth, async (req, res) => {
         motivations
       }
     });
-  } catch (error: any) {
-    console.error('Error processing brief:', error);
+  } catch ($1: unknown) {
+    logger.error('Error processing brief:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to process brief',
@@ -96,8 +97,8 @@ router.post('/regenerate-motivations', checkAuth, async (req, res) => {
         motivations
       }
     });
-  } catch (error: any) {
-    console.error('Error regenerating motivations:', error);
+  } catch ($1: unknown) {
+    logger.error('Error regenerating motivations:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to regenerate motivations',
@@ -126,14 +127,14 @@ router.post('/process-brief-document', checkAuth, upload.single('brief'), async 
       });
     }
 
-    console.log(`Processing ${req.file.originalname} for motivation generation...`);
+    logger.info(`Processing ${req.file.originalname} for motivation generation...`);
     
     // Extract text from the document
     let extractedText = '';
     try {
       const fileBuffer = req.file.buffer;
       extractedText = await documentService.extractTextFromDocument(fileBuffer, fileExt);
-      console.log('Extracted text length:', extractedText.length, 'characters');
+      logger.info('Extracted text length:', extractedText.length, 'characters');
       
       if (!extractedText || extractedText.length < 50) { // Arbitrary minimum length
         return res.status(400).json({
@@ -142,7 +143,7 @@ router.post('/process-brief-document', checkAuth, upload.single('brief'), async 
         });
       }
     } catch (extractionError) {
-      console.error('Document text extraction error:', extractionError);
+      logger.error('Document text extraction error:', extractionError);
       return res.status(400).json({
         success: false,
         message: 'Failed to extract text from the document. Please try a different format.'
@@ -168,7 +169,7 @@ router.post('/process-brief-document', checkAuth, upload.single('brief'), async 
       briefData.projectName = projectMatch[1].trim();
     }
     
-    console.log('Extracted minimal brief data, using LLM to fill in missing fields...');
+    logger.info('Extracted minimal brief data, using LLM to fill in missing fields...');
     
     try {
       // Use LLM to fill in missing required fields from the extracted text
@@ -182,7 +183,7 @@ router.post('/process-brief-document', checkAuth, upload.single('brief'), async 
         mandatories: ''
       });
       
-      console.log('Generated complete brief data, now generating motivations...');
+      logger.info('Generated complete brief data, now generating motivations...');
       
       // Process the complete brief data to generate motivations
       const motivations = await llmService.processBrief(completeBriefData as BriefData);
@@ -195,15 +196,15 @@ router.post('/process-brief-document', checkAuth, upload.single('brief'), async 
           motivations // Send generated motivations
         }
       });
-    } catch (err: any) {
-      console.error('Error generating motivations:', err);
+    } catch ($1: unknown) {
+      logger.error('Error generating motivations:', err);
       return res.status(500).json({
         success: false,
         message: `Failed to generate motivations: ${err.message || 'Unknown error'}`
       });
     }
-  } catch (error: any) {
-    console.error('Error processing brief document:', error);
+  } catch ($1: unknown) {
+    logger.error('Error processing brief document:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to process document',
@@ -237,8 +238,8 @@ router.post('/generate-copy', checkAuth, async (req, res) => {
         copyVariations
       }
     });
-  } catch (error: any) {
-    console.error('Error generating copy:', error);
+  } catch ($1: unknown) {
+    logger.error('Error generating copy:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to generate copy',
@@ -258,7 +259,7 @@ router.get('/status', async (req, res) => {
       apiKey: apiKey ? 'configured' : 'missing',
       timestamp: new Date().toISOString()
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     return res.status(500).json({
       connected: false,
       error: error.message,

@@ -1,4 +1,7 @@
-import winston from 'winston';
+// Import modules with proper TypeScript syntax for CommonJS modules
+import * as winston from 'winston';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Define log levels
 const levels = {
@@ -36,6 +39,12 @@ const format = winston.format.combine(
   ),
 );
 
+// Ensure log directory exists
+const logDir = 'logs';
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir);
+}
+
 // Define transports
 const transports = [
   // Console transport for all logs
@@ -59,24 +68,6 @@ export const logger = winston.createLogger({
   transports,
 });
 
-// Ensure log directory exists
-import fs from 'fs';
-import path from 'path';
-
-const logDir = 'logs';
-if (!fs.existsSync(logDir)) {
-  fs.mkdirSync(logDir);
-}
-
-// Export a simplified logger interface for easy use
-export default {
-  error: (message: string, meta?: any) => logger.error(formatMessage(message, meta)),
-  warn: (message: string, meta?: any) => logger.warn(formatMessage(message, meta)),
-  info: (message: string, meta?: any) => logger.info(formatMessage(message, meta)),
-  http: (message: string, meta?: any) => logger.http(formatMessage(message, meta)),
-  debug: (message: string, meta?: any) => logger.debug(formatMessage(message, meta)),
-};
-
 // Helper function to format messages with metadata
 function formatMessage(message: string, meta?: any): string {
   if (!meta) return message;
@@ -91,3 +82,12 @@ function formatMessage(message: string, meta?: any): string {
     return `${message} [Unserializable data]`;
   }
 }
+
+// Export a simplified logger interface for easy use
+export default {
+  error: (message: string, meta?: any) => logger.error(formatMessage(message, meta)),
+  warn: (message: string, meta?: any) => logger.warn(formatMessage(message, meta)),
+  info: (message: string, meta?: any) => logger.info(formatMessage(message, meta)),
+  http: (message: string, meta?: any) => logger.http(formatMessage(message, meta)),
+  debug: (message: string, meta?: any) => logger.debug(formatMessage(message, meta)),
+};

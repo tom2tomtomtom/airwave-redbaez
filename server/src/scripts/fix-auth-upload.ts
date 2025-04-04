@@ -1,8 +1,9 @@
+import { logger } from '../utils/logger';
 import { createClient } from '@supabase/supabase-js'
 import { v4 as uuidv4 } from 'uuid';
-import fs from 'fs';
-import path from 'path';
-import dotenv from 'dotenv'
+import * as fs from 'fs';
+import * as path from 'path';
+import * as dotenv from 'dotenv'
 dotenv.config()
 
 // Initialize Supabase client
@@ -15,11 +16,11 @@ const DEV_EMAIL = 'dev@example.com';
 const DEV_PASSWORD = 'testing123'; // In a real app, use environment variables
 
 async function testAuthenticatedUpload() {
-  console.log('=== Authenticated Upload Test ===');
+  logger.info('=== Authenticated Upload Test ===');
   
   try {
     // Step 1: Try to sign in with the dev credentials
-    console.log('\nAttempting to sign in...');
+    logger.info('\nAttempting to sign in...');
     let authResult = await supabase.auth.signInWithPassword({
       email: DEV_EMAIL,
       password: DEV_PASSWORD,
@@ -29,28 +30,28 @@ async function testAuthenticatedUpload() {
     let authError = authResult.error;
     
     if (authError) {
-      console.error('Authentication failed:', authError);
+      logger.error('Authentication failed:', authError);
       
       // If the user doesn't exist, try to sign them up
       if (authError.message.includes('Invalid login credentials')) {
-        console.log('\nTrying to sign up the dev user...');
+        logger.info('\nTrying to sign up the dev user...');
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: DEV_EMAIL,
           password: DEV_PASSWORD,
         });
         
         if (signUpError) {
-          console.error('Sign up failed:', signUpError);
-          console.log('\nImportant: You need to create a user in Supabase Auth');
-          console.log('Visit your Supabase dashboard and create a user with:');
-          console.log(`Email: ${DEV_EMAIL}`);
-          console.log('Password: (use a secure password)');
+          logger.error('Sign up failed:', signUpError);
+          logger.info('\nImportant: You need to create a user in Supabase Auth');
+          logger.info('Visit your Supabase dashboard and create a user with:');
+          logger.info(`Email: ${DEV_EMAIL}`);
+          logger.info('Password: (use a secure password)');
           return;
         } else {
-          console.log('Sign up successful:', signUpData.user);
+          logger.info('Sign up successful:', signUpData.user);
           
           // Wait for the user to be created fully
-          console.log('Waiting for the user to be fully processed...');
+          logger.info('Waiting for the user to be fully processed...');
           await new Promise(resolve => setTimeout(resolve, 2000));
           
           // Try to sign in again
@@ -60,17 +61,17 @@ async function testAuthenticatedUpload() {
           });
           
           if (retryError) {
-            console.error('Retry authentication failed:', retryError);
+            logger.error('Retry authentication failed:', retryError);
             
             if (retryError.message.includes('Email not confirmed')) {
-              console.log('\nImportant: You need to confirm the email address.');
-              console.log('Check your email inbox or confirm the user manually in the Supabase dashboard');
+              logger.info('\nImportant: You need to confirm the email address.');
+              logger.info('Check your email inbox or confirm the user manually in the Supabase dashboard');
               return;
             }
             
             return;
           } else {
-            console.log('Retry authentication successful!');
+            logger.info('Retry authentication successful!');
             // Use the new session data
             authData = retryAuth;
           }
@@ -82,15 +83,15 @@ async function testAuthenticatedUpload() {
     
     // Check if we have an authenticated session
     if (!authData.session) {
-      console.log('No session found. Authentication failed.');
+      logger.info('No session found. Authentication failed.');
       return;
     }
     
-    console.log('Authentication successful!');
-    console.log('User ID from auth.users:', authData.user?.id);
+    logger.info('Authentication successful!');
+    logger.info('User ID from auth.users:', authData.user?.id);
     
     // Step 2: Check if the authenticated user exists in public.users
-    console.log('\nChecking if authenticated user exists in public.users...');
+    logger.info('\nChecking if authenticated user exists in public.users...');
     const { data: publicUser, error: publicUserError } = await supabase
       .from('users')
       .select('*')
@@ -98,10 +99,10 @@ async function testAuthenticatedUpload() {
       .single();
       
     if (publicUserError) {
-      console.error('Error checking public.users:', publicUserError);
+      logger.error('Error checking public.users:', publicUserError);
       
       if (publicUserError.code === 'PGRST116') {
-        console.log('User not found in public.users, creating matching record...');
+        logger.info('User not found in public.users, creating matching record...');
         
         // Create a matching user in public.users
         const { data: createdUser, error: createError } = await supabase
@@ -117,21 +118,21 @@ async function testAuthenticatedUpload() {
           .select();
           
         if (createError) {
-          console.error('Error creating user in public.users:', createError);
+          logger.error('Error creating user in public.users:', createError);
           return;
         } else {
-          console.log('User created in public.users:', createdUser);
+          logger.info('User created in public.users:', createdUser);
           // Don't modify publicUser, just log the created data
         }
       } else {
         return;
       }
     } else {
-      console.log('User found in public.users:', publicUser);
+      logger.info('User found in public.users:', publicUser);
     }
     
     // Step 3: Find a valid client_id
-    console.log('\nFinding a valid client_id...');
+    logger.info('\nFinding a valid client_id...');
     let clientId = null;
     
     const { data: clientsData, error: clientsError } = await supabase
@@ -140,21 +141,21 @@ async function testAuthenticatedUpload() {
       .limit(1);
       
     if (clientsError) {
-      console.error('Error accessing clients table:', clientsError);
+      logger.error('Error accessing clients table:', clientsError);
       
       // Generate a UUID for client_id
       clientId = uuidv4();
-      console.log('Generated new clientId:', clientId);
+      logger.info('Generated new clientId:', clientId);
     } else if (clientsData && clientsData.length > 0) {
       clientId = clientsData[0].id;
-      console.log('Using existing clientId:', clientId);
+      logger.info('Using existing clientId:', clientId);
     } else {
       clientId = uuidv4();
-      console.log('No clients found, using generated clientId:', clientId);
+      logger.info('No clients found, using generated clientId:', clientId);
     }
     
     // Step 4: Create a test file for upload
-    console.log('\nCreating test file...');
+    logger.info('\nCreating test file...');
     const testDir = path.join(process.cwd(), 'uploads');
     if (!fs.existsSync(testDir)) {
       fs.mkdirSync(testDir, { recursive: true });
@@ -168,8 +169,8 @@ async function testAuthenticatedUpload() {
     const assetUrl = `/uploads/${assetId}.txt`;
     
     // Step 5: Try to insert an asset using the authenticated user's ID
-    console.log('\nTrying to insert asset with authenticated user ID...');
-    console.log('Using user ID from auth:', authData.user?.id);
+    logger.info('\nTrying to insert asset with authenticated user ID...');
+    logger.info('Using user ID from auth:', authData.user?.id);
     
     const assetData = {
       id: assetId,
@@ -188,10 +189,10 @@ async function testAuthenticatedUpload() {
       .select();
       
     if (insertError) {
-      console.error('Asset insert failed:', insertError);
+      logger.error('Asset insert failed:', insertError);
       
       // Try simplified asset data
-      console.log('\nTrying with minimal required fields...');
+      logger.info('\nTrying with minimal required fields...');
       const minimalAsset = {
         id: uuidv4(),
         name: 'Minimal Auth Asset',
@@ -206,27 +207,27 @@ async function testAuthenticatedUpload() {
         .select();
         
       if (minimalError) {
-        console.error('Minimal asset insert failed:', minimalError);
+        logger.error('Minimal asset insert failed:', minimalError);
       } else {
-        console.log('Minimal asset insert succeeded:', minimalInsert);
+        logger.info('Minimal asset insert succeeded:', minimalInsert);
       }
     } else {
-      console.log('Asset insert succeeded:', insertedAsset);
+      logger.info('Asset insert succeeded:', insertedAsset);
     }
     
     // Step 6: Check for all assets in the database
-    console.log('\nChecking for all assets...');
+    logger.info('\nChecking for all assets...');
     const { data: allAssets, error: allAssetsError } = await supabase
       .from('assets')
       .select('*');
       
     if (allAssetsError) {
-      console.error('Error retrieving assets:', allAssetsError);
+      logger.error('Error retrieving assets:', allAssetsError);
     } else {
-      console.log(`Found ${allAssets?.length || 0} assets in database`);
+      logger.info(`Found ${allAssets?.length || 0} assets in database`);
       if (allAssets && allAssets.length > 0) {
         allAssets.forEach(asset => {
-          console.log(`- ${asset.id}: ${asset.name} (${asset.url})`);
+          logger.info(`- ${asset.id}: ${asset.name} (${asset.url})`);
         });
       }
     }
@@ -236,10 +237,10 @@ async function testAuthenticatedUpload() {
       fs.unlinkSync(testFilePath);
     }
     
-    console.log('\nTest complete!');
+    logger.info('\nTest complete!');
     
   } catch (error) {
-    console.error('Unexpected error:', error);
+    logger.error('Unexpected error:', error);
   }
 }
 

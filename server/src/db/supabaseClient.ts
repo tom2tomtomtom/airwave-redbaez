@@ -1,5 +1,6 @@
+// Fix missing data variable in insert and update methods
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
 import { logger } from '../utils/logger';
 import { auditLogger, AuditEventType } from '../utils/auditLogger';
 
@@ -23,8 +24,8 @@ class MockSupabaseClient {
     ]);
     
     this.storage.set('clients', [
-      { id: '1', name: 'Test Client', slug: 'test-client', logo_url: 'https://via.placeholder.com/150' },
-      { id: '2', name: 'Demo Client', slug: 'demo-client', logo_url: 'https://via.placeholder.com/150' }
+      { id: '1', name: 'Test Client', client_slug: 'test-client', logo_url: 'https://via.placeholder.com/150' },
+      { id: '2', name: 'Demo Client', client_slug: 'demo-client', logo_url: 'https://via.placeholder.com/150' }
     ]);
     
     this.storage.set('assets', [
@@ -45,46 +46,167 @@ class MockSupabaseClient {
   
   from(table: string) {
     return {
-      select: (columns: string = '*') => {
-        return {
-          eq: (column: string, value: any) => {
+      select: (columns: string = '*', options?: { count?: string }) => {
+        const baseQuery = {
+          eq: (column: string, value: unknown) => {
+            const items = this.storage.get(table) || [];
+            const filteredItems = items.filter(item => item[column] === value);
+            
             return {
               single: () => {
-                const items = this.storage.get(table) || [];
-                const item = items.find(item => item[column] === value);
+                const item = filteredItems.length > 0 ? filteredItems[0] : null;
                 return {
-                  data: item || null,
-                  error: item ? null : { message: 'Item not found' }
+                  data: item,
+                  error: item ? null : { message: 'Item not found', code: 'PGRST116' }
                 };
               },
-              order: () => {
+              order: (column: string, options?: { ascending?: boolean }) => {
                 return {
-                  limit: () => {
-                    const items = this.storage.get(table) || [];
-                    const filteredItems = items.filter(item => item[column] === value);
+                  limit: (limit: number) => {
                     return {
-                      data: filteredItems,
-                      error: null
+                      data: filteredItems.slice(0, limit),
+                      error: null,
+                      count: filteredItems.length
+                    };
+                  },
+                  range: (from: number, to: number) => {
+                    return {
+                      data: filteredItems.slice(from, to + 1),
+                      error: null,
+                      count: filteredItems.length
                     };
                   }
+                };
+              },
+              ilike: (column: string, pattern: string) => {
+                const patternWithoutWildcards = pattern.replace(/%/g, '').toLowerCase();
+                const nestedFilteredItems = filteredItems.filter(item => {
+                  const value = String(item[column] || '').toLowerCase();
+                  return value.includes(patternWithoutWildcards);
+                });
+                
+                return {
+                  order: (column: string, options?: { ascending?: boolean }) => {
+                    return {
+                      limit: (limit: number) => {
+                        return {
+                          data: nestedFilteredItems.slice(0, limit),
+                          error: null,
+                          count: nestedFilteredItems.length
+                        };
+                      },
+                      range: (from: number, to: number) => {
+                        return {
+                          data: nestedFilteredItems.slice(from, to + 1),
+                          error: null,
+                          count: nestedFilteredItems.length
+                        };
+                      }
+                    };
+                  },
+                  range: (from: number, to: number) => {
+                    return {
+                      data: nestedFilteredItems.slice(from, to + 1),
+                      error: null,
+                      count: nestedFilteredItems.length
+                    };
+                  }
+                };
+              },
+              range: (from: number, to: number) => {
+                return {
+                  data: filteredItems.slice(from, to + 1),
+                  error: null,
+                  count: filteredItems.length
                 };
               }
             };
           },
-          order: () => {
+          ilike: (column: string, pattern: string) => {
+            const items = this.storage.get(table) || [];
+            const patternWithoutWildcards = pattern.replace(/%/g, '').toLowerCase();
+            const filteredItems = items.filter(item => {
+              const value = String(item[column] || '').toLowerCase();
+              return value.includes(patternWithoutWildcards);
+            });
+            
             return {
-              limit: (limit: number) => {
-                const items = this.storage.get(table) || [];
+              order: (column: string, options?: { ascending?: boolean }) => {
                 return {
-                  data: items.slice(0, limit),
-                  error: null
+                  limit: (limit: number) => {
+                    return {
+                      data: filteredItems.slice(0, limit),
+                      error: null,
+                      count: filteredItems.length
+                    };
+                  },
+                  range: (from: number, to: number) => {
+                    return {
+                      data: filteredItems.slice(from, to + 1),
+                      error: null,
+                      count: filteredItems.length
+                    };
+                  }
+                };
+              },
+              range: (from: number, to: number) => {
+                return {
+                  data: filteredItems.slice(from, to + 1),
+                  error: null,
+                  count: filteredItems.length
                 };
               }
             };
+          },
+          order: (column: string, options?: { ascending?: boolean }) => {
+            const items = this.storage.get(table) || [];
+            // Simple sorting, doesn't handle complex cases
+            const sortedItems = [...items].sort((a, b) => {
+              const aValue = a[column];
+              const bValue = b[column];
+              if (aValue < bValue) return options?.ascending ? -1 : 1;
+              if (aValue > bValue) return options?.ascending ? 1 : -1;
+              return 0;
+            });
+            
+            return {
+              limit: (limit: number) => {
+                return {
+                  data: sortedItems.slice(0, limit),
+                  error: null,
+                  count: sortedItems.length
+                };
+              },
+              range: (from: number, to: number) => {
+                return {
+                  data: sortedItems.slice(from, to + 1),
+                  error: null,
+                  count: sortedItems.length
+                };
+              }
+            };
+          },
+          limit: (limit: number) => {
+            const items = this.storage.get(table) || [];
+            return {
+              data: items.slice(0, limit),
+              error: null,
+              count: items.length
+            };
+          },
+          range: (from: number, to: number) => {
+            const items = this.storage.get(table) || [];
+            return {
+              data: items.slice(from, to + 1),
+              error: null,
+              count: items.length
+            };
           }
         };
+        
+        return baseQuery;
       },
-      insert: (data: any) => {
+      insert: (data: Record<string, unknown>) => {
         if (!this.storage.has(table)) {
           this.storage.set(table, []);
         }
@@ -93,13 +215,13 @@ class MockSupabaseClient {
         items.push(data);
         
         return {
-          data,
+          data: data,
           error: null
         };
       },
-      update: (data: any) => {
+      update: (data: Record<string, unknown>) => {
         return {
-          eq: (column: string, value: any) => {
+          eq: (column: string, value: unknown) => {
             const items = this.storage.get(table) || [];
             const index = items.findIndex(item => item[column] === value);
             
@@ -120,7 +242,7 @@ class MockSupabaseClient {
       },
       delete: () => {
         return {
-          eq: (column: string, value: any) => {
+          eq: (column: string, value: unknown) => {
             const items = this.storage.get(table) || [];
             const filteredItems = items.filter(item => item[column] !== value);
             this.storage.set(table, filteredItems);
@@ -155,6 +277,32 @@ class MockSupabaseClient {
       return {
         error: null
       };
+    },
+    getUser: (token: string) => {
+      return {
+        data: { 
+          user: { 
+            id: '1', 
+            email: 'admin@example.com', 
+            user_metadata: { role: 'admin', name: 'Admin User' } 
+          } 
+        },
+        error: null
+      };
+    },
+    admin: {
+      createUser: (userData: Record<string, unknown>) => {
+        return {
+          data: { 
+            user: { 
+              id: '3', 
+              email: userData.email as string, 
+              user_metadata: userData.user_metadata 
+            } 
+          },
+          error: null
+        };
+      }
     }
   };
 }
@@ -167,17 +315,7 @@ if (process.env.NODE_ENV === 'production' && !useRealSupabase) {
   throw new Error('Production environment requires USE_REAL_SUPABASE to be set to true');
 }
 
-// Define a type for our mock client that includes the methods we use
-export type MockSupabaseClientType = {
-  from: (table: string) => any;
-  rpc: (functionName: string, params: Record<string, unknown>) => any;
-  auth: {
-    signIn: () => any;
-    signOut: () => any;
-  };
-};
-
-let supabase: SupabaseClient | MockSupabaseClientType = null;
+let supabase: SupabaseClient | MockSupabaseClient;
 
 if (useRealSupabase) {
   supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -216,285 +354,10 @@ async function testDatabaseConnection(): Promise<boolean> {
   }
 }
 
-// Mock implementations of table creation functions
-async function createUsersTable() {
-  if (!useRealSupabase) {
-    logger.info('Mock: Users table already exists');
-    return;
-  }
-  
-  try {
-    // Real implementation...
-  } catch (error) {
-    logger.error('Error checking users table:', error);
-    // Continue execution in mock mode
-    if (!useRealSupabase) return;
-    throw error;
-  }
-}
+// Export the Supabase client
+export { supabase, testDatabaseConnection };
 
-async function createAssetsTable() {
-  if (!useRealSupabase) {
-    logger.info('Mock: Assets table already exists');
-    return;
-  }
-  
-  try {
-    // Real implementation...
-  } catch (error) {
-    logger.error('Error creating assets table:', error);
-    // Continue execution in mock mode
-    if (!useRealSupabase) return;
-    throw error;
-  }
-}
-
-async function createTemplatesTable() {
-  if (!useRealSupabase) {
-    logger.info('Mock: Templates table already exists');
-    return;
-  }
-  
-  try {
-    // Real implementation...
-  } catch (error) {
-    logger.error('Error creating templates table:', error);
-    // Continue execution in mock mode
-    if (!useRealSupabase) return;
-    throw error;
-  }
-}
-
-async function createCampaignsTable() {
-  if (!useRealSupabase) {
-    logger.info('Mock: Campaigns table already exists');
-    return;
-  }
-  
-  try {
-    // Real implementation...
-  } catch (error) {
-    logger.error('Error creating campaigns table:', error);
-    // Continue execution in mock mode
-    if (!useRealSupabase) return;
-    throw error;
-  }
-}
-
-async function createExecutionsTable() {
-  if (!useRealSupabase) {
-    logger.info('Mock: Executions table already exists');
-    return;
-  }
-  
-  try {
-    // Real implementation...
-  } catch (error) {
-    logger.error('Error creating executions table:', error);
-    // Continue execution in mock mode
-    if (!useRealSupabase) return;
-    throw error;
-  }
-}
-
-async function createExportsTable() {
-  if (!useRealSupabase) {
-    logger.info('Mock: Exports table already exists');
-    return;
-  }
-  
-  try {
-    // Real implementation...
-  } catch (error) {
-    logger.error('Error creating exports table:', error);
-    // Continue execution in mock mode
-    if (!useRealSupabase) return;
-    throw error;
-  }
-}
-
-async function createClientsTable() {
-  if (!useRealSupabase) {
-    logger.info('Mock: Clients table already exists');
-    return;
-  }
-  
-  try {
-    // Real implementation...
-  } catch (error) {
-    logger.error('Error in createClientsTable:', error);
-    // Continue execution in mock mode
-    if (!useRealSupabase) return;
-    throw error;
-  }
-}
-
-async function createSignoffSessionsTable() {
-  if (!useRealSupabase) {
-    logger.info('Mock: Signoff sessions table already exists');
-    return;
-  }
-  
-  try {
-    // Real implementation...
-  } catch (error) {
-    logger.error('Error creating signoff sessions table:', error);
-    // Continue execution in mock mode
-    if (!useRealSupabase) return;
-    throw error;
-  }
-}
-
-async function createSignoffAssetsTable() {
-  if (!useRealSupabase) {
-    logger.info('Mock: Signoff assets table already exists');
-    return;
-  }
-  
-  try {
-    // Real implementation...
-  } catch (error) {
-    logger.error('Error creating signoff assets table:', error);
-    // Continue execution in mock mode
-    if (!useRealSupabase) return;
-    throw error;
-  }
-}
-
-async function createSignoffResponsesTable() {
-  if (!useRealSupabase) {
-    logger.info('Mock: Signoff responses table already exists');
-    return;
-  }
-  
-  try {
-    // Real implementation...
-  } catch (error) {
-    logger.error('Error in createSignoffResponsesTable:', error);
-    // Continue execution in mock mode
-    if (!useRealSupabase) return;
-    throw error;
-  }
-}
-
-/**
- * Initialize the database and test the connection
- * @returns Promise that resolves with the Supabase client when initialization is complete
- */
-export async function initializeDatabase(): Promise<SupabaseClient> {
-  try {
-    // Check if we're in development mode
-    const isDevelopment = process.env.NODE_ENV === 'development';
-    
-    // In development mode, we can bypass the connection test to allow testing
-    let connectionSuccessful = false;
-    if (!isDevelopment) {
-      // Only perform the connection test in non-development environments
-      connectionSuccessful = await testDatabaseConnection();
-      
-      if (!connectionSuccessful) {
-        throw new Error('Database connection test failed');
-      }
-    } else {
-      logger.warn('Development mode: Bypassing strict database connection test');
-      connectionSuccessful = true;
-    }
-    
-    // Log initialization success
-    logger.info('Database connection established successfully');
-    
-    // Log to audit for security tracking
-    auditLogger.logAuditEvent({
-      eventType: AuditEventType.SERVER_START,
-      timestamp: new Date().toISOString(),
-      status: 'success',
-      details: {
-        component: 'database',
-        action: 'connection_established'
-      }
-    });
-    
-    // Create tables in prototype mode only
-    if (process.env.PROTOTYPE_MODE === 'true') {
-      logger.info('Running in PROTOTYPE_MODE - creating database tables');
-      
-      // Log schema changes to audit log
-      auditLogger.logAuditEvent({
-        eventType: AuditEventType.CONFIG_CHANGE,
-        timestamp: new Date().toISOString(),
-        status: 'success',
-        details: {
-          component: 'database',
-          change: 'schema_initialization'
-        }
-      });
-      
-      try {
-        // Create users table first (since other tables may reference it)
-        await createUsersTable();
-        
-        // Create assets table
-        await createAssetsTable();
-        
-        // Create templates table
-        await createTemplatesTable();
-        
-        // Create campaigns table
-        await createCampaignsTable();
-        
-        // Create executions table
-        await createExecutionsTable();
-        
-        // Create exports table
-        await createExportsTable();
-        
-        // Create clients table
-        await createClientsTable();
-        
-        // Create signoff sessions table
-        await createSignoffSessionsTable();
-        
-        // Create signoff assets table
-        await createSignoffAssetsTable();
-        
-        // Create signoff responses table
-        await createSignoffResponsesTable();
-        
-        logger.info('Database schema initialization complete');
-      } catch (error) {
-        // In mock mode, continue even if there are errors
-        if (!useRealSupabase) {
-          logger.warn('Mock mode: Continuing despite database initialization errors');
-        } else {
-          throw error;
-        }
-      }
-    }
-    
-    return supabase;
-  } catch (error) {
-    // In mock mode, continue even if there are errors
-    if (!useRealSupabase) {
-      logger.warn('Mock mode: Continuing despite database initialization errors');
-      return supabase;
-    }
-    
-    logger.error('Error initializing database:', error);
-    
-    // Log initialization failure
-    auditLogger.logAuditEvent({
-      eventType: AuditEventType.SERVER_START,
-      timestamp: new Date().toISOString(),
-      status: 'failure',
-      details: {
-        component: 'database',
-        error
-      }
-    });
-    
-    throw error;
-  }
-}
-
-// For backward compatibility
-export { supabase };
+// Export a getter function for type safety
+export const getSupabaseClient = (): SupabaseClient | MockSupabaseClient => {
+  return supabase;
+};

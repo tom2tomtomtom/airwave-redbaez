@@ -1,8 +1,9 @@
 import { assetService } from '../services/assetService.new';
-import fs from 'fs';
-import path from 'path';
+import { logger } from './logger';
+import * as fs from 'fs';
+import * as path from 'path';
 import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
 dotenv.config();
 
 // Initialize Supabase client
@@ -14,11 +15,11 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const ADMIN_USER_ID = 'd53c7f82-42af-4ed0-a83b-2cbf505748db';
 
 async function testAdminAssetUpload() {
-  console.log('=== Admin User Asset Upload Test ===');
+  logger.info('=== Admin User Asset Upload Test ===');
   
   try {
     // Step 1: Verify the admin user exists
-    console.log('\nVerifying admin user exists:');
+    logger.info('\nVerifying admin user exists:');
     const { data: adminUser, error: adminError } = await supabase
       .from('users')
       .select('*')
@@ -26,29 +27,29 @@ async function testAdminAssetUpload() {
       .single();
       
     if (adminError) {
-      console.error('Error finding admin user:', adminError);
+      logger.error('Error finding admin user:', adminError);
       return;
     }
     
-    console.log('Admin user found:', adminUser);
+    logger.info('Admin user found:', adminUser);
     
     // Step 2: Find a valid client to use
-    console.log('\nFinding a valid client:');
+    logger.info('\nFinding a valid client:');
     const { data: clientData, error: clientError } = await supabase
       .from('clients')
       .select('id, name')
       .limit(1);
       
     if (clientError || !clientData || clientData.length === 0) {
-      console.error('Error finding a client:', clientError);
+      logger.error('Error finding a client:', clientError);
       return;
     }
     
     const clientId = clientData[0].id;
-    console.log('Using client:', clientData[0]);
+    logger.info('Using client:', clientData[0]);
     
     // Step 3: Create a test file
-    console.log('\nCreating test file:');
+    logger.info('\nCreating test file:');
     const testDir = path.join(process.cwd(), 'test-files');
     if (!fs.existsSync(testDir)) {
       fs.mkdirSync(testDir, { recursive: true });
@@ -58,7 +59,7 @@ async function testAdminAssetUpload() {
     const testContent = 'This is a test asset file for admin user upload test';
     fs.writeFileSync(testFilePath, testContent);
     
-    console.log('Test file created at:', testFilePath);
+    logger.info('Test file created at:', testFilePath);
     
     // Step 4: Create a multer-like file object
     const testFile = {
@@ -74,7 +75,7 @@ async function testAdminAssetUpload() {
     };
     
     // Step 5: Use the asset service to upload the file
-    console.log('\nAttempting to upload asset with admin user ID:');
+    logger.info('\nAttempting to upload asset with admin user ID:');
     const result = await assetService.uploadAsset(
       testFile as any,
       ADMIN_USER_ID,
@@ -88,11 +89,11 @@ async function testAdminAssetUpload() {
       }
     );
     
-    console.log('\nUpload result:', JSON.stringify(result, null, 2));
+    logger.info('\nUpload result:', JSON.stringify(result, null, 2));
     
     // Step 6: Verify the asset was created in the database
     if (result.success && result.asset?.id) {
-      console.log('\nVerifying asset in database:');
+      logger.info('\nVerifying asset in database:');
       const { data: assetCheck, error: assetError } = await supabase
         .from('assets')
         .select('*')
@@ -100,24 +101,24 @@ async function testAdminAssetUpload() {
         .single();
         
       if (assetError) {
-        console.error('Error finding asset in database:', assetError);
+        logger.error('Error finding asset in database:', assetError);
       } else {
-        console.log('Asset found in database:', assetCheck);
-        console.log('\n✅ SUCCESS: Asset was properly uploaded and saved to database!');
+        logger.info('Asset found in database:', assetCheck);
+        logger.info('\n✅ SUCCESS: Asset was properly uploaded and saved to database!');
       }
     }
     
     // Clean up
     if (fs.existsSync(testFilePath)) {
       fs.unlinkSync(testFilePath);
-      console.log('\nTest file cleaned up');
+      logger.info('\nTest file cleaned up');
     }
     
   } catch (error) {
-    console.error('Unexpected error:', error);
+    logger.error('Unexpected error:', error);
   }
   
-  console.log('\n=== Test Complete ===');
+  logger.info('\n=== Test Complete ===');
 }
 
 // Run the test

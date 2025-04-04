@@ -97,7 +97,7 @@ router.get('/platform-specs', checkAuth, async (req, res) => {
       success: true,
       data: platformSpecs
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     res.status(500).json({
       success: false,
       message: 'Failed to retrieve platform specifications',
@@ -169,7 +169,7 @@ router.post('/campaign/:id', checkAuth, async (req, res) => {
       message: `Successfully exported campaign for ${platforms.length} platforms`,
       data: exportResults
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     res.status(500).json({
       success: false,
       message: 'Failed to export campaign',
@@ -187,7 +187,7 @@ router.get('/campaign/:id/status', checkAuth, async (req, res) => {
     // In production, this would check the status of export jobs
     // For the prototype, simulate completed exports
     
-    let exportStatus: any[] = [
+    let exportStatus: Record<string, unknown>[] = [
       {
         platform: 'meta',
         campaignId: id,
@@ -223,7 +223,7 @@ router.get('/campaign/:id/status', checkAuth, async (req, res) => {
       success: true,
       data: exportStatus
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     res.status(500).json({
       success: false,
       message: 'Failed to retrieve export status',
@@ -262,7 +262,7 @@ router.get('/campaign/:id/download', checkAuth, async (req, res) => {
         }
       });
     }
-  } catch (error: any) {
+  } catch ($1: unknown) {
     res.status(500).json({
       success: false,
       message: 'Failed to generate download URL',
@@ -309,7 +309,7 @@ router.post('/campaign/:id/schedule', checkAuth, async (req, res) => {
         status: 'scheduled'
       }
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     res.status(500).json({
       success: false,
       message: 'Failed to schedule export',

@@ -50,13 +50,13 @@ describe('ApiError', () => {
   });
 
   it('should correctly map errorCode to statusCode', () => {
-    const validationError = new ApiError(ErrorCode.VALIDATION_FAILED);
-    const authError = new ApiError(ErrorCode.AUTHENTICATION_REQUIRED);
-    const forbiddenError = new ApiError(ErrorCode.PERMISSION_DENIED);
-    const notFoundError = new ApiError(ErrorCode.RESOURCE_NOT_FOUND);
-    const conflictError = new ApiError(ErrorCode.RESOURCE_ALREADY_EXISTS);
-    const externalError = new ApiError(ErrorCode.EXTERNAL_SERVICE_ERROR);
-    const logicError = new ApiError(ErrorCode.OPERATION_FAILED);
+    const validationError = new ApiError(ErrorCode.VALIDATION_FAILED, 'An error occurred');
+    const authError = new ApiError(ErrorCode.AUTHENTICATION_REQUIRED, 'An error occurred');
+    const forbiddenError = new ApiError(ErrorCode.PERMISSION_DENIED, 'An error occurred');
+    const notFoundError = new ApiError(ErrorCode.RESOURCE_NOT_FOUND, 'An error occurred');
+    const conflictError = new ApiError(ErrorCode.RESOURCE_ALREADY_EXISTS, 'An error occurred');
+    const externalError = new ApiError(ErrorCode.EXTERNAL_SERVICE_ERROR, 'An error occurred');
+    const logicError = new ApiError(ErrorCode.OPERATION_FAILED, 'An error occurred');
 
     expect(validationError.statusCode).toBe(400);
     expect(authError.statusCode).toBe(401);

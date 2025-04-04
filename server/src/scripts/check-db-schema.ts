@@ -1,5 +1,6 @@
+import { logger } from '../utils/logger';
 import { createClient } from '@supabase/supabase-js'
-import dotenv from 'dotenv'
+import * as dotenv from 'dotenv'
 dotenv.config()
 
 // Initialize Supabase client
@@ -16,17 +17,17 @@ const DEV_USER = {
 };
 
 async function checkDatabaseSchema() {
-  console.log('=== Database Schema Check ===');
+  logger.info('=== Database Schema Check ===');
   
   try {
     // Check users table
-    console.log('Checking users table...');
+    logger.info('Checking users table...');
     const { data: userColumns, error: userError } = await supabase.rpc('get_table_info', {
       table_name: 'users'
     });
     
     if (userError) {
-      console.error('Error checking users table:', userError);
+      logger.error('Error checking users table:', userError);
       
       // Fallback to direct query
       const { data: usersData, error: usersQueryError } = await supabase
@@ -35,22 +36,22 @@ async function checkDatabaseSchema() {
         .limit(1);
         
       if (usersQueryError) {
-        console.error('Failed to query users table:', usersQueryError);
+        logger.error('Failed to query users table:', usersQueryError);
       } else {
-        console.log('Users table exists with sample data:', usersData);
+        logger.info('Users table exists with sample data:', usersData);
       }
     } else {
-      console.log('Users table columns:', userColumns);
+      logger.info('Users table columns:', userColumns);
     }
     
     // Check assets table
-    console.log('\nChecking assets table...');
+    logger.info('\nChecking assets table...');
     const { data: assetColumns, error: assetError } = await supabase.rpc('get_table_info', {
       table_name: 'assets'
     });
     
     if (assetError) {
-      console.error('Error checking assets table:', assetError);
+      logger.error('Error checking assets table:', assetError);
       
       // Fallback to direct query
       const { data: assetsData, error: assetsQueryError } = await supabase
@@ -59,29 +60,29 @@ async function checkDatabaseSchema() {
         .limit(1);
         
       if (assetsQueryError) {
-        console.error('Failed to query assets table:', assetsQueryError);
+        logger.error('Failed to query assets table:', assetsQueryError);
       } else {
-        console.log('Assets table exists with sample data:', assetsData);
+        logger.info('Assets table exists with sample data:', assetsData);
       }
     } else {
-      console.log('Assets table columns:', assetColumns);
+      logger.info('Assets table columns:', assetColumns);
     }
     
     // Check for foreign key constraints
-    console.log('\nChecking foreign key constraints...');
+    logger.info('\nChecking foreign key constraints...');
     const { data: fkData, error: fkError } = await supabase.rpc('get_foreign_keys', {
       table_name: 'assets'
     });
     
     if (fkError) {
-      console.error('Error checking foreign keys:', fkError);
-      console.log('This could be due to insufficient permissions or the RPC function not existing.');
+      logger.error('Error checking foreign keys:', fkError);
+      logger.info('This could be due to insufficient permissions or the RPC function not existing.');
     } else {
-      console.log('Foreign key constraints for assets table:', fkData);
+      logger.info('Foreign key constraints for assets table:', fkData);
     }
     
     // Test user verification
-    console.log('\nVerifying development user...');
+    logger.info('\nVerifying development user...');
     const { data: devUser, error: devUserError } = await supabase
       .from('users')
       .select('*')
@@ -89,13 +90,13 @@ async function checkDatabaseSchema() {
       .single();
       
     if (devUserError) {
-      console.error('Error finding development user:', devUserError);
+      logger.error('Error finding development user:', devUserError);
     } else {
-      console.log('Development user found:', devUser);
+      logger.info('Development user found:', devUser);
     }
     
     // Test asset insertion
-    console.log('\nTesting asset insertion with development user...');
+    logger.info('\nTesting asset insertion with development user...');
     const testAsset = {
       user_id: DEV_USER.id,
       owner_id: DEV_USER.id,
@@ -114,21 +115,21 @@ async function checkDatabaseSchema() {
       .single();
       
     if (insertError) {
-      console.error('Asset insertion test failed:', insertError);
-      console.log('\nDetailed error analysis:');
-      console.log('- Error code:', insertError.code);
-      console.log('- Error message:', insertError.message);
-      console.log('- Error details:', insertError.details);
+      logger.error('Asset insertion test failed:', insertError);
+      logger.info('\nDetailed error analysis:');
+      logger.info('- Error code:', insertError.code);
+      logger.info('- Error message:', insertError.message);
+      logger.info('- Error details:', insertError.details);
       
       if (insertError.code === '23503') {
-        console.log('\nThis is a foreign key constraint violation.');
-        console.log('Possible causes:');
-        console.log('1. The user_id or owner_id does not exist in the referenced table');
-        console.log('2. There are additional columns with foreign key constraints');
-        console.log('3. RLS policies are preventing the insertion');
+        logger.info('\nThis is a foreign key constraint violation.');
+        logger.info('Possible causes:');
+        logger.info('1. The user_id or owner_id does not exist in the referenced table');
+        logger.info('2. There are additional columns with foreign key constraints');
+        logger.info('3. RLS policies are preventing the insertion');
       }
     } else {
-      console.log('Asset insertion test succeeded:', insertedAsset);
+      logger.info('Asset insertion test succeeded:', insertedAsset);
       
       // Clean up test asset
       const { error: deleteError } = await supabase
@@ -137,15 +138,15 @@ async function checkDatabaseSchema() {
         .eq('id', insertedAsset.id);
         
       if (deleteError) {
-        console.log('Failed to clean up test asset:', deleteError);
+        logger.info('Failed to clean up test asset:', deleteError);
       } else {
-        console.log('Test asset cleaned up successfully');
+        logger.info('Test asset cleaned up successfully');
       }
     }
     
     // Try with minimal fields
     if (insertError) {
-      console.log('\nTrying with minimal fields...');
+      logger.info('\nTrying with minimal fields...');
       const minimalAsset = {
         user_id: DEV_USER.id,
         name: 'minimal-test-asset.txt',
@@ -159,9 +160,9 @@ async function checkDatabaseSchema() {
         .single();
         
       if (minimalError) {
-        console.error('Minimal asset insertion failed:', minimalError);
+        logger.error('Minimal asset insertion failed:', minimalError);
       } else {
-        console.log('Minimal asset insertion succeeded:', minimalInserted);
+        logger.info('Minimal asset insertion succeeded:', minimalInserted);
         
         // Clean up
         await supabase.from('assets').delete().eq('id', minimalInserted.id);
@@ -169,10 +170,10 @@ async function checkDatabaseSchema() {
     }
     
   } catch (error) {
-    console.error('Unexpected error during schema check:', error);
+    logger.error('Unexpected error during schema check:', error);
   }
   
-  console.log('=== Schema Check Complete ===');
+  logger.info('=== Schema Check Complete ===');
 }
 
 // Custom RPC functions that might not exist - these would need to be created in the database
@@ -222,86 +223,86 @@ $$ LANGUAGE plpgsql;
 */
 
 async function listAllAssets() {
-  console.log('\n=== Listing All Assets in Database ===');
+  logger.info('\n=== Listing All Assets in Database ===');
   
   try {
     // First try to get assets from the public.assets table
-    console.log('Fetching assets from public.assets table:');
+    logger.info('Fetching assets from public.assets table:');
     const { data: assets, error: assetsError } = await supabase
       .from('assets')
       .select('*')
       .order('created_at', { ascending: false });
     
     if (assetsError) {
-      console.error('Error fetching assets:', assetsError);
+      logger.error('Error fetching assets:', assetsError);
     } else if (!assets || assets.length === 0) {
-      console.log('No assets found in the database');
+      logger.info('No assets found in the database');
     } else {
-      console.log(`Found ${assets.length} assets in the database:`);
+      logger.info(`Found ${assets.length} assets in the database:`);
       assets.forEach((asset, index) => {
-        console.log(`\n[Asset ${index + 1}]`);
-        console.log(`- ID: ${asset.id}`);
-        console.log(`- Name: ${asset.name}`);
-        console.log(`- Type: ${asset.type}`);
-        console.log(`- URL: ${asset.url}`);
-        console.log(`- User ID: ${asset.user_id}`);
-        console.log(`- Client ID: ${asset.client_id}`);
-        console.log(`- Created: ${asset.created_at}`);
+        logger.info(`\n[Asset ${index + 1}]`);
+        logger.info(`- ID: ${asset.id}`);
+        logger.info(`- Name: ${asset.name}`);
+        logger.info(`- Type: ${asset.type}`);
+        logger.info(`- URL: ${asset.url}`);
+        logger.info(`- User ID: ${asset.user_id}`);
+        logger.info(`- Client ID: ${asset.client_id}`);
+        logger.info(`- Created: ${asset.created_at}`);
       });
     }
     
     // Check for recently uploaded assets - use the admin user ID 
     const ADMIN_USER_ID = 'd53c7f82-42af-4ed0-a83b-2cbf505748db';
-    console.log('\nChecking specifically for assets belonging to the admin user:');
+    logger.info('\nChecking specifically for assets belonging to the admin user:');
     const { data: adminAssets, error: adminError } = await supabase
       .from('assets')
       .select('*')
       .eq('user_id', ADMIN_USER_ID);
     
     if (adminError) {
-      console.error('Error fetching admin assets:', adminError);
+      logger.error('Error fetching admin assets:', adminError);
     } else if (!adminAssets || adminAssets.length === 0) {
-      console.log('No assets found for admin user');
+      logger.info('No assets found for admin user');
     } else {
-      console.log(`Found ${adminAssets.length} assets for admin user:`);
+      logger.info(`Found ${adminAssets.length} assets for admin user:`);
       adminAssets.forEach((asset, index) => {
-        console.log(`\n[Admin Asset ${index + 1}]`);
-        console.log(`- ID: ${asset.id}`);
-        console.log(`- Name: ${asset.name}`);
-        console.log(`- URL: ${asset.url}`);
-        console.log(`- Created: ${asset.created_at}`);
+        logger.info(`\n[Admin Asset ${index + 1}]`);
+        logger.info(`- ID: ${asset.id}`);
+        logger.info(`- Name: ${asset.name}`);
+        logger.info(`- URL: ${asset.url}`);
+        logger.info(`- Created: ${asset.created_at}`);
       });
     }
     
     // Check if there are any RLS policies that might be affecting the visibility
-    console.log('\nChecking RLS policies on assets table:');
+    logger.info('\nChecking RLS policies on assets table:');
     try {
       const { data: rlsPolicies, error: rlsError } = await supabase
         .rpc('get_rls_policies', { target_table: 'assets' });
         
       if (rlsError) {
-        console.log('Could not fetch RLS policies automatically:', rlsError.message);
-        console.log('Suggestion: Check RLS policies in the Supabase dashboard');
+        logger.info('Could not fetch RLS policies automatically:', rlsError.message);
+        logger.info('Suggestion: Check RLS policies in the Supabase dashboard');
       } else if (rlsPolicies) {
-        console.log('RLS Policies found:', rlsPolicies);
+        logger.info('RLS Policies found:', rlsPolicies);
       }
     } catch (rpcError) {
-      console.log('RPC function get_rls_policies does not exist. Check RLS policies in the Supabase dashboard.');
+      logger.info('RPC function get_rls_policies does not exist. Check RLS policies in the Supabase dashboard.');
     }
   } catch (error) {
-    console.error('Unexpected error while listing assets:', error);
+    logger.error('Unexpected error while listing assets:', error);
   }
   
-  console.log('=== Asset Listing Complete ===');
+  logger.info('=== Asset Listing Complete ===');
 }
 
 // Execute the scripts
 async function runAllChecks() {
   await checkDatabaseSchema();
   await listAllAssets();
-  console.log('\nScript execution complete');
+  logger.info('\nScript execution complete');
 }
 
 runAllChecks().catch(err => {
-  console.error('Unhandled error:', err);
+  logger.error('Unhandled error:', err);
 });

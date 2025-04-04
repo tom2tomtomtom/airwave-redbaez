@@ -1,7 +1,8 @@
 import express from 'express';
+import { logger } from './logger';
 import cors from 'cors';
-import dotenv from 'dotenv';
-import path from 'path';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
 import reviewRoutes from './routes/reviewRoutes';
 
 // Initialize environment variables
@@ -145,10 +146,10 @@ app.get('/api/campaigns', (req, res) => {
 
 // Start the server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Health check: http://localhost:${PORT}/health`);
-  console.log(`Test endpoint: http://localhost:${PORT}/api/test`);
-  console.log(`Sample assets: http://localhost:${PORT}/api/assets`);
-  console.log(`Sample templates: http://localhost:${PORT}/api/templates`);
-  console.log(`Sample campaigns: http://localhost:${PORT}/api/campaigns`);
+  logger.info(`Server running on port ${PORT}`);
+  logger.info(`Health check: http://localhost:${PORT}/health`);
+  logger.info(`Test endpoint: http://localhost:${PORT}/api/test`);
+  logger.info(`Sample assets: http://localhost:${PORT}/api/assets`);
+  logger.info(`Sample templates: http://localhost:${PORT}/api/templates`);
+  logger.info(`Sample campaigns: http://localhost:${PORT}/api/campaigns`);
 });

@@ -1,8 +1,9 @@
+import { logger } from '../utils/logger';
 import { createClient } from '@supabase/supabase-js'
 import { v4 as uuidv4 } from 'uuid';
-import fs from 'fs';
-import path from 'path';
-import dotenv from 'dotenv'
+import * as fs from 'fs';
+import * as path from 'path';
+import * as dotenv from 'dotenv'
 dotenv.config()
 
 // Initialize Supabase client
@@ -14,11 +15,11 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const DEV_USER_ID = '00000000-0000-0000-0000-000000000000';
 
 async function testDatabaseDirectly() {
-  console.log('=== Direct Database Test ===');
+  logger.info('=== Direct Database Test ===');
   
   try {
     // Check if development user exists
-    console.log('\nChecking if development user exists...');
+    logger.info('\nChecking if development user exists...');
     const { data: devUser, error: devUserError } = await supabase
       .from('users')
       .select('*')
@@ -26,8 +27,8 @@ async function testDatabaseDirectly() {
       .single();
       
     if (devUserError) {
-      console.error('Error checking dev user:', devUserError);
-      console.log('Creating development user...');
+      logger.error('Error checking dev user:', devUserError);
+      logger.info('Creating development user...');
       
       // Create development user if it doesn't exist
       const { error: createError } = await supabase
@@ -42,29 +43,29 @@ async function testDatabaseDirectly() {
         });
         
       if (createError) {
-        console.error('Failed to create dev user:', createError);
+        logger.error('Failed to create dev user:', createError);
         return;
       }
-      console.log('Dev user created successfully');
+      logger.info('Dev user created successfully');
     } else {
-      console.log('Dev user exists:', devUser);
+      logger.info('Dev user exists:', devUser);
     }
     
     // Check available tables in the database
-    console.log('\nChecking for available tables...');
+    logger.info('\nChecking for available tables...');
     const { data: tables, error: tablesError } = await supabase
       .from('pg_tables')
       .select('tablename')
       .eq('schemaname', 'public');
       
     if (tablesError) {
-      console.error('Error checking tables:', tablesError);
+      logger.error('Error checking tables:', tablesError);
     } else {
-      console.log('Available tables:', tables);
+      logger.info('Available tables:', tables);
     }
     
     // Try to get the exact assets table schema
-    console.log('\nTrying to get assets table schema...');
+    logger.info('\nTrying to get assets table schema...');
     try {
       const { data, error } = await supabase
         .from('assets')
@@ -72,19 +73,19 @@ async function testDatabaseDirectly() {
         .limit(1);
         
       if (error) {
-        console.error('Error accessing assets table:', error);
+        logger.error('Error accessing assets table:', error);
       } else {
         const columnsInfo = data && data.length > 0 
           ? Object.keys(data[0]) 
           : 'No rows found, but table exists';
-        console.log('Assets table columns:', columnsInfo);
+        logger.info('Assets table columns:', columnsInfo);
       }
     } catch (error) {
-      console.error('Error accessing assets table:', error);
+      logger.error('Error accessing assets table:', error);
     }
     
     // Try to get available client IDs
-    console.log('\nFinding a valid client_id...');
+    logger.info('\nFinding a valid client_id...');
     let clientId: string | null = null;
     
     // Try clients table first
@@ -94,10 +95,10 @@ async function testDatabaseDirectly() {
       .limit(1);
       
     if (clientError) {
-      console.log('Cannot access clients table:', clientError);
+      logger.info('Cannot access clients table:', clientError);
     } else if (clientData && clientData.length > 0) {
       clientId = clientData[0].id;
-      console.log('Found client ID from clients table:', clientId);
+      logger.info('Found client ID from clients table:', clientId);
     }
     
     // If no client ID yet, try finding one from existing assets
@@ -110,22 +111,22 @@ async function testDatabaseDirectly() {
         
       if (!assetClientError && assetWithClient && assetWithClient.length > 0) {
         clientId = assetWithClient[0].client_id;
-        console.log('Found client ID from existing asset:', clientId);
+        logger.info('Found client ID from existing asset:', clientId);
       }
     }
     
     // If still no client ID, generate a new UUID
     if (!clientId) {
       clientId = uuidv4();
-      console.log('Generated new client ID:', clientId);
+      logger.info('Generated new client ID:', clientId);
     }
     
     // Try a direct minimal insert with proper UUID values
-    console.log('\nAttempting direct minimal insert with proper UUIDs...');
+    logger.info('\nAttempting direct minimal insert with proper UUIDs...');
     const assetId = uuidv4();
     const assetUrl = `/uploads/${assetId}.txt`;
-    console.log('Asset ID:', assetId);
-    console.log('Client ID:', clientId);
+    logger.info('Asset ID:', assetId);
+    logger.info('Client ID:', clientId);
     
     const assetData = {
       id: assetId,
@@ -144,13 +145,13 @@ async function testDatabaseDirectly() {
       .select();
       
     if (insertError) {
-      console.error('Insert error:', insertError);
+      logger.error('Insert error:', insertError);
       
       // Try variations to detect schema issues
-      console.log('\nTrying variations to detect schema issues...');
+      logger.info('\nTrying variations to detect schema issues...');
       
       // Try without client_id
-      console.log('\nTrying without client_id...');
+      logger.info('\nTrying without client_id...');
       const { client_id, ...withoutClientId } = assetData;
       const { data: noClientData, error: noClientError } = await supabase
         .from('assets')
@@ -158,13 +159,13 @@ async function testDatabaseDirectly() {
         .select();
         
       if (noClientError) {
-        console.error('Error without client_id:', noClientError);
+        logger.error('Error without client_id:', noClientError);
       } else {
-        console.log('Success without client_id:', noClientData);
+        logger.info('Success without client_id:', noClientData);
       }
       
       // Try with minimal fields
-      console.log('\nTrying with absolute minimal fields...');
+      logger.info('\nTrying with absolute minimal fields...');
       const minimalAsset = {
         id: uuidv4(),
         name: 'Minimal Asset',
@@ -178,13 +179,13 @@ async function testDatabaseDirectly() {
         .select();
         
       if (minError) {
-        console.error('Error with minimal fields:', minError);
+        logger.error('Error with minimal fields:', minError);
       } else {
-        console.log('Success with minimal fields:', minData);
+        logger.info('Success with minimal fields:', minData);
       }
       
       // Try direct SQL approach as last resort
-      console.log('\nTrying with direct SQL as a last resort...');
+      logger.info('\nTrying with direct SQL as a last resort...');
       const sqlAssetId = uuidv4();
       const sqlInsert = `
         INSERT INTO assets (id, name, url, user_id) 
@@ -196,15 +197,15 @@ async function testDatabaseDirectly() {
         const { data: sqlData, error: sqlError } = await supabase.rpc('exec_sql', { sql: sqlInsert });
         
         if (sqlError) {
-          console.error('SQL insert error:', sqlError);
+          logger.error('SQL insert error:', sqlError);
         } else {
-          console.log('SQL insert result:', sqlData);
+          logger.info('SQL insert result:', sqlData);
         }
       } catch (error) {
-        console.error('exec_sql function not available:', error);
+        logger.error('exec_sql function not available:', error);
         
         // Last attempt: Try finding all required fields in assets table
-        console.log('\nFinal attempt: Retrieving required columns from information_schema...');
+        logger.info('\nFinal attempt: Retrieving required columns from information_schema...');
         
         try {
           const columnsQuery = `
@@ -218,47 +219,47 @@ async function testDatabaseDirectly() {
           const { data: columns, error: columnsError } = await supabase.rpc('exec_sql', { sql: columnsQuery });
           
           if (columnsError) {
-            console.error('Cannot get columns info:', columnsError);
+            logger.error('Cannot get columns info:', columnsError);
           } else {
-            console.log('Assets table columns from information_schema:', columns);
+            logger.info('Assets table columns from information_schema:', columns);
             
             // Extract required columns (is_nullable = 'NO')
             const requiredColumns = columns
-              .filter((col: any) => col.is_nullable === 'NO')
-              .map((col: any) => col.column_name);
+              .filter(($1: unknown) => col.is_nullable === 'NO')
+              .map(($1: unknown) => col.column_name);
               
-            console.log('Required columns (NOT NULL):', requiredColumns);
+            logger.info('Required columns (NOT NULL):', requiredColumns);
           }
         } catch (error) {
-          console.error('Cannot access information_schema:', error);
+          logger.error('Cannot access information_schema:', error);
         }
       }
     } else {
-      console.log('Insert successful:', insertData);
+      logger.info('Insert successful:', insertData);
     }
     
     // Verify what's in the assets table
-    console.log('\nVerifying assets in database...');
+    logger.info('\nVerifying assets in database...');
     const { data: allAssets, error: allError } = await supabase
       .from('assets')
       .select('*');
       
     if (allError) {
-      console.error('Error retrieving assets:', allError);
+      logger.error('Error retrieving assets:', allError);
     } else {
-      console.log(`Found ${allAssets?.length || 0} assets in database:`);
+      logger.info(`Found ${allAssets?.length || 0} assets in database:`);
       if (allAssets && allAssets.length > 0) {
-        allAssets.forEach((asset: any) => {
-          console.log(`- ${asset.id}: ${asset.name} (${asset.url})`);
+        allAssets.forEach(($1: unknown) => {
+          logger.info(`- ${asset.id}: ${asset.name} (${asset.url})`);
         });
       }
     }
     
   } catch (error) {
-    console.error('Unexpected error during test:', error);
+    logger.error('Unexpected error during test:', error);
   }
   
-  console.log('=== Direct Database Test Complete ===');
+  logger.info('=== Direct Database Test Complete ===');
 }
 
 // Run the test

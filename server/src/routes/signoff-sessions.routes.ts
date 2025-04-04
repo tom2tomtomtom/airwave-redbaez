@@ -41,8 +41,8 @@ router.post('/create', checkAuth, asRouteHandler(async (req: AuthenticatedReques
       message: 'Signoff session created successfully',
       data: { sessionId: session.id }
     });
-  } catch (error: any) {
-    console.error('Error creating signoff session:', error);
+  } catch ($1: unknown) {
+    logger.error('Error creating signoff session:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to create signoff session',
@@ -71,8 +71,8 @@ router.post('/:id/send', checkAuth, asRouteHandler(async (req: AuthenticatedRequ
         reviewUrl: session.reviewUrl
       }
     });
-  } catch (error: any) {
-    console.error('Error sending signoff session:', error);
+  } catch ($1: unknown) {
+    logger.error('Error sending signoff session:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to send signoff session',
@@ -96,8 +96,8 @@ router.get('/campaign/:campaignId', checkAuth, asRouteHandler(async (req: Authen
       success: true,
       data: sessions
     });
-  } catch (error: any) {
-    console.error('Error fetching signoff sessions:', error);
+  } catch ($1: unknown) {
+    logger.error('Error fetching signoff sessions:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch signoff sessions',
@@ -121,8 +121,8 @@ router.get('/:id', checkAuth, asRouteHandler(async (req: AuthenticatedRequest, r
       success: true,
       data: session
     });
-  } catch (error: any) {
-    console.error('Error fetching signoff session:', error);
+  } catch ($1: unknown) {
+    logger.error('Error fetching signoff session:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch signoff session',
@@ -158,8 +158,8 @@ router.get('/client/:id', async (req: Request, res: Response, next: NextFunction
       success: true,
       data: sessionView
     });
-  } catch (error: any) {
-    console.error('Error fetching client view:', error);
+  } catch ($1: unknown) {
+    logger.error('Error fetching client view:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch client view',
@@ -201,8 +201,8 @@ router.post('/client/:id/feedback', async (req: Request, res: Response, next: Ne
       message: 'Feedback submitted successfully',
       data: response
     });
-  } catch (error: any) {
-    console.error('Error processing client feedback:', error);
+  } catch ($1: unknown) {
+    logger.error('Error processing client feedback:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to process feedback',

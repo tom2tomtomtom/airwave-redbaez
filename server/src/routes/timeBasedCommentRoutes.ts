@@ -75,7 +75,7 @@ router.post('/reviews/:reviewId/comments/timebased', internalAuth, asRouteHandle
       .insert(newComment);
     
     if (error) {
-      console.error('Error creating time-based comment:', error);
+      logger.error('Error creating time-based comment:', error);
       return ApiResponse.error(res, error);
     }
     
@@ -168,7 +168,7 @@ router.post('/public/reviews/:reviewId/comments/timebased', reviewAuth, asRouteH
       .insert(newComment);
     
     if (error) {
-      console.error('Error creating time-based comment:', error);
+      logger.error('Error creating time-based comment:', error);
       return ApiResponse.error(res, error);
     }
     
@@ -219,7 +219,7 @@ router.get('/reviews/:reviewId/comments/timebased', internalAuth, asRouteHandler
       .order('timestamp', { ascending: true });
     
     if (error) {
-      console.error('Error fetching time-based comments:', error);
+      logger.error('Error fetching time-based comments:', error);
       return ApiResponse.error(res, error);
     }
     
@@ -283,7 +283,7 @@ router.patch('/reviews/:reviewId/comments/:commentId', internalAuth, asRouteHand
       .single();
     
     if (error) {
-      console.error('Error updating time-based comment:', error);
+      logger.error('Error updating time-based comment:', error);
       return ApiResponse.error(res, error);
     }
     
@@ -329,7 +329,7 @@ router.delete('/reviews/:reviewId/comments/:commentId', internalAuth, asRouteHan
       .eq('id', commentId);
     
     if (error) {
-      console.error('Error deleting time-based comment:', error);
+      logger.error('Error deleting time-based comment:', error);
       return ApiResponse.error(res, error);
     }
     

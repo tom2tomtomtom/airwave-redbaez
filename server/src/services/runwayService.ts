@@ -12,7 +12,7 @@ const RUNWAY_API_KEY = process.env.RUNWAY_API_KEY || '';
 // Updated base URL to use the correct endpoint for image generation
 const RUNWAY_API_URL = 'https://api.runwayml.com/v1/generation';
 // Runway SDK client
-let runwayClient: any = null;
+let runwayClient: Record<string, unknown> = null;
 
 // Initialize the SDK client if API key is available
 if (RUNWAY_API_KEY) {
@@ -20,9 +20,9 @@ if (RUNWAY_API_KEY) {
     runwayClient = new RunwayML({
       apiKey: RUNWAY_API_KEY
     });
-    console.log('Runway SDK client initialized successfully');
+    logger.info('Runway SDK client initialized successfully');
   } catch (error) {
-    console.error('Failed to initialize Runway SDK client:', error);
+    logger.error('Failed to initialize Runway SDK client:', error);
   }
 }
 
@@ -92,9 +92,9 @@ class RunwayService {
         this.sdkClient = new RunwayML({
           apiKey: this.apiKey
         });
-        console.log('Runway SDK client initialized in RunwayService');
+        logger.info('Runway SDK client initialized in RunwayService');
       } catch (error) {
-        console.error('Failed to initialize Runway SDK client in RunwayService:', error);
+        logger.error('Failed to initialize Runway SDK client in RunwayService:', error);
       }
     }
   }
@@ -108,7 +108,7 @@ class RunwayService {
   isConfigured(): boolean {
     const isValid = this.apiKey !== '' && this.apiKey.length > 20 && this.sdkClient !== null;
     if (!isValid) {
-      console.error('Runway service is not properly configured. Missing or invalid API key, or SDK client initialization failed.');
+      logger.error('Runway service is not properly configured. Missing or invalid API key, or SDK client initialization failed.');
     }
     return isValid;
   }
@@ -116,8 +116,8 @@ class RunwayService {
   // Generate an image using Runway API
   async generateImage(options: RunwayImageGenerationOptions): Promise<GenerationJob> {
     try {
-      console.log('Making API call to Runway for image generation');
-      console.log('Using API key:', this.apiKey ? `${this.apiKey.substring(0, 5)}...` : 'Missing');
+      logger.info('Making API call to Runway for image generation');
+      logger.info('Using API key:', this.apiKey ? `${this.apiKey.substring(0, 5)}...` : 'Missing');
       console.log('Options:', JSON.stringify({
         ...options,
         prompt: options.prompt.substring(0, 30) + (options.prompt.length > 30 ? '...' : '')
@@ -143,12 +143,12 @@ class RunwayService {
       };
       
       // Log the full API URL we're connecting to
-      console.log(`Connecting to Runway API: ${this.baseUrl}`);
-      console.log('API request payload:', JSON.stringify(payload));
+      logger.info(`Connecting to Runway API: ${this.baseUrl}`);
+      logger.info('API request payload:', JSON.stringify(payload));
 
       // Using the correct text_to_image endpoint as per documentation
-      console.log(`Using Runway generation endpoint: ${this.baseUrl}`);
-      console.log(`API Key (first 10 chars): ${this.apiKey.substring(0, 10)}...`);
+      logger.info(`Using Runway generation endpoint: ${this.baseUrl}`);
+      logger.info(`API Key (first 10 chars): ${this.apiKey.substring(0, 10)}...`);
       
       // Make the API request to the generation endpoint
       const response = await axios.post(
@@ -165,17 +165,17 @@ class RunwayService {
       );
 
       // Log the raw response data
-      console.log('Runway API response structure:', Object.keys(response.data));
-      console.log('Runway API complete response:', JSON.stringify(response.data));
+      logger.info('Runway API response structure:', Object.keys(response.data));
+      logger.info('Runway API complete response:', JSON.stringify(response.data));
       
       // Handle response based on updated API documentation
       // Process the response based on the actual Runway API response structure
-      console.log('Runway API response structure:', JSON.stringify(response.data, null, 2));
+      logger.info('Runway API response structure:', JSON.stringify(response.data, null, 2));
       
       // Check if we have immediate results in the artifacts array
       if (response.data.artifacts && response.data.artifacts.length > 0) {
         const imageUrl = response.data.artifacts[0].uri;
-        console.log(`Image generated successfully, URL: ${imageUrl}`);
+        logger.info(`Image generated successfully, URL: ${imageUrl}`);
         return { 
           id: response.data.id || `runway-${Date.now()}`, // Use response ID or generate a fallback ID
           imageUrl, 
@@ -190,7 +190,7 @@ class RunwayService {
         throw new Error('No artifacts or task ID returned from Runway API');
       }
       
-      console.log(`Image generation task started with ID: ${taskId}, polling for results...`);
+      logger.info(`Image generation task started with ID: ${taskId}, polling for results...`);
       const imageUrl = await this.pollForTaskResults(taskId);
 
       // Create a job ID for tracking
@@ -204,7 +204,7 @@ class RunwayService {
         imageUrl: imageUrl
       };
 
-      console.log(`Created image generation job with ID: ${job.id}`);
+      logger.info(`Created image generation job with ID: ${job.id}`);
 
       // Store job for status tracking
       this.activeJobs.set(job.id, job);
@@ -225,8 +225,8 @@ class RunwayService {
       }
 
       return job;
-    } catch (error: any) {
-      console.error('Runway API error:', error.response?.data || error.message);
+    } catch ($1: unknown) {
+      logger.error('Runway API error:', error.response?.data || error.message);
       throw new Error(`Failed to generate image: ${error.message}`);
     }
   }
@@ -279,27 +279,27 @@ class RunwayService {
     
     // First try with SDK if available
     if (this.sdkClient && this.sdkClient.tasks && typeof this.sdkClient.tasks.retrieve === 'function') {
-      console.log(`Using SDK to poll for task ${taskId}`);
+      logger.info(`Using SDK to poll for task ${taskId}`);
       
       while (attempts < maxAttempts) {
         try {
-          console.log(`SDK polling attempt ${attempts + 1}/${maxAttempts}`);
+          logger.info(`SDK polling attempt ${attempts + 1}/${maxAttempts}`);
           
           // Use the SDK to check task status
           const taskStatus = await this.sdkClient.tasks.retrieve(taskId);
-          console.log(`SDK task status: ${taskStatus.status}`);
+          logger.info(`SDK task status: ${taskStatus.status}`);
           
           if (['SUCCEEDED', 'COMPLETED'].includes(taskStatus.status)) {
             if (Array.isArray(taskStatus.output) && taskStatus.output.length > 0) {
               const url = taskStatus.output[0];
-              console.log(`Task completed successfully with URL: ${url}`);
+              logger.info(`Task completed successfully with URL: ${url}`);
               return url;
             } else if (taskStatus.artifacts && taskStatus.artifacts.length > 0) {
               const url = taskStatus.artifacts[0].uri;
-              console.log(`Task completed with artifacts URL: ${url}`);
+              logger.info(`Task completed with artifacts URL: ${url}`);
               return url;
             } else {
-              console.warn('Task completed but no output URL found');
+              logger.warn('Task completed but no output URL found');
             }
           } else if (taskStatus.status === 'FAILED') {
             throw new Error(`Task failed: ${taskStatus.error || 'Unknown error'}`);
@@ -307,21 +307,21 @@ class RunwayService {
           
           await new Promise(resolve => setTimeout(resolve, interval));
           attempts++;
-        } catch (error: any) {
-          console.error(`SDK polling error:`, error.message);
+        } catch ($1: unknown) {
+          logger.error(`SDK polling error:`, error.message);
           break; // Fallback to REST API polling
         }
       }
       
       // Reset attempts counter for fallback method
       attempts = 0;
-      console.log('Falling back to REST API polling');
+      logger.info('Falling back to REST API polling');
     }
     
     // Fallback to REST API polling if SDK fails or isn't available
     while (attempts < maxAttempts) {
       try {
-        console.log(`Polling for task ${taskId}, attempt ${attempts + 1}/${maxAttempts}`);
+        logger.info(`Polling for task ${taskId}, attempt ${attempts + 1}/${maxAttempts}`);
         
         // Use the same endpoint structure for status checking as for creation
         const response = await axios.get(
@@ -335,14 +335,14 @@ class RunwayService {
           }
         );
         
-        console.log(`Task status: ${response.data.status || 'unknown'}`);
+        logger.info(`Task status: ${response.data.status || 'unknown'}`);
         
         // Check if the generation is complete - Accept both SUCCEEDED and COMPLETED statuses
         if (response.data.status === 'SUCCEEDED' || response.data.status === 'COMPLETED') {
           // First check for artifacts array - this matches the React component implementation
           if (response.data.artifacts && response.data.artifacts.length > 0) {
             const imageUrl = response.data.artifacts[0].uri;
-            console.log(`Task completed with image URL: ${imageUrl}`);
+            logger.info(`Task completed with image URL: ${imageUrl}`);
             return imageUrl;
           }
           // Fallback handling for other response formats
@@ -350,14 +350,14 @@ class RunwayService {
             // Handle different output formats
             if (Array.isArray(response.data.output) && response.data.output.length > 0) {
               const imageUrl = response.data.output[0];
-              console.log(`Task completed with image URL: ${imageUrl}`);
+              logger.info(`Task completed with image URL: ${imageUrl}`);
               return imageUrl;
             } else if (response.data.output.images && response.data.output.images.length > 0) {
               const imageUrl = response.data.output.images[0].url;
-              console.log(`Task completed with image URL: ${imageUrl}`);
+              logger.info(`Task completed with image URL: ${imageUrl}`);
               return imageUrl;
             } else if (typeof response.data.output === 'string') {
-              console.log(`Task completed with image URL: ${response.data.output}`);
+              logger.info(`Task completed with image URL: ${response.data.output}`);
               return response.data.output;
             }
           }
@@ -368,18 +368,18 @@ class RunwayService {
         // Check for failure
         else if (response.data.status === 'FAILED') {
           const errorMessage = response.data.error || 'Unknown error';
-          console.error(`Task failed: ${errorMessage}`);
+          logger.error(`Task failed: ${errorMessage}`);
           throw new Error(`Generation failed: ${errorMessage}`);
         }
         
         // Task is still in progress, wait before polling again
-        console.log(`Task ${taskId} still in progress, waiting ${interval/1000} seconds...`);
+        logger.info(`Task ${taskId} still in progress, waiting ${interval/1000} seconds...`);
         await new Promise(resolve => setTimeout(resolve, interval));
         attempts++;
-      } catch (error: any) {
-        console.error(`Error polling for task ${taskId}:`, error.message);
+      } catch ($1: unknown) {
+        logger.error(`Error polling for task ${taskId}:`, error.message);
         if (error.response?.data) {
-          console.error(`Error details:`, JSON.stringify(error.response.data));
+          logger.error(`Error details:`, JSON.stringify(error.response.data));
         }
         throw error;
       }
@@ -401,7 +401,7 @@ class RunwayService {
    * @returns Promise with the generation job
    */
   async generateTextToVideo(options: RunwayTextToVideoOptions): Promise<GenerationJob> {
-    console.log('Text-to-video generation is no longer supported');
+    logger.info('Text-to-video generation is no longer supported');
     
     // Create a job ID that indicates this feature is disabled
     const jobId = `disabled-text-to-video-${Date.now()}`;
@@ -438,10 +438,10 @@ class RunwayService {
 
   async generateVideo(options: RunwayVideoGenerationOptions): Promise<GenerationJob> {
     try {
-      console.log('Generating video from image with Runway');
-      console.log(`Using API key: ${this.apiKey ? `${this.apiKey.substring(0, 8)}...` : 'Missing'}`);
-      console.log(`Image URL: ${options.promptImage}`);
-      console.log(`Prompt: ${options.promptText || 'None'}`)
+      logger.info('Generating video from image with Runway');
+      logger.info(`Using API key: ${this.apiKey ? `${this.apiKey.substring(0, 8)}...` : 'Missing'}`);
+      logger.info(`Image URL: ${options.promptImage}`);
+      logger.info(`Prompt: ${options.promptText || 'None'}`)
       
       // Verify that we have a valid configuration
       if (!this.isConfigured()) {
@@ -453,7 +453,7 @@ class RunwayService {
       }
       
       // Create the image-to-video task using the SDK (the approach that worked in our tests)
-      console.log('Creating image-to-video task with SDK...');
+      logger.info('Creating image-to-video task with SDK...');
       const task = await this.sdkClient.imageToVideo.create({
         model: options.model || 'gen3a_turbo',
         promptImage: options.promptImage,
@@ -462,7 +462,7 @@ class RunwayService {
         duration: options.duration || 4
       });
       
-      console.log(`Video generation task created with ID: ${task.id}`);
+      logger.info(`Video generation task created with ID: ${task.id}`);
       
       // Create a job for tracking
       const jobId = `runway-video-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -480,8 +480,8 @@ class RunwayService {
       this.pollVideoTask(task.id, jobId, options.clientId, options.userId);
       
       return job;
-    } catch (error: any) {
-      console.error('Runway video generation error:', error.message);
+    } catch ($1: unknown) {
+      logger.error('Runway video generation error:', error.message);
       throw new Error(`Failed to generate video: ${error.message}`);
     }
   }
@@ -516,8 +516,8 @@ class RunwayService {
           this.wsService.broadcast(WebSocketEvent.JOB_PROGRESS, finalData);
         }
       }
-    } catch (error: any) {
-      console.error('Error polling for video task:', error.message);
+    } catch ($1: unknown) {
+      logger.error('Error polling for video task:', error.message);
       
       // Update the job with the error
       const job = this.activeJobs.get(jobId);
@@ -549,7 +549,7 @@ class RunwayService {
     
     while (attempts < maxAttempts) {
       try {
-        console.log(`Polling for job ${jobId}, attempt ${attempts + 1}/${maxAttempts}`);
+        logger.info(`Polling for job ${jobId}, attempt ${attempts + 1}/${maxAttempts}`);
         
         // Check the generation status
         const response = await axios.get(
@@ -563,7 +563,7 @@ class RunwayService {
           }
         );
         
-        console.log(`Poll response status: ${response.data.status}`);
+        logger.info(`Poll response status: ${response.data.status}`);
         
         if (response.data.status === 'succeeded') {
           // Generation completed
@@ -579,8 +579,8 @@ class RunwayService {
         // Wait before next attempt
         await new Promise(resolve => setTimeout(resolve, interval));
         attempts++;
-      } catch (error: any) {
-        console.error(`Error polling job ${jobId}:`, error.message);
+      } catch ($1: unknown) {
+        logger.error(`Error polling job ${jobId}:`, error.message);
         throw new Error(`Failed to poll for results: ${error.message}`);
       }
     }

@@ -1,7 +1,8 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import { logger } from './logger';
 import fsPromises from 'fs/promises';
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 import { ApiError } from '../../utils/ApiError'; // Adjust path as needed
 import { ErrorCode } from '../../types/errorTypes'; // Adjust path as needed
 import { Asset, DbAsset } from '../../types/assetTypes'; // Adjust path as needed
@@ -372,7 +373,7 @@ describe('AssetService (New)', () => {
     it('should create directories if they do not exist', async () => {
       // Skip test if method is not accessible
       if (!hasEnsureUploadsDir || !ensureUploadsDir) {
-        console.log('Skipping test: ensureUploadsDir method not accessible');
+        logger.info('Skipping test: ensureUploadsDir method not accessible');
         return;
       }
       
@@ -395,7 +396,7 @@ describe('AssetService (New)', () => {
     it('should not create directories if they already exist', async () => {
       // Skip test if method is not accessible
       if (!hasEnsureUploadsDir || !ensureUploadsDir) {
-        console.log('Skipping test: ensureUploadsDir method not accessible');
+        logger.info('Skipping test: ensureUploadsDir method not accessible');
         return;
       }
       
@@ -413,7 +414,7 @@ describe('AssetService (New)', () => {
     it('should handle and throw other errors properly', async () => {
       // Skip test if method is not accessible
       if (!hasEnsureUploadsDir || !ensureUploadsDir) {
-        console.log('Skipping test: ensureUploadsDir method not accessible');
+        logger.info('Skipping test: ensureUploadsDir method not accessible');
         return;
       }
       
@@ -484,7 +485,7 @@ describe('AssetService (New)', () => {
     it('should extract image metadata correctly', async () => {
       // Skip test if method is not accessible
       if (!hasExtractMetadata || !extractMetadata) {
-        console.log('Skipping test: extractMetadata method not accessible');
+        logger.info('Skipping test: extractMetadata method not accessible');
         return;
       }
       
@@ -507,7 +508,7 @@ describe('AssetService (New)', () => {
     it('should extract video metadata correctly', async () => {
       // Skip test if method is not accessible
       if (!hasExtractMetadata || !extractMetadata) {
-        console.log('Skipping test: extractMetadata method not accessible');
+        logger.info('Skipping test: extractMetadata method not accessible');
         return;
       }
       
@@ -530,7 +531,7 @@ describe('AssetService (New)', () => {
     it('should handle other file types gracefully', async () => {
       // Skip test if method is not accessible
       if (!hasExtractMetadata || !extractMetadata) {
-        console.log('Skipping test: extractMetadata method not accessible');
+        logger.info('Skipping test: extractMetadata method not accessible');
         return;
       }
       
@@ -550,7 +551,7 @@ describe('AssetService (New)', () => {
     it('should handle errors during metadata extraction', async () => {
       // Skip test if method is not accessible
       if (!hasExtractMetadata || !extractMetadata) {
-        console.log('Skipping test: extractMetadata method not accessible');
+        logger.info('Skipping test: extractMetadata method not accessible');
         return;
       }
       
@@ -605,7 +606,7 @@ describe('AssetService (New)', () => {
     it('should generate image thumbnail correctly', async () => {
       // Skip test if method is not accessible
       if (!hasGenerateThumbnail || !generateThumbnail) {
-        console.log('Skipping test: generateThumbnail method not accessible');
+        logger.info('Skipping test: generateThumbnail method not accessible');
         return;
       }
       
@@ -629,7 +630,7 @@ describe('AssetService (New)', () => {
     it('should generate video thumbnail correctly', async () => {
       // Skip test if method is not accessible
       if (!hasGenerateThumbnail || !generateThumbnail) {
-        console.log('Skipping test: generateThumbnail method not accessible');
+        logger.info('Skipping test: generateThumbnail method not accessible');
         return;
       }
       
@@ -652,7 +653,7 @@ describe('AssetService (New)', () => {
     it('should handle unsupported file types', async () => {
       // Skip test if method is not accessible
       if (!hasGenerateThumbnail || !generateThumbnail) {
-        console.log('Skipping test: generateThumbnail method not accessible');
+        logger.info('Skipping test: generateThumbnail method not accessible');
         return;
       }
       
@@ -670,7 +671,7 @@ describe('AssetService (New)', () => {
     it('should handle errors during thumbnail generation', async () => {
       // Skip test if method is not accessible
       if (!hasGenerateThumbnail || !generateThumbnail) {
-        console.log('Skipping test: generateThumbnail method not accessible');
+        logger.info('Skipping test: generateThumbnail method not accessible');
         return;
       }
       

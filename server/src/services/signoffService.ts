@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../db/supabaseClient';
 import { SignoffSession, SignoffAsset, SignoffResponse, ClientViewSession } from '../models/signoff.model';
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 
 export class SignoffService {
   /**
@@ -35,13 +35,13 @@ export class SignoffService {
         .single();
 
       if (error) {
-        console.error('Error creating signoff session:', error);
+        logger.error('Error creating signoff session:', error);
         throw new Error(`Failed to create signoff session: ${error.message}`);
       }
 
       return data as SignoffSession;
-    } catch (error: any) {
-      console.error('Error in createSignoffSession:', error);
+    } catch ($1: unknown) {
+      logger.error('Error in createSignoffSession:', error);
       throw new Error(`Failed to create signoff session: ${error.message}`);
     }
   }
@@ -67,13 +67,13 @@ export class SignoffService {
         .select();
 
       if (error) {
-        console.error('Error adding assets to session:', error);
+        logger.error('Error adding assets to session:', error);
         throw new Error(`Failed to add assets to session: ${error.message}`);
       }
 
       return data as SignoffAsset[];
-    } catch (error: any) {
-      console.error('Error in addAssetsToSession:', error);
+    } catch ($1: unknown) {
+      logger.error('Error in addAssetsToSession:', error);
       throw new Error(`Failed to add assets to session: ${error.message}`);
     }
   }
@@ -100,15 +100,15 @@ export class SignoffService {
         .single();
 
       if (error) {
-        console.error('Error sending signoff session:', error);
+        logger.error('Error sending signoff session:', error);
         throw new Error(`Failed to send signoff session: ${error.message}`);
       }
 
       // Here you would typically send an email to the client with the review URL
       // For now, we'll just return the updated session
       return data as SignoffSession;
-    } catch (error: any) {
-      console.error('Error in sendSignoffSession:', error);
+    } catch ($1: unknown) {
+      logger.error('Error in sendSignoffSession:', error);
       throw new Error(`Failed to send signoff session: ${error.message}`);
     }
   }
@@ -125,13 +125,13 @@ export class SignoffService {
         .single();
 
       if (error) {
-        console.error('Error fetching signoff session:', error);
+        logger.error('Error fetching signoff session:', error);
         throw new Error(`Failed to fetch signoff session: ${error.message}`);
       }
 
       return data as SignoffSession;
-    } catch (error: any) {
-      console.error('Error in getSignoffSessionById:', error);
+    } catch ($1: unknown) {
+      logger.error('Error in getSignoffSessionById:', error);
       throw new Error(`Failed to fetch signoff session: ${error.message}`);
     }
   }
@@ -170,7 +170,7 @@ export class SignoffService {
 
       return true;
     } catch (error) {
-      console.error('Error validating access token:', error);
+      logger.error('Error validating access token:', error);
       return false;
     }
   }
@@ -232,7 +232,7 @@ export class SignoffService {
         feedback: sessionData.feedback,
         matrixId: sessionData.matrixId,
         reviewUrl: sessionData.reviewUrl,
-        assets: signoffAssets.map((item: any) => ({
+        assets: signoffAssets.map(($1: unknown) => ({
           id: item.assetId,
           name: item.assets?.name || 'Untitled Asset',
           description: item.assets?.description,
@@ -244,8 +244,8 @@ export class SignoffService {
       };
 
       return clientView;
-    } catch (error: any) {
-      console.error('Error in getClientView:', error);
+    } catch ($1: unknown) {
+      logger.error('Error in getClientView:', error);
       return null;
     }
   }
@@ -336,8 +336,8 @@ export class SignoffService {
       }
 
       return responseData as SignoffResponse;
-    } catch (error: any) {
-      console.error('Error in processClientFeedback:', error);
+    } catch ($1: unknown) {
+      logger.error('Error in processClientFeedback:', error);
       return null;
     }
   }
@@ -358,8 +358,8 @@ export class SignoffService {
       }
 
       return data as SignoffSession[];
-    } catch (error: any) {
-      console.error('Error in listCampaignSignoffSessions:', error);
+    } catch ($1: unknown) {
+      logger.error('Error in listCampaignSignoffSessions:', error);
       throw new Error(`Failed to list signoff sessions: ${error.message}`);
     }
   }

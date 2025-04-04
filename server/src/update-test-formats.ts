@@ -1,4 +1,5 @@
 import { supabase } from './db/supabaseClient';
+import { logger } from './logger';
 
 /**
  * This script manually updates sample templates with different formats
@@ -6,7 +7,7 @@ import { supabase } from './db/supabaseClient';
  */
 async function updateTestFormats() {
   try {
-    console.log('Starting format test update...');
+    logger.info('Starting format test update...');
     
     // First get a list of template IDs
     const { data: templates, error: fetchError } = await supabase
@@ -15,14 +16,14 @@ async function updateTestFormats() {
       .limit(10);
       
     if (fetchError) {
-      console.error('Error fetching templates:', fetchError);
+      logger.error('Error fetching templates:', fetchError);
       return;
     }
     
-    console.log('Found templates:', templates);
+    logger.info('Found templates:', templates);
     
     if (!templates || templates.length === 0) {
-      console.log('No templates found to update');
+      logger.info('No templates found to update');
       return;
     }
     
@@ -33,7 +34,7 @@ async function updateTestFormats() {
       const template = templates[i];
       const format = formats[i];
       
-      console.log(`Updating template ${template.id} (${template.name}) to format ${format}`);
+      logger.info(`Updating template ${template.id} (${template.name}) to format ${format}`);
       
       // Update the format directly
       const { error: updateError } = await supabase
@@ -42,9 +43,9 @@ async function updateTestFormats() {
         .eq('id', template.id);
         
       if (updateError) {
-        console.error(`Error updating template ${template.id}:`, updateError);
+        logger.error(`Error updating template ${template.id}:`, updateError);
       } else {
-        console.log(`✅ Successfully updated template ${template.id} to ${format}`);
+        logger.info(`✅ Successfully updated template ${template.id} to ${format}`);
       }
     }
     
@@ -55,14 +56,14 @@ async function updateTestFormats() {
       .in('id', templates.map(t => t.id));
       
     if (verifyError) {
-      console.error('Error verifying updates:', verifyError);
+      logger.error('Error verifying updates:', verifyError);
     } else {
-      console.log('Updated templates:', updatedTemplates);
+      logger.info('Updated templates:', updatedTemplates);
     }
     
-    console.log('Format test update completed');
+    logger.info('Format test update completed');
   } catch (error) {
-    console.error('Unhandled error:', error);
+    logger.error('Unhandled error:', error);
   }
 }
 

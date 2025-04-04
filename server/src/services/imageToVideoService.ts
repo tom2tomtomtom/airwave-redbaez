@@ -6,8 +6,8 @@ import { logger } from '../utils/logger';
 import { ApiError } from '../utils/ApiError';
 import { ErrorCode } from '../types/errorTypes';
 import { assetService } from './assetService.new';
-import path from 'path';
-import fs from 'fs';
+import * as path from 'path';
+import * as fs from 'fs';
 import fsPromises from 'fs/promises';
 
 // Initialize Runway API client (we'll use Runway for image-to-video conversion)
@@ -161,7 +161,7 @@ class ImageToVideoService {
       
       // Return the job
       return this.activeJobs.get(jobId) as ImageToVideoJob;
-    } catch (error: any) {
+    } catch ($1: unknown) {
       // Handle API error
       logger.error(`Error generating video: ${error.message}`);
       
@@ -256,7 +256,7 @@ class ImageToVideoService {
           // Task still processing, continue polling
           logger.debug(`Image-to-video job ${jobId} still processing (attempt ${attempts})`);
         }
-      } catch (error: any) {
+      } catch ($1: unknown) {
         logger.error(`Error polling for video results: ${error.message}`);
         
         // Don't fail the job yet, try again in the next interval
@@ -520,7 +520,7 @@ class ImageToVideoService {
       } else {
         logger.error(`Failed to save video to assets for job ${jobId}: ${assetResult.message}`);
       }
-    } catch (error: any) {
+    } catch ($1: unknown) {
       logger.error(`Error saving video to assets for job ${jobId}: ${error.message}`);
       throw error;
     }
@@ -546,7 +546,7 @@ class ImageToVideoService {
    * 
    * @param data The complete webhook payload from the Runway API containing job status and output information
    */
-  async handleWebhook(data: any) {
+  async handleWebhook($1: unknown) {
     try {
       // Extract relevant data from webhook
       const taskId = data.id || data.task_id;
@@ -606,7 +606,7 @@ class ImageToVideoService {
         
         logger.debug(`Image-to-video job ${jobId} still processing at ${progress}%`);
       }
-    } catch (error: any) {
+    } catch ($1: unknown) {
       logger.error(`Error handling webhook: ${error.message}`);
     }
   }

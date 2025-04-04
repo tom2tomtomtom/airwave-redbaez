@@ -1,5 +1,6 @@
+import { logger } from '../utils/logger';
 import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
 dotenv.config();
 
 // Initialize Supabase client
@@ -17,29 +18,29 @@ const userIds = [
 ];
 
 async function checkAllUsers() {
-  console.log('=== Checking All Users ===');
+  logger.info('=== Checking All Users ===');
 
   try {
     // First, get all users from the public.users table
-    console.log('\nFetching all users from public.users:');
+    logger.info('\nFetching all users from public.users:');
     const { data: allUsers, error: usersError } = await supabase
       .from('users')
       .select('*');
       
     if (usersError) {
-      console.error('Error fetching users:', usersError);
+      logger.error('Error fetching users:', usersError);
     } else {
-      console.log(`Found ${allUsers?.length || 0} users in public.users table`);
+      logger.info(`Found ${allUsers?.length || 0} users in public.users table`);
       allUsers?.forEach(user => {
-        console.log(`- ID: ${user.id}, Email: ${user.email}, Role: ${user.role}`);
+        logger.info(`- ID: ${user.id}, Email: ${user.email}, Role: ${user.role}`);
       });
     }
     
     // Now check each user ID individually
-    console.log('\nChecking each user ID individually:');
+    logger.info('\nChecking each user ID individually:');
     
     for (const id of userIds) {
-      console.log(`\nChecking user ID: ${id}`);
+      logger.info(`\nChecking user ID: ${id}`);
       
       // Check in public.users
       const { data: publicUser, error: publicError } = await supabase
@@ -49,17 +50,17 @@ async function checkAllUsers() {
         .maybeSingle();
         
       if (publicError && publicError.code !== 'PGRST116') {
-        console.error(`Error checking public.users for ID ${id}:`, publicError);
+        logger.error(`Error checking public.users for ID ${id}:`, publicError);
       } else if (publicUser) {
-        console.log(`✅ User exists in public.users: ${publicUser.email} (${publicUser.role})`);
+        logger.info(`✅ User exists in public.users: ${publicUser.email} (${publicUser.role})`);
       } else {
-        console.log(`❌ User does NOT exist in public.users`);
+        logger.info(`❌ User does NOT exist in public.users`);
       }
     }
     
     // Try inserting a test asset with Tom's user ID
     const tomUserId = '46be7eb7-f633-4e72-bb5b-6a5e6aa6b280';
-    console.log(`\nTrying to insert a test asset with Tom's user ID (${tomUserId}):`);
+    logger.info(`\nTrying to insert a test asset with Tom's user ID (${tomUserId}):`);
     
     // Find a valid client ID first
     const { data: clientData, error: clientError } = await supabase
@@ -68,10 +69,10 @@ async function checkAllUsers() {
       .limit(1);
       
     if (clientError) {
-      console.error('Error finding client:', clientError);
+      logger.error('Error finding client:', clientError);
     } else if (clientData && clientData.length > 0) {
       const clientId = clientData[0].id;
-      console.log(`Using client: ${clientData[0].name} (${clientId})`);
+      logger.info(`Using client: ${clientData[0].name} (${clientId})`);
       
       const { data: assetInsert, error: assetError } = await supabase
         .from('assets')
@@ -88,17 +89,17 @@ async function checkAllUsers() {
         .select();
         
       if (assetError) {
-        console.error('Asset insert error:', assetError);
+        logger.error('Asset insert error:', assetError);
       } else {
-        console.log('Asset insert success:', assetInsert);
+        logger.info('Asset insert success:', assetInsert);
       }
     }
     
   } catch (error) {
-    console.error('Unexpected error:', error);
+    logger.error('Unexpected error:', error);
   }
   
-  console.log('\n=== User Check Complete ===');
+  logger.info('\n=== User Check Complete ===');
 }
 
 // Run the check

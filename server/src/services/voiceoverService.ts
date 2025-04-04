@@ -1,6 +1,6 @@
 import axios from 'axios';
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { createLogger } from '../utils/logger';
 import { assetService } from './assetService.new';
@@ -278,7 +278,7 @@ class VoiceoverService {
         
         audioBuffer = Buffer.from(response.data);
         logger.info(`Successfully received audio data for job ${jobId} (${audioBuffer.length} bytes)`);
-      } catch (error: any) {
+      } catch ($1: unknown) {
         logger.error(`Error calling ElevenLabs API: ${error.message}`);
         
         // If API key is missing or we're in development mode, generate a mock audio file
@@ -373,7 +373,7 @@ class VoiceoverService {
       
       logger.info(`Successfully completed voiceover job ${jobId}`);
       
-    } catch (error: any) {
+    } catch ($1: unknown) {
       logger.error(`Error in voiceover job ${jobId}: ${error.message}`);
       this.updateJobStatus(jobId, {
         status: 'failed',

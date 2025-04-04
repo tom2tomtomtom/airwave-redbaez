@@ -40,13 +40,13 @@ class NotificationService {
         });
       
       if (error) {
-        console.error('Error creating notification:', error);
+        logger.error('Error creating notification:', error);
         throw error;
       }
       
       return notification;
     } catch (error) {
-      console.error('Error in createNotification:', error);
+      logger.error('Error in createNotification:', error);
       throw error;
     }
   }
@@ -61,7 +61,7 @@ class NotificationService {
         .range(offset, offset + limit - 1);
       
       if (error) {
-        console.error('Error getting notifications:', error);
+        logger.error('Error getting notifications:', error);
         throw error;
       }
       
@@ -76,7 +76,7 @@ class NotificationService {
         metadata: item.metadata
       }));
     } catch (error) {
-      console.error('Error in getNotifications:', error);
+      logger.error('Error in getNotifications:', error);
       throw error;
     }
   }
@@ -89,11 +89,11 @@ class NotificationService {
         .eq('id', notificationId);
       
       if (error) {
-        console.error('Error marking notification as read:', error);
+        logger.error('Error marking notification as read:', error);
         throw error;
       }
     } catch (error) {
-      console.error('Error in markAsRead:', error);
+      logger.error('Error in markAsRead:', error);
       throw error;
     }
   }
@@ -107,11 +107,11 @@ class NotificationService {
         .eq('read', false);
       
       if (error) {
-        console.error('Error marking all notifications as read:', error);
+        logger.error('Error marking all notifications as read:', error);
         throw error;
       }
     } catch (error) {
-      console.error('Error in markAllAsRead:', error);
+      logger.error('Error in markAllAsRead:', error);
       throw error;
     }
   }
@@ -124,11 +124,11 @@ class NotificationService {
         .eq('id', notificationId);
       
       if (error) {
-        console.error('Error deleting notification:', error);
+        logger.error('Error deleting notification:', error);
         throw error;
       }
     } catch (error) {
-      console.error('Error in deleteNotification:', error);
+      logger.error('Error in deleteNotification:', error);
       throw error;
     }
   }
@@ -142,13 +142,13 @@ class NotificationService {
         .eq('read', false);
       
       if (error) {
-        console.error('Error getting unread count:', error);
+        logger.error('Error getting unread count:', error);
         throw error;
       }
       
       return count || 0;
     } catch (error) {
-      console.error('Error in getUnreadCount:', error);
+      logger.error('Error in getUnreadCount:', error);
       throw error;
     }
   }

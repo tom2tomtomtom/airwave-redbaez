@@ -61,7 +61,7 @@ export const internalAuth = async (
 
     next(); // Proceed to the next middleware/route handler
 
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error('JWT verification failed:', error.message);
     if (error instanceof jwt.TokenExpiredError) {
       return res.status(401).json({ message: 'Token expired.' });

@@ -3,6 +3,7 @@
  * This centralizes parameter handling logic across all routes
  */
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import { isValidUuid } from '../utils/uuidUtils';
 
 /**
@@ -47,16 +48,16 @@ export function normalizeClientParams(req: Request, res: Response, next: NextFun
     req.query.clientId = normalizedClientId;
     (req as any).normalizedClientId = normalizedClientId;
     
-    console.log(`✅ Normalized client ID: ${normalizedClientId}`);
+    logger.info(`✅ Normalized client ID: ${normalizedClientId}`);
     
     // Check if it's a UUID or a slug
     if (isValidUuid(normalizedClientId)) {
-      console.log('Client ID is a valid UUID');
+      logger.info('Client ID is a valid UUID');
     } else {
-      console.log('Client ID appears to be a slug or other format');
+      logger.info('Client ID appears to be a slug or other format');
     }
   } else {
-    console.log('⚠️ No client ID parameter found');
+    logger.info('⚠️ No client ID parameter found');
   }
   
   // Similar handling for other common parameters can be added here

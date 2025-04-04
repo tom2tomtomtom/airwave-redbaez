@@ -1,7 +1,8 @@
+import { logger } from '../utils/logger';
 import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
+import * as dotenv from 'dotenv';
+import * as fs from 'fs';
+import * as path from 'path';
 dotenv.config();
 
 // Initialize Supabase client
@@ -17,11 +18,11 @@ let ADMIN_USER_ID = 'd53c7f82-42af-4ed0-a83b-2cbf505748db'; // Default, will be 
 const DEFAULT_CLIENT_ID = 'fe418478-806e-411a-ad0b-1b9a537a8081'; // Replace with your actual default client ID
 
 async function fixMissingAsset() {
-  console.log('=== Fixing Missing Asset ===');
+  logger.info('=== Fixing Missing Asset ===');
   
   try {
     // Verify admin user exists
-    console.log(`\nVerifying admin user exists (ID: ${ADMIN_USER_ID}):`);
+    logger.info(`\nVerifying admin user exists (ID: ${ADMIN_USER_ID}):`);
     const { data: adminUser, error: userError } = await supabase
       .from('users')
       .select('*')
@@ -29,8 +30,8 @@ async function fixMissingAsset() {
       .single();
       
     if (userError) {
-      console.error('Error fetching admin user:', userError);
-      console.log('\nLet\'s try to find a valid user:');
+      logger.error('Error fetching admin user:', userError);
+      logger.info('\nLet\'s try to find a valid user:');
       
       const { data: anyUser, error: anyUserError } = await supabase
         .from('users')
@@ -39,18 +40,18 @@ async function fixMissingAsset() {
         .single();
         
       if (anyUserError) {
-        console.error('Could not find any valid user:', anyUserError);
+        logger.error('Could not find any valid user:', anyUserError);
         return;
       }
       
-      console.log('Found user:', anyUser.id);
+      logger.info('Found user:', anyUser.id);
       ADMIN_USER_ID = anyUser.id; // Assign the first found user ID
     } else {
-      console.log('Admin user found:', adminUser);
+      logger.info('Admin user found:', adminUser);
     }
     
     // Check if the file exists on filesystem
-    console.log('\nVerifying files exist on filesystem:');
+    logger.info('\nVerifying files exist on filesystem:');
     const mainFilePath = path.join(
       process.cwd(), 
       'uploads', 
@@ -62,16 +63,16 @@ async function fixMissingAsset() {
       `thumb-${MISSING_ASSET_ID}.png`
     );
     
-    console.log(`Checking main file: ${mainFilePath}`);
+    logger.info(`Checking main file: ${mainFilePath}`);
     const fileExists = fs.existsSync(mainFilePath);
-    console.log(`File ${fileExists ? 'EXISTS' : 'DOES NOT EXIST'}`);
+    logger.info(`File ${fileExists ? 'EXISTS' : 'DOES NOT EXIST'}`);
     
-    console.log(`Checking thumbnail: ${thumbnailPath}`);
+    logger.info(`Checking thumbnail: ${thumbnailPath}`);
     const thumbExists = fs.existsSync(thumbnailPath);
-    console.log(`Thumbnail ${thumbExists ? 'EXISTS' : 'DOES NOT EXIST'}`);
+    logger.info(`Thumbnail ${thumbExists ? 'EXISTS' : 'DOES NOT EXIST'}`);
     
     if (!fileExists) {
-      console.log('Cannot proceed - file does not exist.');
+      logger.info('Cannot proceed - file does not exist.');
       return;
     }
     
@@ -80,7 +81,7 @@ async function fixMissingAsset() {
     const fileSizeBytes = fileStats.size;
     
     // Attempt to create the asset record
-    console.log('\nCreating asset record with valid user ID:');
+    logger.info('\nCreating asset record with valid user ID:');
     const newAsset = {
       id: MISSING_ASSET_ID,
       name: 'Juniper Brainfog Colour@2x',
@@ -96,7 +97,7 @@ async function fixMissingAsset() {
       }
     };
     
-    console.log('Attempting to insert asset with valid user ID:', newAsset);
+    logger.info('Attempting to insert asset with valid user ID:', newAsset);
     const { data: insertResult, error: insertError } = await supabase
       .from('assets')
       .insert(newAsset)
@@ -104,11 +105,11 @@ async function fixMissingAsset() {
       .single();
       
     if (insertError) {
-      console.error('Insert failed:', insertError);
+      logger.error('Insert failed:', insertError);
       
       // Try alternative approach if owner_id is required but user_id failed
       if (insertError.message.includes('user_id')) {
-        console.log('\nTrying alternative with owner_id:');
+        logger.info('\nTrying alternative with owner_id:');
         newAsset.owner_id = ADMIN_USER_ID;
         
         const { data: ownerInsertResult, error: ownerInsertError } = await supabase
@@ -118,23 +119,23 @@ async function fixMissingAsset() {
           .single();
           
         if (ownerInsertError) {
-          console.error('Owner insert failed:', ownerInsertError);
-          console.log('\nPlease check the schema requirements. You might need to modify the assetService.ts code.');
+          logger.error('Owner insert failed:', ownerInsertError);
+          logger.info('\nPlease check the schema requirements. You might need to modify the assetService.ts code.');
         } else {
-          console.log('Success with owner_id approach:', ownerInsertResult);
-          console.log('\nAsset should now appear in your UI.');
+          logger.info('Success with owner_id approach:', ownerInsertResult);
+          logger.info('\nAsset should now appear in your UI.');
         }
       }
     } else {
-      console.log('Success:', insertResult);
-      console.log('\nAsset should now appear in your UI.');
+      logger.info('Success:', insertResult);
+      logger.info('\nAsset should now appear in your UI.');
     }
     
   } catch (error) {
-    console.error('Unexpected error:', error);
+    logger.error('Unexpected error:', error);
   }
   
-  console.log('\n=== Asset Fix Complete ===');
+  logger.info('\n=== Asset Fix Complete ===');
 }
 
 // Run the fix

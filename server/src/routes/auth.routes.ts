@@ -1,4 +1,5 @@
 import express from 'express';
+import { logger } from '../utils/logger';
 import { authenticateToken as checkAuth, AUTH_MODE } from '../middleware/auth';
 import bcrypt from 'bcrypt';
 import { AuthenticatedRequest } from '../types/AuthenticatedRequest';
@@ -20,11 +21,11 @@ router.post('/register-complete', async (req: express.Request, res: Response, ne
       return next(new ApiError(ErrorCode.INVALID_INPUT, 'User data (id, email) is required'));
     }
 
-    console.log(`Completing registration for user: ${user.id} (${user.email})`);
+    logger.info(`Completing registration for user: ${user.id} (${user.email})`);
     
     // Check if we're in prototype mode
     if (process.env.PROTOTYPE_MODE === 'true') {
-      console.log('PROTOTYPE MODE: Bypassing database registration completion');
+      logger.info('PROTOTYPE MODE: Bypassing database registration completion');
       return res.status(201).json({
         success: true,
         message: 'Registration completed successfully in prototype mode'
@@ -40,7 +41,7 @@ router.post('/register-complete', async (req: express.Request, res: Response, ne
       .single();
       
     if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is the 'not found' error code
-      console.error('Error checking user:', checkError);
+      logger.error('Error checking user:', checkError);
     }
     
     // If user doesn't exist in our table, create it
@@ -56,13 +57,13 @@ router.post('/register-complete', async (req: express.Request, res: Response, ne
         });
       
       if (insertError) {
-        console.error('Error inserting user into database:', insertError);
-        return next(new ApiError(ErrorCode.DATABASE_ERROR, 'Error creating user in database', undefined, { originalError: insertError.message }));
+        logger.error('Error inserting user into database:', insertError);
+        return next(new ApiError(ErrorCode.OPERATION_FAILED, 'Error inserting user into database', { originalError: insertError.message }));
       }
       
-      console.log('User record created in database');
+      logger.info('User record created in database');
     } else {
-      console.log('User already exists in database');
+      logger.info('User already exists in database');
     }
 
     // Return success
@@ -70,8 +71,8 @@ router.post('/register-complete', async (req: express.Request, res: Response, ne
       success: true,
       message: 'Registration completed successfully'
     });
-  } catch (error: any) {
-    console.error('Registration completion error:', error);
+  } catch (error: unknown) {
+    logger.error('Registration completion error:', error);
     next(error); // Pass to error handler
   }
 });
@@ -88,11 +89,11 @@ router.post('/session', async (req: express.Request, res: Response, next: NextFu
       return next(new ApiError(ErrorCode.INVALID_INPUT, 'Session and user data are required'));
     }
 
-    console.log(`Session sync for user: ${user.id} (${user.email})`);
+    logger.info(`Session sync for user: ${user.id} (${user.email})`);
     
     // Check if we're in prototype mode
     if (process.env.PROTOTYPE_MODE === 'true') {
-      console.log('PROTOTYPE MODE: Bypassing database session sync');
+      logger.info('PROTOTYPE MODE: Bypassing database session sync');
       return res.json({
         success: true,
         message: 'Session synchronized successfully in prototype mode'
@@ -108,12 +109,12 @@ router.post('/session', async (req: express.Request, res: Response, next: NextFu
       .single();
       
     if (userError && userError.code !== 'PGRST116') { // PGRST116 is the 'not found' error code
-      console.error('Error checking user:', userError);
+      logger.error('Error checking user:', userError);
     }
     
     // Create user if doesn't exist
     if (!existingUser) {
-      console.log('Creating user record in database for:', user.id);
+      logger.info('Creating user record in database for:', user.id);
       const { error: insertError } = await supabase
         .from('users')
         .insert({
@@ -124,7 +125,7 @@ router.post('/session', async (req: express.Request, res: Response, next: NextFu
         });
         
       if (insertError) {
-        console.error('Error creating user record:', insertError);
+        logger.error('Error creating user record:', insertError);
       }
     }
 
@@ -133,8 +134,8 @@ router.post('/session', async (req: express.Request, res: Response, next: NextFu
       success: true,
       message: 'Session synchronized successfully'
     });
-  } catch (error: any) {
-    console.error('Session sync error:', error);
+  } catch (error: unknown) {
+    logger.error('Session sync error:', error);
     next(error); // Pass to error handler
   }
 }); // Correct closing for the route handler
@@ -144,7 +145,7 @@ router.get('/me', checkAuth, async (req: AuthenticatedRequest, res: Response, ne
   try {
     // Check if we're in prototype or development mode with auth bypass
     if ((AUTH_MODE.CURRENT === 'prototype' || AUTH_MODE.CURRENT === 'development') && AUTH_MODE.BYPASS_AUTH) {
-      console.log('PROTOTYPE MODE with auth bypass: Returning mock user data');
+      logger.info('PROTOTYPE MODE with auth bypass: Returning mock user data');
       return res.json({
         success: true,
         data: {
@@ -172,12 +173,12 @@ router.get('/me', checkAuth, async (req: AuthenticatedRequest, res: Response, ne
     const { data: tokenData, error: tokenError } = await supabase.auth.getUser(token);
     
     if (tokenError || !tokenData.user) {
-      console.error('Invalid Supabase token:', tokenError?.message || 'User not found');
-      return next(new ApiError(ErrorCode.AUTHENTICATION_REQUIRED, tokenError?.message || 'Invalid or expired token', undefined, { originalError: tokenError }));
+      logger.error('Invalid Supabase token:', tokenError?.message || 'User not found');
+      return next(new ApiError(ErrorCode.AUTHENTICATION_ERROR, 'Invalid Supabase token', { originalError: tokenError }));
     }
     
     const authUser = tokenData.user;
-    console.log('GET /me - User from Supabase token:', authUser.id);
+    logger.info('GET /me - User from Supabase token:', authUser.id);
 
     // Get additional user data from our database
     const { data: dbUser, error: dbError } = await supabase
@@ -187,7 +188,7 @@ router.get('/me', checkAuth, async (req: AuthenticatedRequest, res: Response, ne
       .single();
     
     if (dbError && dbError.code !== 'PGRST116') { // PGRST116 is 'not found'
-      console.error('Error fetching user from database:', dbError.message);
+      logger.error('Error fetching user from database:', dbError.message);
     }
     
     // Combine data from Auth and database
@@ -204,8 +205,8 @@ router.get('/me', checkAuth, async (req: AuthenticatedRequest, res: Response, ne
       success: true,
       data: user,
     });
-  } catch (error: any) {
-    console.error('Error fetching user:', error);
+  } catch (error: unknown) {
+    logger.error('Error fetching user:', error);
     next(error); // Pass to error handler
   }
 });
@@ -231,8 +232,8 @@ router.post('/register', checkAuth, async (req: AuthenticatedRequest, res: Respo
     const { data: tokenData, error: tokenError } = await supabase.auth.getUser(token);
     
     if (tokenError || !tokenData.user) {
-       console.error('Invalid Supabase token for admin check:', tokenError?.message || 'User not found');
-      return next(new ApiError(ErrorCode.AUTHENTICATION_REQUIRED, tokenError?.message || 'Invalid or expired token for admin check', undefined, { originalError: tokenError }));
+       logger.error('Invalid Supabase token for admin check:', tokenError?.message || 'User not found');
+      return next(new ApiError(ErrorCode.AUTHENTICATION_ERROR, 'Invalid Supabase token for admin check', { originalError: tokenError }));
     }
     
     // Check admin role
@@ -257,8 +258,8 @@ router.post('/register', checkAuth, async (req: AuthenticatedRequest, res: Respo
     });
     
     if (signUpError) {
-      console.error('Error creating user with Supabase Auth:', signUpError);
-      return next(new ApiError(ErrorCode.AUTHENTICATION_ERROR, 'Error creating user', undefined, { originalError: signUpError.message }));
+      logger.error('Error creating user with Supabase Auth:', signUpError);
+      return next(new ApiError(ErrorCode.OPERATION_FAILED, 'Error creating user with Supabase Auth', { originalError: signUpError.message }));
     }
     
     if (!authData.user) {
@@ -276,7 +277,7 @@ router.post('/register', checkAuth, async (req: AuthenticatedRequest, res: Respo
       });
       
     if (insertError) {
-      console.error('Error inserting user into database:', insertError);
+      logger.error('Error inserting user into database:', insertError);
       // We don't return an error here because the auth user was created successfully
       // This is a non-critical error that we'll log but not fail the request
     }
@@ -291,8 +292,8 @@ router.post('/register', checkAuth, async (req: AuthenticatedRequest, res: Respo
         role
       }
     });
-  } catch (error: any) {
-    console.error('Registration error:', error);
+  } catch (error: unknown) {
+    logger.error('Registration error:', error);
     next(error); // Pass to error handler
   }
 });
@@ -305,7 +306,7 @@ router.post('/dev-login', async (req: express.Request, res: Response, next: Next
       return next(new ApiError(ErrorCode.INSUFFICIENT_PERMISSIONS, 'Development login only available in development mode'));
     }
     
-    console.log('Development login requested');
+    logger.info('Development login requested');
     
     // Create a mock user and session
     const mockUser = {
@@ -329,8 +330,8 @@ router.post('/dev-login', async (req: express.Request, res: Response, next: Next
         session: mockSession
       }
     });
-  } catch (error: any) {
-    console.error('Development login error:', error);
+  } catch (error: unknown) {
+    logger.error('Development login error:', error);
     next(error); // Pass to error handler
   }
 });

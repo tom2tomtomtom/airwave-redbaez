@@ -24,11 +24,11 @@ declare module 'winston' {
     function combine(...formats: any[]): any;
     function timestamp(options?: any): any;
     function colorize(options?: any): any;
-    function printf(template: (info: any) => string): any;
+    function printf(template: ($1: unknown) => string): any;
   }
 
   // Winston functions
-  export function createLogger(options: any): Logger;
+  export function createLogger($1: unknown): Logger;
 
   // Winston transports namespace
   export namespace transports {

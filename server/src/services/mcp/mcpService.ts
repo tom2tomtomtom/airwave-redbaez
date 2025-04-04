@@ -4,7 +4,8 @@ import { PromptTemplate } from "@langchain/core/prompts";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { MCPConfig, MCPRequest, MCPResponse, MCPStepResult } from "../../types/mcp";
-import dotenv from "dotenv";
+import * as dotenv from 'dotenv';
+import { logger } from '../../utils/logger';
 
 dotenv.config();
 
@@ -108,7 +109,7 @@ Think through this step carefully and provide both your reasoning process and a 
         
         step++;
       } catch (error) {
-        console.error("Error parsing model output:", error);
+        logger.error("Error parsing model output:", error);
         
         // Add the raw output as a step to avoid losing information
         results.push({
@@ -131,6 +132,34 @@ Think through this step carefully and provide both your reasoning process and a 
         executionTimeMs: endTime - startTime,
         completedAt: new Date().toISOString(),
       },
+    };
+  }
+
+  // Add missing methods that are called from mcpController
+  async getStatus(): Promise<Record<string, unknown>> {
+    return {
+      status: "operational",
+      model: this.config.model,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  async createProject(projectData: {
+    name: string;
+    description?: string;
+    settings?: Record<string, unknown>;
+    userId?: string;
+  }): Promise<Record<string, unknown>> {
+    logger.info(`Creating project: ${projectData.name}`);
+    
+    // In a real implementation, this would save to a database
+    return {
+      id: `proj_${Date.now()}`,
+      name: projectData.name,
+      description: projectData.description || "",
+      settings: projectData.settings || {},
+      userId: projectData.userId || "anonymous",
+      createdAt: new Date().toISOString()
     };
   }
 }

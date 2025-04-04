@@ -5,6 +5,7 @@
  */
 
 import { supabase } from '../db/supabaseClient';
+import { logger } from './logger';
 import { v4 as uuidv4 } from 'uuid';
 
 // Create a proper UUID for the development user
@@ -13,8 +14,8 @@ import { v4 as uuidv4 } from 'uuid';
 const DEV_USER_ID = '00000000-0000-0000-0000-000000000000';
 
 async function createDevUser() {
-  console.log('⚠️ Using Supabase service role key for development');
-  console.log('🔍 Checking if development user exists in both auth and database tables...');
+  logger.info('⚠️ Using Supabase service role key for development');
+  logger.info('🔍 Checking if development user exists in both auth and database tables...');
   
   // Check if user exists in auth.users
   try {
@@ -22,12 +23,12 @@ async function createDevUser() {
     const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(DEV_USER_ID);
     
     if (authError) {
-      console.log('🚫 User not found in auth system or error checking:', authError.message);
+      logger.info('🚫 User not found in auth system or error checking:', authError.message);
     } else if (authUser && authUser.user) {
-      console.log('✅ User exists in auth system:', authUser.user.email);
+      logger.info('✅ User exists in auth system:', authUser.user.email);
     }
   } catch (e) {
-    console.log('🚫 Error checking auth user:', e);
+    logger.info('🚫 Error checking auth user:', e);
   }
   
   // Check the users table
@@ -38,14 +39,14 @@ async function createDevUser() {
     .single();
   
   if (dbError) {
-    console.log('🚫 User not found in database users table:', dbError.message);
+    logger.info('🚫 User not found in database users table:', dbError.message);
   } else {
-    console.log('✅ User exists in database users table:', dbUser);
+    logger.info('✅ User exists in database users table:', dbUser);
   }
   
   // If not found in database, create it
   if (dbError) {
-    console.log('🔧 Creating development user in database users table...');
+    logger.info('🔧 Creating development user in database users table...');
     
     // Use RPC call to ensure the user is created with proper privileges
     const { data: insertResult, error: insertError } = await supabase
@@ -57,7 +58,7 @@ async function createDevUser() {
       });
       
     if (insertError) {
-      console.log('⚠️ RPC method not available, falling back to direct insert...');
+      logger.info('⚠️ RPC method not available, falling back to direct insert...');
       
       // Direct insert as fallback
       const { data: directInsert, error: directError } = await supabase
@@ -73,10 +74,10 @@ async function createDevUser() {
         .select();
         
       if (directError) {
-        console.error('❌ Failed to create user via direct insert:', directError);
+        logger.error('❌ Failed to create user via direct insert:', directError);
         
         // Last resort - try SQL insert
-        console.log('🔄 Trying SQL approach as last resort...');
+        logger.info('🔄 Trying SQL approach as last resort...');
         try {
           // Use raw SQL as last resort to bypass RLS
           await supabase.auth.signInWithPassword({
@@ -98,18 +99,18 @@ async function createDevUser() {
             .select();
             
           if (sqlError) {
-            console.error('❌ All approaches failed to create user:', sqlError);
+            logger.error('❌ All approaches failed to create user:', sqlError);
           } else {
-            console.log('✅ User created successfully via SQL approach:', sqlResult);
+            logger.info('✅ User created successfully via SQL approach:', sqlResult);
           }
         } catch (e) {
-          console.error('❌ Error with SQL approach:', e);
+          logger.error('❌ Error with SQL approach:', e);
         }
       } else {
-        console.log('✅ User created successfully via direct insert:', directInsert);
+        logger.info('✅ User created successfully via direct insert:', directInsert);
       }
     } else {
-      console.log('✅ User created successfully via RPC:', insertResult);
+      logger.info('✅ User created successfully via RPC:', insertResult);
     }
   }
   
@@ -121,14 +122,14 @@ async function createDevUser() {
     .single();
     
   if (verifyError) {
-    console.error('❌ Failed to verify user creation:', verifyError);
+    logger.error('❌ Failed to verify user creation:', verifyError);
   } else {
-    console.log('✅ Verified development user exists:', verifyUser);
-    console.log('✅ Development user is ready for asset uploads.');
+    logger.info('✅ Verified development user exists:', verifyUser);
+    logger.info('✅ Development user is ready for asset uploads.');
   }
   
   // Final validation - attempt a test insert to assets table
-  console.log('🧪 Testing foreign key constraint with a dummy query...');
+  logger.info('🧪 Testing foreign key constraint with a dummy query...');
   const { error: testError } = await supabase
     .from('assets')
     .select('*')
@@ -136,9 +137,9 @@ async function createDevUser() {
     .limit(1);
     
   if (testError) {
-    console.error('❌ Foreign key test failed:', testError);
+    logger.error('❌ Foreign key test failed:', testError);
   } else {
-    console.log('✅ Foreign key constraint test passed. Assets can reference this user.');
+    logger.info('✅ Foreign key constraint test passed. Assets can reference this user.');
   }
 }
 
@@ -146,6 +147,6 @@ async function createDevUser() {
 createDevUser()
   .then(() => process.exit(0))
   .catch((err) => {
-    console.error('Unhandled error:', err);
+    logger.error('Unhandled error:', err);
     process.exit(1);
   });

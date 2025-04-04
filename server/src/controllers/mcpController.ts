@@ -1,58 +1,66 @@
-import { Request, Response } from 'express';
-import { validationResult } from 'express-validator';
+import { logger } from '../utils/logger';
+import { Request, Response, NextFunction } from 'express';
+import { AuthenticatedRequest } from '../types/AuthenticatedRequest';
 import MCPService from '../services/mcp/mcpService';
-import { MCPRequest } from '../types/mcp';
+
+// Initialize the MCP service
+const mcpService = new MCPService();
 
 /**
- * Controller for handling Model Communication Protocol (MCP) requests
- * Manages sequential thinking operations through the MCP service
+ * Controller for Media Content Platform (MCP) operations
  */
-class MCPController {
-  private mcpService: MCPService;
-
-  constructor() {
+export const mcpController = {
+  /**
+   * Get MCP status
+   */
+  getStatus: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      this.mcpService = new MCPService();
+      // Get MCP status
+      logger.info('Getting MCP status');
+      
+      const status = await mcpService.getStatus();
+      
+      return res.json({
+        success: true,
+        data: status
+      });
     } catch (error) {
-      console.error('Failed to initialize MCP service:', error);
-      // Initialize with a dummy service that will throw errors when used
-      // This ensures the property is definitely assigned
-      this.mcpService = {} as MCPService;
+      logger.error('Error getting MCP status:', error);
+      next(error);
+    }
+  },
+  
+  /**
+   * Create a new MCP project
+   */
+  createProject: async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const { name, description, settings } = req.body;
+      
+      if (!name) {
+        return res.status(400).json({
+          success: false,
+          message: 'Project name is required'
+        });
+      }
+      
+      // Create project
+      logger.info(`Creating MCP project: ${name}`);
+      
+      const project = await mcpService.createProject({
+        name,
+        description,
+        settings,
+        userId: req.user?.id
+      });
+      
+      return res.status(201).json({
+        success: true,
+        data: project
+      });
+    } catch (error) {
+      logger.error('Error creating MCP project:', error);
+      next(error);
     }
   }
-
-  /**
-   * Process a sequential thinking request through the MCP service
-   * @param req Express request object containing MCP request parameters
-   * @param res Express response object
-   */
-  processRequest = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        res.status(400).json({ errors: errors.array() });
-        return;
-      }
-
-      const mcpRequest: MCPRequest = {
-        input: req.body.input,
-        context: req.body.context,
-        maxSteps: req.body.maxSteps,
-        format: req.body.format
-      };
-
-      if (!mcpRequest.input) {
-        res.status(400).json({ error: 'Input is required' });
-        return;
-      }
-
-      const result = await this.mcpService.process(mcpRequest);
-      res.status(200).json(result);
-    } catch (error) {
-      console.error('Error processing MCP request:', error);
-      res.status(500).json({ error: 'Error processing request', details: String(error) });
-    }
-  };
-}
-
-export default new MCPController();
+};

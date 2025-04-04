@@ -121,7 +121,10 @@ if (process.env.NODE_ENV === 'production' && !useRealRedis) {
   throw new Error('Production environment requires USE_REAL_REDIS to be set to true');
 }
 
-let redisClient;
+// Define a type that encompasses both real Redis client and our mock
+type RedisClientType = ReturnType<typeof createClient> | MockRedisClient;
+
+let redisClient: RedisClientType;
 
 if (useRealRedis) {
   // Configure Redis client options

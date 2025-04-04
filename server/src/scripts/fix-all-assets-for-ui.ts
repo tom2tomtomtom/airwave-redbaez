@@ -1,7 +1,8 @@
+import { logger } from '../utils/logger';
 import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
+import * as dotenv from 'dotenv';
+import * as fs from 'fs';
+import * as path from 'path';
 dotenv.config();
 
 // Initialize Supabase client
@@ -14,26 +15,26 @@ const supabase = createClient(supabaseUrl, supabaseKey);
  * This script enhances metadata, ensures owner_id is set, and normalizes fields
  */
 async function fixAllAssetsForUI() {
-  console.log('=== Repairing All Assets for UI Display ===');
+  logger.info('=== Repairing All Assets for UI Display ===');
   
   try {
     // Get all assets from the database
-    console.log('Fetching all assets from database...');
+    logger.info('Fetching all assets from database...');
     const { data: assets, error: fetchError } = await supabase
       .from('assets')
       .select('*');
       
     if (fetchError) {
-      console.error('Error fetching assets:', fetchError);
+      logger.error('Error fetching assets:', fetchError);
       return;
     }
     
     if (!assets || assets.length === 0) {
-      console.log('No assets found in the database.');
+      logger.info('No assets found in the database.');
       return;
     }
     
-    console.log(`Found ${assets.length} assets in the database.`);
+    logger.info(`Found ${assets.length} assets in the database.`);
     
     // Process each asset
     let fixedCount = 0;
@@ -41,7 +42,7 @@ async function fixAllAssetsForUI() {
     
     for (const asset of assets) {
       try {
-        console.log(`\nProcessing asset: ${asset.id} (${asset.name})`);
+        logger.info(`\nProcessing asset: ${asset.id} (${asset.name})`);
         
         // Create normalized metadata
         const meta = asset.meta || {};
@@ -62,13 +63,13 @@ async function fixAllAssetsForUI() {
         };
         
         // Create update object
-        const updateData: any = {
+        const updateData: Record<string, unknown> = {
           meta: normalizedMeta
         };
         
         // Ensure owner_id is set (using user_id if owner_id is null)
         if (!asset.owner_id && asset.user_id) {
-          console.log(`Setting owner_id to ${asset.user_id} for asset ${asset.id}`);
+          logger.info(`Setting owner_id to ${asset.user_id} for asset ${asset.id}`);
           updateData.owner_id = asset.user_id;
         }
         
@@ -81,31 +82,31 @@ async function fixAllAssetsForUI() {
           .single();
           
         if (updateError) {
-          console.error(`Error updating asset ${asset.id}:`, updateError);
+          logger.error(`Error updating asset ${asset.id}:`, updateError);
           errorCount++;
         } else {
-          console.log(`✅ Successfully updated asset ${asset.id}`);
+          logger.info(`✅ Successfully updated asset ${asset.id}`);
           fixedCount++;
         }
       } catch (error) {
-        console.error(`Error processing asset ${asset.id}:`, error);
+        logger.error(`Error processing asset ${asset.id}:`, error);
         errorCount++;
       }
     }
     
-    console.log('\n=== Asset Repair Summary ===');
-    console.log(`Total assets processed: ${assets.length}`);
-    console.log(`Successfully fixed: ${fixedCount}`);
-    console.log(`Errors encountered: ${errorCount}`);
+    logger.info('\n=== Asset Repair Summary ===');
+    logger.info(`Total assets processed: ${assets.length}`);
+    logger.info(`Successfully fixed: ${fixedCount}`);
+    logger.info(`Errors encountered: ${errorCount}`);
     
-    console.log('\nNext steps:');
-    console.log('1. Restart your server to apply the updated transformAssetFromDb function');
-    console.log('2. In the UI, select the correct client in the client selector');
-    console.log('3. Make sure asset type filter is set to "all" or the specific type you need');
-    console.log('4. Hard-refresh your browser (Cmd+Shift+R or Ctrl+F5)');
+    logger.info('\nNext steps:');
+    logger.info('1. Restart your server to apply the updated transformAssetFromDb function');
+    logger.info('2. In the UI, select the correct client in the client selector');
+    logger.info('3. Make sure asset type filter is set to "all" or the specific type you need');
+    logger.info('4. Hard-refresh your browser (Cmd+Shift+R or Ctrl+F5)');
     
   } catch (error) {
-    console.error('Unexpected error:', error);
+    logger.error('Unexpected error:', error);
   }
 }
 

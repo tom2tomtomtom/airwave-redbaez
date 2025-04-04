@@ -31,7 +31,7 @@ class RevisionService {
         .single();
       
       if (versionError && versionError.code !== 'PGRST116') {
-        console.error('Error getting latest revision version:', versionError);
+        logger.error('Error getting latest revision version:', versionError);
         throw versionError;
       }
       
@@ -62,13 +62,13 @@ class RevisionService {
         });
       
       if (insertError) {
-        console.error('Error creating revision:', insertError);
+        logger.error('Error creating revision:', insertError);
         throw insertError;
       }
       
       return revision;
     } catch (error) {
-      console.error('Error in createRevision:', error);
+      logger.error('Error in createRevision:', error);
       throw error;
     }
   }
@@ -82,7 +82,7 @@ class RevisionService {
         .order('version', { ascending: false });
       
       if (error) {
-        console.error('Error getting revisions:', error);
+        logger.error('Error getting revisions:', error);
         throw error;
       }
       
@@ -97,7 +97,7 @@ class RevisionService {
         metadata: item.metadata
       }));
     } catch (error) {
-      console.error('Error in getRevisions:', error);
+      logger.error('Error in getRevisions:', error);
       throw error;
     }
   }
@@ -111,7 +111,7 @@ class RevisionService {
         .single();
       
       if (error) {
-        console.error('Error getting revision:', error);
+        logger.error('Error getting revision:', error);
         throw error;
       }
       
@@ -126,7 +126,7 @@ class RevisionService {
         metadata: data.metadata
       };
     } catch (error) {
-      console.error('Error in getRevision:', error);
+      logger.error('Error in getRevision:', error);
       throw error;
     }
   }
@@ -148,7 +148,7 @@ class RevisionService {
           .single();
         
         if (error && error.code !== 'PGRST116') {
-          console.error('Error finding previous revision:', error);
+          logger.error('Error finding previous revision:', error);
           throw error;
         }
         
@@ -180,7 +180,7 @@ class RevisionService {
       // If no previous revision, just return the current one
       return { current };
     } catch (error) {
-      console.error('Error in compareRevisions:', error);
+      logger.error('Error in compareRevisions:', error);
       throw error;
     }
   }
@@ -195,7 +195,7 @@ class RevisionService {
         .single();
       
       if (error) {
-        console.error('Error updating revision status:', error);
+        logger.error('Error updating revision status:', error);
         throw error;
       }
       
@@ -210,7 +210,7 @@ class RevisionService {
         metadata: data.metadata
       };
     } catch (error) {
-      console.error('Error in updateRevisionStatus:', error);
+      logger.error('Error in updateRevisionStatus:', error);
       throw error;
     }
   }

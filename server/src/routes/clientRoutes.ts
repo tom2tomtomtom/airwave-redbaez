@@ -1,4 +1,5 @@
 import express from 'express';
+import { logger } from './logger';
 import { body, validationResult } from 'express-validator';
 import { authenticateToken } from '../middleware/auth';
 import { supabase } from '../db/supabaseClient';
@@ -24,14 +25,14 @@ async function createAssetLookupFunction() {
     const { error } = await supabase.rpc('execute_sql', { sql: functionSQL });
     
     if (error) {
-      console.error('Error creating get_assets_by_client_slug function:', error);
+      logger.error('Error creating get_assets_by_client_slug function:', error);
       throw error;
     }
     
-    console.log('Successfully created get_assets_by_client_slug function');
+    logger.info('Successfully created get_assets_by_client_slug function');
     return true;
   } catch (err) {
-    console.error('Failed to create asset lookup function:', err);
+    logger.error('Failed to create asset lookup function:', err);
     throw new Error('Could not create asset lookup function');
   }
 }
@@ -54,7 +55,7 @@ const clientValidationRules = [
 // Get all clients
 router.get('/', async (req: Request, res: Response) => {
   try {
-    console.log('[SERVER] Fetching all clients');
+    logger.info('[SERVER] Fetching all clients');
     
     const { data: clients, error } = await supabase
       .from('clients')
@@ -62,22 +63,22 @@ router.get('/', async (req: Request, res: Response) => {
       .order('name');
     
     if (error) {
-      console.error('[SERVER] Supabase error fetching clients:', error);
+      logger.error('[SERVER] Supabase error fetching clients:', error);
       throw error;
     }
     
     // Validate clients data
     if (!clients || !Array.isArray(clients)) {
-      console.error('[SERVER] Invalid clients data format:', clients);
+      logger.error('[SERVER] Invalid clients data format:', clients);
       throw new Error('Invalid client data format returned from database');
     }
     
-    console.log(`[SERVER] Successfully fetched ${clients.length} clients`);
+    logger.info(`[SERVER] Successfully fetched ${clients.length} clients`);
     
     // Send a consistent response format
     res.json(clients);
   } catch (error) {
-    console.error('[SERVER] Error fetching clients:', error);
+    logger.error('[SERVER] Error fetching clients:', error);
     res.status(500).json({ 
       message: 'Error fetching clients',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -93,7 +94,7 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/slug/:slug', async (req: Request, res: Response) => {
   try {
     const { slug } = req.params;
-    console.log(`[SERVER] Fetching client by slug: ${slug}`);
+    logger.info(`[SERVER] Fetching client by slug: ${slug}`);
     
     const { data: client, error } = await supabase
       .from('clients')
@@ -110,7 +111,7 @@ router.get('/slug/:slug', async (req: Request, res: Response) => {
     
     res.json(client);
   } catch (error) {
-    console.error('[SERVER] Error fetching client by slug:', error);
+    logger.error('[SERVER] Error fetching client by slug:', error);
     res.status(500).json({ 
       message: 'Error fetching client',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -130,12 +131,12 @@ router.post('/run-migration', async (req: Request, res: Response) => {
       return res.status(403).json({ message: 'Only administrators can run migrations' });
     }
     
-    console.log('[SERVER] Running client slug migration');
+    logger.info('[SERVER] Running client slug migration');
     await runClientSlugMigration();
     
     res.json({ message: 'Client slug migration completed successfully' });
   } catch (error) {
-    console.error('[SERVER] Error running client slug migration:', error);
+    logger.error('[SERVER] Error running client slug migration:', error);
     res.status(500).json({ 
       message: 'Error running migration',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -164,7 +165,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     
     res.json(client);
   } catch (error) {
-    console.error('Error fetching client:', error);
+    logger.error('Error fetching client:', error);
     res.status(500).json({ 
       message: 'Error fetching client',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -175,7 +176,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 // Create a new client
 router.post('/', clientValidationRules, async (req: Request, res: Response) => {
   try {
-    console.log('Client creation payload:', req.body);
+    logger.info('Client creation payload:', req.body);
     
     // Map fields from client-side format to database format
     // Handle differences between camelCase and snake_case, as well as naming differences
@@ -198,7 +199,7 @@ router.post('/', clientValidationRules, async (req: Request, res: Response) => {
     if (req.body.description) mappedData.description = req.body.description;
     
     // Explicitly handle logo URL (it may be empty string which is falsy)
-    console.log('Logo URL from request:', req.body.logoUrl);
+    logger.info('Logo URL from request:', req.body.logoUrl);
     mappedData.logo_url = req.body.logoUrl || null; // Convert empty string to null if needed
     
     if (req.body.isActive !== undefined) mappedData.is_active = req.body.isActive;
@@ -211,7 +212,7 @@ router.post('/', clientValidationRules, async (req: Request, res: Response) => {
     if (req.body.brandColor) mappedData.primary_color = req.body.brandColor;
     if (req.body.secondaryColor) mappedData.secondary_color = req.body.secondaryColor;
     
-    console.log('Mapped client data for database:', mappedData);
+    logger.info('Mapped client data for database:', mappedData);
     
     // Validate mapped data
     const validationErrors = validationResult(req);
@@ -247,7 +248,7 @@ router.post('/', clientValidationRules, async (req: Request, res: Response) => {
     // No need for a second validation - we already did it above
     
     // Log the final client data being sent to the database
-    console.log('Final client data being sent to database:', clientData);
+    logger.info('Final client data being sent to database:', clientData);
     
     // Use the clientData that includes the slug
     const { data: client, error } = await supabase
@@ -260,7 +261,7 @@ router.post('/', clientValidationRules, async (req: Request, res: Response) => {
     
     res.status(201).json(client);
   } catch (error) {
-    console.error('Error creating client:', error);
+    logger.error('Error creating client:', error);
     res.status(500).json({ 
       message: 'Error creating client',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -274,12 +275,12 @@ router.post('/', clientValidationRules, async (req: Request, res: Response) => {
  */
 router.post('/create-asset-lookup', async (req: Request, res: Response) => {
   try {
-    console.log('[SERVER] Creating asset lookup function');
+    logger.info('[SERVER] Creating asset lookup function');
     await createAssetLookupFunction();
     
     res.json({ message: 'Asset lookup function created successfully' });
   } catch (error) {
-    console.error('[SERVER] Error creating asset lookup function:', error);
+    logger.error('[SERVER] Error creating asset lookup function:', error);
     res.status(500).json({ 
       message: 'Error creating asset lookup function',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -290,8 +291,8 @@ router.post('/create-asset-lookup', async (req: Request, res: Response) => {
 // Update a client
 router.put('/:id', clientValidationRules, async (req: Request, res: Response) => {
   try {
-    console.log('Updating client:', req.params.id);
-    console.log('Update payload:', req.body);
+    logger.info('Updating client:', req.params.id);
+    logger.info('Update payload:', req.body);
     
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -319,7 +320,7 @@ router.put('/:id', clientValidationRules, async (req: Request, res: Response) =>
     if (req.body.description !== undefined) mappedData.description = req.body.description;
     
     // Explicitly handle logo URL (it may be empty string which is falsy)
-    console.log('Logo URL from update request:', req.body.logoUrl);
+    logger.info('Logo URL from update request:', req.body.logoUrl);
     mappedData.logo_url = req.body.logoUrl || null; // Convert empty string to null if needed
     
     if (req.body.isActive !== undefined) mappedData.is_active = req.body.isActive;
@@ -335,14 +336,14 @@ router.put('/:id', clientValidationRules, async (req: Request, res: Response) =>
     // Always add updated timestamp
     mappedData.updated_at = new Date().toISOString();
     
-    console.log('Mapped update data:', mappedData);
+    logger.info('Mapped update data:', mappedData);
     
     // Check if we're using a slug or UUID for lookup
     let lookupField = 'id';
     
     // If the ID param is not a UUID, assume it's a slug
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
-      console.log('ID appears to be a slug, using client_slug for lookup');
+      logger.info('ID appears to be a slug, using client_slug for lookup');
       lookupField = 'client_slug';
     }
     
@@ -361,7 +362,7 @@ router.put('/:id', clientValidationRules, async (req: Request, res: Response) =>
       throw fetchError;
     }
     
-    console.log('Found existing client:', existingClient);
+    logger.info('Found existing client:', existingClient);
     
     const { data: client, error } = await supabase
       .from('clients')
@@ -374,7 +375,7 @@ router.put('/:id', clientValidationRules, async (req: Request, res: Response) =>
     
     res.json(client);
   } catch (error) {
-    console.error('Error updating client:', error);
+    logger.error('Error updating client:', error);
     res.status(500).json({ 
       message: 'Error updating client',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -460,7 +461,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     
     res.json({ message: 'Client deleted successfully' });
   } catch (error) {
-    console.error('Error deleting client:', error);
+    logger.error('Error deleting client:', error);
     res.status(500).json({ 
       message: 'Error deleting client',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -491,7 +492,7 @@ router.get('/:id/counts', async (req: Request, res: Response) => {
     const counts = await getClientRelatedCounts(id);
     res.json(counts);
   } catch (error) {
-    console.error('Error fetching client related counts:', error);
+    logger.error('Error fetching client related counts:', error);
     res.status(500).json({ 
       message: 'Error fetching client related counts',
       error: error instanceof Error ? error.message : 'Unknown error'

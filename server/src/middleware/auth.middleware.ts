@@ -67,6 +67,9 @@ export const checkAuth = (req: Request, res: Response, next: NextFunction) => {
   }
 }
 
+// Export authenticateToken as an alias for checkAuth for backward compatibility
+export const authenticateToken = checkAuth;
+
 // Middleware to check if user has admin role
 export const checkAdmin = (req: Request, res: Response, next: NextFunction) => {
   if (!req.user) {

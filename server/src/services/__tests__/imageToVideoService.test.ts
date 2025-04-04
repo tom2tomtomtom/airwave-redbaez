@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
-import path from 'path';
-import fs from 'fs';
+import * as path from 'path';
+import * as fs from 'fs';
 import fsPromises from 'fs/promises';
 import { WebSocketService } from '../WebSocketService';
 import { ApiError } from '../../utils/ApiError';

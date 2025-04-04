@@ -1,9 +1,10 @@
 import { supabase } from '../db/supabaseClient';
+import { logger } from './logger';
 import { v4 as uuidv4 } from 'uuid';
 import OpenAI from 'openai';
 import fs from 'fs/promises';
-import path from 'path';
-import dotenv from 'dotenv';
+import * as path from 'path';
+import * as dotenv from 'dotenv';
 
 // Ensure environment variables are loaded
 dotenv.config();
@@ -15,9 +16,9 @@ const openai = new OpenAI({
 
 // Validate OpenAI configuration
 if (!process.env.OPENAI_API_KEY) {
-  console.warn('⚠️ WARNING: OPENAI_API_KEY environment variable is missing or empty.');
-  console.warn('The Strategic Content Development module requires an OpenAI API key to function properly.');
-  console.warn('Please add the OPENAI_API_KEY to your .env file.');
+  logger.warn('⚠️ WARNING: OPENAI_API_KEY environment variable is missing or empty.');
+  logger.warn('The Strategic Content Development module requires an OpenAI API key to function properly.');
+  logger.warn('Please add the OPENAI_API_KEY to your .env file.');
 }
 
 // Brief interface that matches the database schema
@@ -121,7 +122,7 @@ class BriefService {
         .single();
       
       if (error) {
-        console.error('Error creating brief:', error);
+        logger.error('Error creating brief:', error);
         return {
           success: false,
           message: `Failed to create brief: ${error.message}`,
@@ -131,7 +132,7 @@ class BriefService {
       
       // Queue the brief for analysis (could be done asynchronously)
       this.queueBriefForAnalysis(briefId).catch(err => {
-        console.error(`Error queueing brief ${briefId} for analysis:`, err);
+        logger.error(`Error queueing brief ${briefId} for analysis:`, err);
       });
       
       // Transform and return the created brief
@@ -141,8 +142,8 @@ class BriefService {
         message: 'Brief created successfully',
         data: createdBrief
       };
-    } catch (error: any) {
-      console.error('Error in createBrief:', error);
+    } catch ($1: unknown) {
+      logger.error('Error in createBrief:', error);
       return {
         success: false,
         message: `Failed to create brief: ${error.message || 'Unknown error'}`,
@@ -170,7 +171,7 @@ class BriefService {
       
       // Start the analysis process
       this.analyzeBrief(briefId).catch(async (err) => {
-        console.error(`Error analyzing brief ${briefId}:`, err);
+        logger.error(`Error analyzing brief ${briefId}:`, err);
         
         // Update status to failed
         try {
@@ -186,16 +187,16 @@ class BriefService {
             .eq('id', briefId);
             
           if (error) {
-            console.error(`Error updating brief ${briefId} status:`, error);
+            logger.error(`Error updating brief ${briefId} status:`, error);
           } else {
-            console.log(`Updated brief ${briefId} status to failed`);
+            logger.info(`Updated brief ${briefId} status to failed`);
           }
         } catch (updateErr) {
-          console.error(`Error updating brief ${briefId} status:`, updateErr);
+          logger.error(`Error updating brief ${briefId} status:`, updateErr);
         }
       });
     } catch (error) {
-      console.error(`Error queueing brief ${briefId} for analysis:`, error);
+      logger.error(`Error queueing brief ${briefId} for analysis:`, error);
       throw error;
     }
   }
@@ -276,7 +277,7 @@ class BriefService {
       try {
         analysis = JSON.parse(responseContent) as BriefAnalysis;
       } catch (parseError) {
-        console.error('Error parsing OpenAI response:', parseError);
+        logger.error('Error parsing OpenAI response:', parseError);
         throw new Error('Invalid response format from OpenAI');
       }
       
@@ -308,8 +309,8 @@ class BriefService {
         message: 'Brief analysis completed successfully',
         data: analysis
       };
-    } catch (error: any) {
-      console.error(`Error analyzing brief ${briefId}:`, error);
+    } catch ($1: unknown) {
+      logger.error(`Error analyzing brief ${briefId}:`, error);
       
       // Update the brief status to failed
       try {
@@ -334,7 +335,7 @@ class BriefService {
           })
           .eq('id', briefId);
       } catch (updateError) {
-        console.error(`Error updating brief ${briefId} status:`, updateError);
+        logger.error(`Error updating brief ${briefId} status:`, updateError);
       }
       
       return {
@@ -382,8 +383,8 @@ class BriefService {
         success: true,
         data: brief
       };
-    } catch (error: any) {
-      console.error(`Error fetching brief with ID ${id}:`, error);
+    } catch ($1: unknown) {
+      logger.error(`Error fetching brief with ID ${id}:`, error);
       return {
         success: false,
         message: `Failed to fetch brief: ${error.message || 'Unknown error'}`,
@@ -481,8 +482,8 @@ class BriefService {
           total: count || 0
         }
       };
-    } catch (error: any) {
-      console.error('Error fetching briefs:', error);
+    } catch ($1: unknown) {
+      logger.error('Error fetching briefs:', error);
       return {
         success: false,
         message: `Failed to fetch briefs: ${error.message || 'Unknown error'}`,
@@ -585,7 +586,7 @@ class BriefService {
         
         // Queue for re-analysis
         this.queueBriefForAnalysis(id).catch(err => {
-          console.error(`Error queueing brief ${id} for re-analysis:`, err);
+          logger.error(`Error queueing brief ${id} for re-analysis:`, err);
         });
       }
       
@@ -595,8 +596,8 @@ class BriefService {
         message: 'Brief updated successfully',
         data: updatedBrief
       };
-    } catch (error: any) {
-      console.error(`Error updating brief with ID ${id}:`, error);
+    } catch ($1: unknown) {
+      logger.error(`Error updating brief with ID ${id}:`, error);
       return {
         success: false,
         message: `Failed to update brief: ${error.message || 'Unknown error'}`,
@@ -656,8 +657,8 @@ class BriefService {
         message: 'Brief deleted successfully',
         data: true
       };
-    } catch (error: any) {
-      console.error(`Error deleting brief with ID ${id}:`, error);
+    } catch ($1: unknown) {
+      logger.error(`Error deleting brief with ID ${id}:`, error);
       return {
         success: false,
         message: `Failed to delete brief: ${error.message || 'Unknown error'}`,
@@ -806,13 +807,13 @@ class BriefService {
           throw new Error('Response format is not a valid array or object');
         }
       } catch (parseError) {
-        console.error('Error parsing OpenAI response:', parseError, responseContent);
+        logger.error('Error parsing OpenAI response:', parseError, responseContent);
         throw new Error('Invalid response format from OpenAI');
       }
       
       // Ensure we have the requested number of options
       if (generatedContent.length < options.count) {
-        console.warn(`OpenAI returned fewer options (${generatedContent.length}) than requested (${options.count})`);
+        logger.warn(`OpenAI returned fewer options (${generatedContent.length}) than requested (${options.count})`);
       }
       
       // Save the generated content to the brief's metadata
@@ -855,7 +856,7 @@ class BriefService {
           })
           .eq('id', briefId);
       } catch (updateError) {
-        console.error(`Error updating brief ${briefId} with generated content:`, updateError);
+        logger.error(`Error updating brief ${briefId} with generated content:`, updateError);
         // Continue anyway - we'll return the generated content even if we couldn't save it
       }
       
@@ -864,8 +865,8 @@ class BriefService {
         message: `Generated ${generatedContent.length} ${contentTypeMap[options.contentType].toLowerCase()} options successfully`,
         data: generatedContent
       };
-    } catch (error: any) {
-      console.error(`Error generating content for brief ${briefId}:`, error);
+    } catch ($1: unknown) {
+      logger.error(`Error generating content for brief ${briefId}:`, error);
       return {
         success: false,
         message: `Failed to generate content: ${error.message || 'Unknown error'}`,

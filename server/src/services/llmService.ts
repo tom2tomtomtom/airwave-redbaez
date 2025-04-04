@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { logger } from '../utils/logger';
 import { supabase } from '../db/supabaseClient';
 import { ApiError } from '../utils/ApiError';
 import { ErrorCode } from '../types/errorTypes';
@@ -60,15 +61,15 @@ class LLMService {
    */
   async processBrief(briefData: BriefData): Promise<Motivation[]> {
     try {
-      console.log('Processing brief to generate motivations...');
+      logger.info('Processing brief to generate motivations...');
       
       if (this.mockMode) {
-        console.log('Running in PROTOTYPE_MODE. Using mock motivations.');
+        logger.info('Running in PROTOTYPE_MODE. Using mock motivations.');
         return this.getMockMotivations(false);
       }
       
       // Use real LLM API to generate motivations
-      console.log('Using OpenAI API to generate real motivations...');
+      logger.info('Using OpenAI API to generate real motivations...');
       
       // Format the prompt for OpenAI
       const prompt = this.formatBriefForMotivationsPrompt(briefData);
@@ -103,14 +104,14 @@ class LLMService {
         // Parse the response to extract motivations
         return this.parseMotivationsFromResponse(response.data);
         
-      } catch (apiError: any) {
-        console.error('OpenAI API error:', apiError.response?.data || apiError.message);
-        console.log('Falling back to mock motivations due to API error');
+      } catch ($1: unknown) {
+        logger.error('OpenAI API error:', apiError.response?.data || apiError.message);
+        logger.info('Falling back to mock motivations due to API error');
         // Fallback to mock data in case of API failure
         return this.getMockMotivations(false);
       }
-    } catch (error: any) {
-      console.error('Error in processBrief:', error);
+    } catch ($1: unknown) {
+      logger.error('Error in processBrief:', error);
       throw new ApiError(
         ErrorCode.OPERATION_FAILED,
         'Failed to process brief',
@@ -163,7 +164,7 @@ class LLMService {
   /**
    * Parse the LLM response to extract motivations
    */
-  private parseMotivationsFromResponse(response: any): Motivation[] {
+  private parseMotivationsFromResponse($1: unknown): Motivation[] {
     try {
       // Extract the content from the response
       let content = response.choices?.[0]?.message?.content;
@@ -193,9 +194,9 @@ class LLMService {
         explanation: item.explanation,
         selected: false
       }));
-    } catch (error: any) {
-      console.error('Error parsing motivations from LLM response:', error);
-      console.log('Response content:', response);
+    } catch ($1: unknown) {
+      logger.error('Error parsing motivations from LLM response:', error);
+      logger.info('Response content:', response);
       throw new ApiError(
         ErrorCode.EXTERNAL_SERVICE_ERROR, 
         'Failed to parse motivations from LLM response',
@@ -246,7 +247,7 @@ class LLMService {
    */
   async analyzeBriefText(extractedText: string, partialBrief: Partial<BriefData>): Promise<Partial<BriefData>> {
     try {
-      console.log('Analyzing brief text to fill missing fields...');
+      logger.info('Analyzing brief text to fill missing fields...');
       
       // Extract all fields from the text using basic extraction logic
       const result: Partial<BriefData> = { ...partialBrief };
@@ -309,10 +310,10 @@ class LLMService {
           'Brand guidelines compliance';
       }
       
-      console.log('Generated complete brief data:', result);
+      logger.info('Generated complete brief data:', result);
       return result;
-    } catch (error: any) {
-      console.error('Error analyzing brief text:', error);
+    } catch ($1: unknown) {
+      logger.error('Error analyzing brief text:', error);
       // Return what we have with placeholder data for critical missing fields
       const fallbackResult: Partial<BriefData> = { ...partialBrief };
       if (!fallbackResult.clientName) fallbackResult.clientName = 'Unknown Client';
@@ -329,15 +330,15 @@ class LLMService {
    */
   async regenerateMotivations(briefData: BriefData, feedback: string): Promise<Motivation[]> {
     try {
-      console.log('Regenerating motivations with feedback:', feedback);
+      logger.info('Regenerating motivations with feedback:', feedback);
       
       if (this.mockMode) {
-        console.log('Running in PROTOTYPE_MODE. Using mock motivations for regeneration.');
+        logger.info('Running in PROTOTYPE_MODE. Using mock motivations for regeneration.');
         return this.getMockMotivations(true);
       }
       
       // Use real LLM API to generate new motivations with feedback
-      console.log('Using OpenAI API to regenerate motivations...');
+      logger.info('Using OpenAI API to regenerate motivations...');
       
       // Format the prompt with feedback
       const prompt = this.formatBriefForMotivationsPrompt(briefData) + `
@@ -377,14 +378,14 @@ class LLMService {
         // Parse the response to extract motivations
         return this.parseMotivationsFromResponse(response.data);
         
-      } catch (apiError: any) {
-        console.error('OpenAI API error:', apiError.response?.data || apiError.message);
-        console.log('Falling back to mock motivations due to API error');
+      } catch ($1: unknown) {
+        logger.error('OpenAI API error:', apiError.response?.data || apiError.message);
+        logger.info('Falling back to mock motivations due to API error');
         // Fallback to mock data in case of API failure
         return this.getMockMotivations(true);
       }
-    } catch (error: any) {
-      console.error('Error in regenerateMotivations:', error);
+    } catch ($1: unknown) {
+      logger.error('Error in regenerateMotivations:', error);
       throw new ApiError(
         ErrorCode.OPERATION_FAILED,
         'Failed to regenerate motivations',
@@ -400,7 +401,7 @@ class LLMService {
   async generateCopy(request: CopyGenerationRequest, briefData: BriefData, motivations: Motivation[]): Promise<CopyVariation[]> {
     try {
       if (this.mockMode) {
-        console.log('Running in PROTOTYPE_MODE. Using mock copy variations.');
+        logger.info('Running in PROTOTYPE_MODE. Using mock copy variations.');
         return this.getMockCopyVariations(request);
       }
 
@@ -409,8 +410,8 @@ class LLMService {
         request.motivationIds.includes(m.id)
       );
       
-      console.log('Using OpenAI API to generate real copy variations...');
-      console.log('Selected motivations:', selectedMotivations.length);
+      logger.info('Using OpenAI API to generate real copy variations...');
+      logger.info('Selected motivations:', selectedMotivations.length);
       
       // Format the prompt for OpenAI
       const prompt = this.formatCopyGenerationPrompt(briefData, selectedMotivations, request);
@@ -445,14 +446,14 @@ class LLMService {
         // Parse the response to extract copy variations
         return this.parseCopyVariationsFromResponse(response.data, request);
         
-      } catch (apiError: any) {
-        console.error('OpenAI API error:', apiError.response?.data || apiError.message);
-        console.log('Falling back to mock copy variations due to API error');
+      } catch ($1: unknown) {
+        logger.error('OpenAI API error:', apiError.response?.data || apiError.message);
+        logger.info('Falling back to mock copy variations due to API error');
         // Fallback to mock data in case of API failure
         return this.getMockCopyVariations(request);
       }
-    } catch (error: any) {
-      console.error('Error in generateCopy:', error);
+    } catch ($1: unknown) {
+      logger.error('Error in generateCopy:', error);
       throw new ApiError(
         ErrorCode.OPERATION_FAILED, 
         'Failed to generate copy variations',
@@ -561,9 +562,9 @@ class LLMService {
         style: request.style,
         selected: false
       }));
-    } catch (error: any) {
-      console.error('Error parsing copy variations from LLM response:', error);
-      console.log('Response content:', response);
+    } catch ($1: unknown) {
+      logger.error('Error parsing copy variations from LLM response:', error);
+      logger.info('Response content:', response);
       throw new ApiError(
         ErrorCode.EXTERNAL_SERVICE_ERROR,
         'Failed to parse copy variations from LLM response',

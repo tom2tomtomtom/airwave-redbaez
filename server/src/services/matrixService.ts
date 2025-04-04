@@ -125,13 +125,13 @@ class MatrixService {
         .single();
       
       if (error) {
-        console.error('Error creating matrix configuration:', error);
+        logger.error('Error creating matrix configuration:', error);
         throw new Error('Failed to create matrix configuration');
       }
       
       return data as MatrixConfiguration;
-    } catch (error: any) {
-      console.error('Error in createMatrix:', error);
+    } catch ($1: unknown) {
+      logger.error('Error in createMatrix:', error);
       throw new Error(`Failed to create matrix: ${error.message}`);
     }
   }
@@ -148,13 +148,13 @@ class MatrixService {
         .single();
       
       if (error) {
-        console.error('Error fetching matrix configuration:', error);
+        logger.error('Error fetching matrix configuration:', error);
         throw new Error('Failed to fetch matrix configuration');
       }
       
       return data as MatrixConfiguration;
-    } catch (error: any) {
-      console.error('Error in getMatrixById:', error);
+    } catch ($1: unknown) {
+      logger.error('Error in getMatrixById:', error);
       throw new Error(`Failed to get matrix: ${error.message}`);
     }
   }
@@ -175,13 +175,13 @@ class MatrixService {
         .single();
       
       if (error) {
-        console.error('Error updating matrix configuration:', error);
+        logger.error('Error updating matrix configuration:', error);
         throw new Error('Failed to update matrix configuration');
       }
       
       return data as MatrixConfiguration;
-    } catch (error: any) {
-      console.error('Error in updateMatrix:', error);
+    } catch ($1: unknown) {
+      logger.error('Error in updateMatrix:', error);
       throw new Error(`Failed to update matrix: ${error.message}`);
     }
   }
@@ -253,7 +253,7 @@ class MatrixService {
       }
       
       return updatedMatrix;
-    } catch (error: any) {
+    } catch ($1: unknown) {
       logger.error('Error in generateCombinations:', error);
       throw new Error(`Failed to generate combinations: ${error.message}`);
     }
@@ -335,7 +335,7 @@ class MatrixService {
       this.updateBatchProgress(matrixId);
       
       return matrix.rows[rowIndex];
-    } catch (error: any) {
+    } catch ($1: unknown) {
       logger.error('Error in renderMatrixRow:', error);
       
       // Update row status to failed
@@ -690,7 +690,7 @@ class MatrixService {
       this.processRenderQueue();
       
       return this.batchProgress[matrixId];
-    } catch (error: any) {
+    } catch ($1: unknown) {
       logger.error('Error in startBatchRendering:', error);
       throw new Error(`Failed to start batch rendering: ${error.message}`);
     }
@@ -773,8 +773,8 @@ class MatrixService {
       await this.updateMatrix(matrixId, { rows: matrix.rows });
       
       return matrix.rows[rowIndex];
-    } catch (error: any) {
-      console.error('Error in updateRowStatus:', error);
+    } catch ($1: unknown) {
+      logger.error('Error in updateRowStatus:', error);
       throw new Error(`Failed to update row status: ${error.message}`);
     }
   }

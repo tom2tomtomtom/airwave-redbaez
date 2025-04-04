@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import { logger } from './logger';
 import { runwayService } from '../services/runwayService';
 
 const router = express.Router();
@@ -31,9 +32,9 @@ router.post('/video/from-image', async (req: Request, res: Response) => {
         });
       }
 
-      console.log('Received request to generate video from image');
-      console.log(`Image URL: ${imageUrl}`);
-      console.log(`Prompt: ${prompt || 'None provided'}`);
+      logger.info('Received request to generate video from image');
+      logger.info(`Image URL: ${imageUrl}`);
+      logger.info(`Prompt: ${prompt || 'None provided'}`);
 
       // Check if Runway service is properly configured
       if (!runwayService.isConfigured()) {
@@ -57,8 +58,8 @@ router.post('/video/from-image', async (req: Request, res: Response) => {
         jobId: job.id,
         message: 'Video generation started successfully'
       });
-    } catch (error: any) {
-      console.error('Error generating video:', error.message);
+    } catch ($1: unknown) {
+      logger.error('Error generating video:', error.message);
       res.status(500).json({
         error: 'Failed to generate video',
         details: error.message
@@ -96,8 +97,8 @@ router.get('/video/status/:jobId', async (req: Request, res: Response) => {
         videoUrl: job.videoUrl,
         error: job.error
       });
-    } catch (error: any) {
-      console.error('Error getting video status:', error.message);
+    } catch ($1: unknown) {
+      logger.error('Error getting video status:', error.message);
       res.status(500).json({
         error: 'Failed to get video status',
         details: error.message

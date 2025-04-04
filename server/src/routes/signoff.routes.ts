@@ -64,7 +64,7 @@ router.post('/', checkAuth, async (req: AuthenticatedRequest, res) => {
       .select();
     
     if (error) {
-      console.error('Error creating sign-off item:', error);
+      logger.error('Error creating sign-off item:', error);
       throw new Error('Failed to create sign-off item');
     }
     
@@ -82,7 +82,7 @@ router.post('/', checkAuth, async (req: AuthenticatedRequest, res) => {
       }]);
     
     if (tokenError) {
-      console.error('Error creating client access token:', tokenError);
+      logger.error('Error creating client access token:', tokenError);
       // Continue anyway, as the sign-off item was created
     }
     
@@ -97,8 +97,8 @@ router.post('/', checkAuth, async (req: AuthenticatedRequest, res) => {
         clientAccessLink: `${process.env.CLIENT_PORTAL_URL || 'http://localhost:3002'}/client/signoff/${clientAccessToken}`
       }
     });
-  } catch (error: any) {
-    console.error('Error creating sign-off request:', error);
+  } catch ($1: unknown) {
+    logger.error('Error creating sign-off request:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to create sign-off request',
@@ -128,7 +128,7 @@ router.get('/campaign/:campaignId', checkAuth, async (req: AuthenticatedRequest,
       .order('createdAt', { ascending: false });
     
     if (error) {
-      console.error('Error fetching sign-off items:', error);
+      logger.error('Error fetching sign-off items:', error);
       throw new Error('Failed to fetch sign-off items');
     }
     
@@ -136,8 +136,8 @@ router.get('/campaign/:campaignId', checkAuth, async (req: AuthenticatedRequest,
       success: true,
       data
     });
-  } catch (error: any) {
-    console.error('Error fetching sign-off items:', error);
+  } catch ($1: unknown) {
+    logger.error('Error fetching sign-off items:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch sign-off items',
@@ -167,7 +167,7 @@ router.get('/:id', checkAuth, async (req: AuthenticatedRequest, res) => {
       .single();
     
     if (error) {
-      console.error('Error fetching sign-off item:', error);
+      logger.error('Error fetching sign-off item:', error);
       throw new Error('Failed to fetch sign-off item');
     }
     
@@ -175,8 +175,8 @@ router.get('/:id', checkAuth, async (req: AuthenticatedRequest, res) => {
       success: true,
       data
     });
-  } catch (error: any) {
-    console.error('Error fetching sign-off item:', error);
+  } catch ($1: unknown) {
+    logger.error('Error fetching sign-off item:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch sign-off item',
@@ -219,7 +219,7 @@ router.put('/:id/status', checkAuth, async (req: AuthenticatedRequest, res) => {
       .select();
     
     if (error) {
-      console.error('Error updating sign-off item:', error);
+      logger.error('Error updating sign-off item:', error);
       throw new Error('Failed to update sign-off item');
     }
     
@@ -231,8 +231,8 @@ router.put('/:id/status', checkAuth, async (req: AuthenticatedRequest, res) => {
       message: 'Sign-off status updated successfully',
       data: data![0]
     });
-  } catch (error: any) {
-    console.error('Error updating sign-off status:', error);
+  } catch ($1: unknown) {
+    logger.error('Error updating sign-off status:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to update sign-off status',
@@ -271,7 +271,7 @@ router.post('/:id/versions', checkAuth, async (req: AuthenticatedRequest, res) =
       .single();
     
     if (fetchError) {
-      console.error('Error fetching sign-off item:', fetchError);
+      logger.error('Error fetching sign-off item:', fetchError);
       throw new Error('Failed to fetch sign-off item');
     }
     
@@ -290,7 +290,7 @@ router.post('/:id/versions', checkAuth, async (req: AuthenticatedRequest, res) =
       .select();
     
     if (error) {
-      console.error('Error creating new version:', error);
+      logger.error('Error creating new version:', error);
       throw new Error('Failed to create new version');
     }
     
@@ -302,8 +302,8 @@ router.post('/:id/versions', checkAuth, async (req: AuthenticatedRequest, res) =
       message: 'New version created successfully',
       data: data![0]
     });
-  } catch (error: any) {
-    console.error('Error creating new version:', error);
+  } catch ($1: unknown) {
+    logger.error('Error creating new version:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to create new version',
@@ -340,7 +340,7 @@ router.get('/client/:token', async (req, res) => {
       .single();
     
     if (itemError) {
-      console.error('Error fetching sign-off item:', itemError);
+      logger.error('Error fetching sign-off item:', itemError);
       throw new Error('Failed to fetch sign-off item');
     }
     
@@ -348,8 +348,8 @@ router.get('/client/:token', async (req, res) => {
       success: true,
       data: itemData
     });
-  } catch (error: any) {
-    console.error('Error accessing client portal:', error);
+  } catch ($1: unknown) {
+    logger.error('Error accessing client portal:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to access client portal',
@@ -398,7 +398,7 @@ router.put('/client/:token/respond', async (req, res) => {
       .select();
     
     if (error) {
-      console.error('Error updating sign-off item:', error);
+      logger.error('Error updating sign-off item:', error);
       throw new Error('Failed to update sign-off item');
     }
     
@@ -410,8 +410,8 @@ router.put('/client/:token/respond', async (req, res) => {
       message: 'Response submitted successfully',
       data: data![0]
     });
-  } catch (error: any) {
-    console.error('Error submitting client response:', error);
+  } catch ($1: unknown) {
+    logger.error('Error submitting client response:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to submit response',

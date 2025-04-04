@@ -1,4 +1,5 @@
 import express from 'express';
+import { logger } from './logger';
 import axios from 'axios';
 import { checkAuth, checkAdmin } from '../middleware/auth.middleware';
 import { supabase } from '../db/supabaseClient';
@@ -26,8 +27,8 @@ router.get('/', checkAuth, async (req: AuthenticatedRequest, res: Response, next
     const templates = data.map(transformTemplateFromDb);
 
     res.json(templates);
-  } catch (error: any) {
-    console.error('Error fetching templates:', error.message);
+  } catch ($1: unknown) {
+    logger.error('Error fetching templates:', error.message);
     next(error);
   }
 });
@@ -54,8 +55,8 @@ router.get('/:id', checkAuth, async (req: AuthenticatedRequest, res: Response, n
     const template = transformTemplateFromDb(data);
 
     res.json(template);
-  } catch (error: any) {
-    console.error('Error fetching template:', error.message);
+  } catch ($1: unknown) {
+    logger.error('Error fetching template:', error.message);
     next(error);
   }
 });
@@ -109,8 +110,8 @@ router.post('/', checkAuth, checkAdmin, async (req: AuthenticatedRequest, res: R
     if (error) throw error;
 
     res.status(201).json(transformTemplateFromDb(data));
-  } catch (error: any) {
-    console.error('Error creating template:', error.message);
+  } catch ($1: unknown) {
+    logger.error('Error creating template:', error.message);
     next(error);
   }
 });
@@ -156,8 +157,8 @@ router.put('/:id', checkAuth, checkAdmin, async (req: AuthenticatedRequest, res:
     if (error) throw error;
 
     res.json(transformTemplateFromDb(data));
-  } catch (error: any) {
-    console.error('Error updating template:', error.message);
+  } catch ($1: unknown) {
+    logger.error('Error updating template:', error.message);
     next(error);
   }
 });
@@ -177,8 +178,8 @@ router.delete('/:id', checkAuth, async (req: AuthenticatedRequest, res: Response
     if (error) throw error;
 
     res.json({ message: 'Template deleted successfully' });
-  } catch (error: any) {
-    console.error('Error deleting template:', error.message);
+  } catch ($1: unknown) {
+    logger.error('Error deleting template:', error.message);
     next(error);
   }
 });
@@ -250,8 +251,8 @@ router.put('/:id/favorite', checkAuth, async (req: AuthenticatedRequest, res: Re
     template.isFavorite = isFavorite;
     
     res.json(template);
-  } catch (error: any) {
-    console.error('Error toggling favorite:', error.message);
+  } catch ($1: unknown) {
+    logger.error('Error toggling favorite:', error.message);
     next(error);
   }
 });
@@ -281,8 +282,8 @@ router.post('/import-from-creatomate', checkAuth, checkAdmin, async (req: Authen
       message: 'Templates imported successfully', 
       count: 0 
     });
-  } catch (error: any) {
-    console.error('Error importing templates:', error.message);
+  } catch ($1: unknown) {
+    logger.error('Error importing templates:', error.message);
     next(error);
   }
 });
@@ -331,7 +332,7 @@ router.post('/import-by-id', checkAuth, async (req: AuthenticatedRequest, res: R
           aspectRatio = 'Unknown';
       }
       
-      console.log('Importing template with format:', format);
+      logger.info('Importing template with format:', format);
       
       // Create template object
       const templateData = {
@@ -347,7 +348,7 @@ router.post('/import-by-id', checkAuth, async (req: AuthenticatedRequest, res: R
         created_by: req.user.userId
       };
       
-      console.log('Template data being inserted:', templateData);
+      logger.info('Template data being inserted:', templateData);
       
       // Insert into database
       const { data, error } = await supabase
@@ -356,7 +357,7 @@ router.post('/import-by-id', checkAuth, async (req: AuthenticatedRequest, res: R
         .select()
         .single();
         
-      console.log('Inserted template result:', data, 'Error:', error);
+      logger.info('Inserted template result:', data, 'Error:', error);
       
       if (error) throw error;
       
@@ -370,12 +371,12 @@ router.post('/import-by-id', checkAuth, async (req: AuthenticatedRequest, res: R
     // For production mode:
     // 1. Verify template exists in Creatomate by making a test API call
     try {
-      console.log('=== CREATOMATE DEBUG INFO ===');
-      console.log('API Key:', process.env.CREATOMATE_API_KEY);
-      console.log('Template ID:', creatomateTemplateId);
+      logger.info('=== CREATOMATE DEBUG INFO ===');
+      logger.info('API Key:', process.env.CREATOMATE_API_KEY);
+      logger.info('Template ID:', creatomateTemplateId);
       
       // Use the direct approach from curl example
-      console.log('Making API request matching the curl example format...');
+      logger.info('Making API request matching the curl example format...');
       
       // Use the direct curl format exactly as shown in the example
       const exactCurlFormatRequest = {
@@ -385,7 +386,7 @@ router.post('/import-by-id', checkAuth, async (req: AuthenticatedRequest, res: R
         }
       };
       
-      console.log('Request payload:', JSON.stringify(exactCurlFormatRequest, null, 2));
+      logger.info('Request payload:', JSON.stringify(exactCurlFormatRequest, null, 2));
       
       // First try a simple render request to verify the template
       const response = await axios.post(
@@ -399,7 +400,7 @@ router.post('/import-by-id', checkAuth, async (req: AuthenticatedRequest, res: R
         }
       );
       
-      console.log('Creatomate API response:', JSON.stringify(response.data, null, 2));
+      logger.info('Creatomate API response:', JSON.stringify(response.data, null, 2));
       
       // Extract information from the API response
       const renderData = response.data[0] || {};
@@ -425,12 +426,12 @@ router.post('/import-by-id', checkAuth, async (req: AuthenticatedRequest, res: R
           aspectRatio = 'Unknown';
       }
       
-      console.log('Template name:', templateName);
-      console.log('Aspect ratio:', aspectRatio);
-      console.log('Using render URL as thumbnail:', renderUrl);
+      logger.info('Template name:', templateName);
+      logger.info('Aspect ratio:', aspectRatio);
+      logger.info('Using render URL as thumbnail:', renderUrl);
       
       // If we get here, the template exists
-      console.log('Template verified in Creatomate:', creatomateTemplateId);
+      logger.info('Template verified in Creatomate:', creatomateTemplateId);
       
       // Create a simple modification to verify the template
       const thumbnailResponse = await axios.post(
@@ -483,7 +484,7 @@ router.post('/import-by-id', checkAuth, async (req: AuthenticatedRequest, res: R
         thumbnailUrl = 'https://via.placeholder.com/300/333333/FFFFFF/?text=Template';
       }
       
-      console.log('Attempting very basic template insert...');
+      logger.info('Attempting very basic template insert...');
       
       try {
         // Use only name field for database insert
@@ -491,13 +492,13 @@ router.post('/import-by-id', checkAuth, async (req: AuthenticatedRequest, res: R
           name: name
         };
         
-        console.log('Using only the name field for database insert');
+        logger.info('Using only the name field for database insert');
         
         // We'll add format to the response even if it's not in the database
         // This will prevent frontend errors with format.toLowerCase()
         
         // Try to insert with minimal fields
-        console.log('Insert data:', simpleData);
+        logger.info('Insert data:', simpleData);
         const { data, error } = await supabase
           .from('templates')
           .insert([simpleData])
@@ -505,11 +506,11 @@ router.post('/import-by-id', checkAuth, async (req: AuthenticatedRequest, res: R
           .single();
         
         if (error) {
-          console.error('Template insert error:', error.message);
+          logger.error('Template insert error:', error.message);
           throw error;
         }
         
-        console.log('Template insert successful:', data);
+        logger.info('Template insert successful:', data);
         
         // Use the database record as a base and enhance it with additional properties needed by the frontend
         const enhancedDbTemplate = {
@@ -530,34 +531,34 @@ router.post('/import-by-id', checkAuth, async (req: AuthenticatedRequest, res: R
           slots: []
         };
         
-        console.log('Enhanced database template:', enhancedDbTemplate);
+        logger.info('Enhanced database template:', enhancedDbTemplate);
         
         // Use the transformation function used by other endpoints to ensure consistent format
         const transformedTemplate = transformTemplateFromDb(enhancedDbTemplate);
         
-        console.log('Final transformed template:', transformedTemplate);
+        logger.info('Final transformed template:', transformedTemplate);
         
         // Return success response with properly transformed template
         res.status(201).json({
           message: 'Template imported successfully!',
           template: transformedTemplate
         });
-      } catch (error: any) {
-        console.error('Database error during template import:', error);
+      } catch ($1: unknown) {
+        logger.error('Database error during template import:', error);
         throw new Error(`Database error: ${error?.message || 'Unknown database error'}`);
       }
       
-    } catch (apiError: any) {
-      console.error('=== CREATOMATE API ERROR ===');
-      console.error('Error details:', apiError.message);
-      console.error('Response data:', JSON.stringify(apiError.response?.data, null, 2));
-      console.error('Status code:', apiError.response?.status);
-      console.error('Status text:', apiError.response?.statusText);
+    } catch ($1: unknown) {
+      logger.error('=== CREATOMATE API ERROR ===');
+      logger.error('Error details:', apiError.message);
+      logger.error('Response data:', JSON.stringify(apiError.response?.data, null, 2));
+      logger.error('Status code:', apiError.response?.status);
+      logger.error('Status text:', apiError.response?.statusText);
       
       // Log the API key being used (first 8 chars only for security)
       const apiKey = process.env.CREATOMATE_API_KEY || '';
       const maskedKey = apiKey.substring(0, 8) + '...';
-      console.error('Using API key starting with:', maskedKey);
+      logger.error('Using API key starting with:', maskedKey);
       
       return res.status(400).json({ 
         message: 'Invalid template ID or API communication error. Please check your Creatomate template ID.',
@@ -569,8 +570,8 @@ router.post('/import-by-id', checkAuth, async (req: AuthenticatedRequest, res: R
       });
     }
     
-  } catch (error: any) {
-    console.error('Error importing template by ID:', error.message);
+  } catch ($1: unknown) {
+    logger.error('Error importing template by ID:', error.message);
     next(error);
   }
 });
@@ -598,9 +599,9 @@ function getPlaceholderForFormat(format: string): string {
 }
 
 // Helper function to transform template from database format to API format
-function transformTemplateFromDb(template: any) {
+function transformTemplateFromDb($1: unknown) {
   // Debug logging to help identify issues
-  console.log('Transforming template:', template.id, template.name, 'Format:', template.format);
+  logger.info('Transforming template:', template.id, template.name, 'Format:', template.format);
   
   return {
     id: template.id,
@@ -651,7 +652,7 @@ router.post('/fix-formats', async (req: AuthenticatedRequest, res: Response, nex
           .eq('id', template.id);
         
         if (updateError) {
-          console.error(`Failed to update template ${template.id}:`, updateError);
+          logger.error(`Failed to update template ${template.id}:`, updateError);
           continue;
         }
         
@@ -660,8 +661,8 @@ router.post('/fix-formats', async (req: AuthenticatedRequest, res: Response, nex
     }
     
     res.json({ message: `Updated ${updatedCount} templates with default formats` });
-  } catch (error: any) {
-    console.error('Error fixing template formats:', error);
+  } catch ($1: unknown) {
+    logger.error('Error fixing template formats:', error);
     next(error);
   }
 });

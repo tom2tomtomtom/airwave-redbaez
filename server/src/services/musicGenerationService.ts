@@ -1,6 +1,6 @@
 import axios from 'axios';
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { createLogger } from '../utils/logger';
 import { assetService } from './assetService.new';
@@ -436,7 +436,7 @@ class MusicGenerationService {
       
       logger.info(`Successfully completed music generation job ${jobId}`);
       
-    } catch (error: any) {
+    } catch ($1: unknown) {
       logger.error(`Error in music generation job ${jobId}: ${error.message}`);
       this.updateJobStatus(jobId, {
         status: 'failed',

@@ -1,6 +1,6 @@
 import axios from 'axios';
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { createLogger } from '../utils/logger';
 import { assetService } from './assetService.new';
@@ -239,7 +239,7 @@ class TextToImageService {
       
       // Limit to top 10 keywords
       return keywords.slice(0, 10);
-    } catch (error: any) {
+    } catch ($1: unknown) {
       logger.error(`Error generating tags from prompt: ${error.message}`);
       // Return a few basic tags as fallback
       return ['ai-generated', 'image'];
@@ -388,7 +388,7 @@ class TextToImageService {
           if (assetResult.success && assetResult.data) {
             assetIds.push(assetResult.data.id);
           }
-        } catch (error: any) {
+        } catch ($1: unknown) {
           logger.error(`Failed to save generated image to assets: ${error.message}`);
           // We continue even if asset creation fails
         }
@@ -424,7 +424,7 @@ class TextToImageService {
       }
 
       logger.info(`Text-to-image job ${jobId} completed successfully`);
-    } catch (error: any) {
+    } catch ($1: unknown) {
       logger.error(`Error in text-to-image job ${jobId}: ${error.message}`);
       
       // Update job status to failed

@@ -2,7 +2,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseClient } from '../utils/supabaseClient'; // Corrected import path
 import { logger } from '../utils/logger'; // Corrected import path
-import { ServiceResult } from '../types/ServiceResult';
+import { ServiceResult } from '../types/serviceResult';
 import { 
   InitiateReviewPayload, 
   ReviewApprovalPayload, 
@@ -13,7 +13,7 @@ import {
   ReviewStatus, 
   ReviewComment, 
 } from '../types/review.types';
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 
 // Define expected database record structures (replace with actual schema if possible)
 interface DbReview {
@@ -209,7 +209,7 @@ export class ReviewService {
       logger.error(`Failed to initiate review for asset ${assetId}:`, error);
       return {
         success: false,
-        error: error.message || "An unexpected error occurred while initiating the review.",
+        error: error instanceof Error ? error.message : "An unexpected error occurred while initiating the review.",
       };
     }
   }
@@ -426,6 +426,7 @@ export class ReviewService {
     }
 
     try {
+      // First, record the approval action
       const { error } = await this.supabase.rpc("record_review_approval", {
         p_review_version_id: payload.reviewVersionId, // Use ID from payload
         p_review_participant_id: reviewParticipantId,
@@ -438,11 +439,82 @@ export class ReviewService {
         throw new Error(`Database error recording approval: ${error.message}`);
       }
 
-      // TODO: Implement logic to update the overall review status based on participant actions
-      // This might involve checking if all required participants have approved/rejected
-      // Could be part of the RPC or a separate step.
+      // Implement logic to update the overall review status based on participant actions
+      // 1. Get the review ID from the version ID
+      const { data: versionData, error: versionError } = await this.supabase
+        .from("review_versions")
+        .select("review_id")
+        .eq("id", reviewVersionId)
+        .single();
+
+      if (versionError) {
+        logger.error(`Error fetching review ID for version ${reviewVersionId}:`, versionError);
+        throw new Error(`Database error fetching review ID: ${versionError.message}`);
+      }
+
+      const reviewId = versionData.review_id;
+
+      // 2. Get all participants for this review
+      const { data: participantsData, error: participantsError } = await this.supabase
+        .from("review_participants")
+        .select("id, status")
+        .eq("review_id", reviewId);
+
+      if (participantsError) {
+        logger.error(`Error fetching participants for review ${reviewId}:`, participantsError);
+        throw new Error(`Database error fetching participants: ${participantsError.message}`);
+      }
+
+      // 3. Determine the new review status based on participant statuses
+      let newStatus: ReviewStatus = 'in_progress'; // Default status
+
+      // Count participants by status
+      const statusCounts = {
+        approved: 0,
+        rejected: 0,
+        changes_requested: 0,
+        other: 0
+      };
+
+      participantsData.forEach((participant: any) => {
+        if (participant.status === 'approved') {
+          statusCounts.approved++;
+        } else if (participant.status === 'rejected') {
+          statusCounts.rejected++;
+        } else if (participant.status === 'changes_requested') {
+          statusCounts.changes_requested++;
+        } else {
+          statusCounts.other++;
+        }
+      });
+
+      // Logic to determine overall review status:
+      // - If all participants approved, mark as approved
+      // - If any participant rejected, mark as rejected
+      // - If any participant requested changes (and none rejected), mark as changes_requested
+      // - Otherwise, keep as in_progress
+      if (statusCounts.approved === participantsData.length) {
+        newStatus = 'approved';
+      } else if (statusCounts.rejected > 0) {
+        newStatus = 'rejected';
+      } else if (statusCounts.changes_requested > 0) {
+        newStatus = 'changes_requested';
+      }
+
+      // 4. Update the review status
+      const { error: updateError } = await this.supabase
+        .from("reviews")
+        .update({ status: newStatus })
+        .eq("id", reviewId);
+
+      if (updateError) {
+        logger.error(`Error updating review status for review ${reviewId}:`, updateError);
+        throw new Error(`Database error updating review status: ${updateError.message}`);
+      }
 
       logger.info(`Approval action '${action}' recorded successfully by participant ${reviewParticipantId} on version ${reviewVersionId}`);
+      logger.info(`Review status updated to '${newStatus}' for review ${reviewId}`);
+      
       return { success: true, data: undefined };
     } catch (error: any) {
       logger.error(`Failed to record approval for participant ${reviewParticipantId} on version ${reviewVersionId}:`, error);
@@ -498,18 +570,23 @@ export class ReviewService {
           status: item.status,
           createdAt: item.createdAt,
           // Supabase returns related user as an object, extract email if exists
-          initiatedBy: item.initiatedByUser?.email || undefined, 
-          // Participants structure should match if the select was correct
-          participants: item.participants || [], 
+          initiatedBy: item.initiatedByUser?.email || 'Unknown',
+          participants: item.participants.map((p: { email: string; status: ParticipantStatus }) => ({
+            email: p.email,
+            status: p.status
+          })),
           latestVersionNumber: latestVersion
         };
       });
 
-      logger.info(`Successfully fetched ${data?.length || 0} review history items for asset ${assetId}`);
+      logger.info(`Found ${mappedData.length} review history items for asset ${assetId}`);
       return { success: true, data: mappedData };
-    } catch (err: any) {
-      logger.error('Exception fetching asset review history:', err);
-      return { success: false, error: 'Server error fetching review history.' };
+    } catch (error: any) {
+      logger.error(`Failed to fetch review history for asset ${assetId}:`, error);
+      return {
+        success: false,
+        error: error.message || "An unexpected error occurred while fetching review history.",
+      };
     }
   }
 }

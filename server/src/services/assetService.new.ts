@@ -1,8 +1,8 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
-import path from 'path';
+import * as path from 'path';
 import fsPromises from 'fs/promises'; // Import promise-based fs
-import fs from 'fs'; // Import standard fs for sync methods
+import * as fs from 'fs'; // Import standard fs for sync methods
 import { promisify } from 'util'; // Re-add promisify import
 import ffmpeg from 'fluent-ffmpeg'; // Ensure ffmpeg types are imported
 import sharp from 'sharp'; // Import sharp
@@ -84,7 +84,7 @@ class AssetService {
   public transformAssetFromDb(dbAsset: DbAsset | Record<string, any>): Asset {
     // Basic validation - ensure essential fields exist
     if (!dbAsset || typeof dbAsset !== 'object' || !dbAsset.id || !dbAsset.name || !dbAsset.type) {
-      console.error('Invalid or incomplete DbAsset object provided to transformAssetFromDb', dbAsset);
+      logger.error('Invalid or incomplete DbAsset object provided to transformAssetFromDb', dbAsset);
       // Refactored: Use ApiError for unexpected internal data issues
       throw new ApiError(
         ErrorCode.INTERNAL_ERROR,
@@ -160,13 +160,13 @@ class AssetService {
         .single();
 
       if (error) {
-        console.error(`Error looking up client ID for slug ${slug}:`, error);
+        logger.error(`Error looking up client ID for slug ${slug}:`, error);
         return null;
       }
 
       return data?.id || null;
-    } catch (error: any) {
-      console.error(`Error looking up client ID for slug ${slug}:`, error.message);
+    } catch ($1: unknown) {
+      logger.error(`Error looking up client ID for slug ${slug}:`, error.message);
       return null;
     }
   }
@@ -185,7 +185,7 @@ class AssetService {
     try {
       // 1. Validate input
       if (!file || !userId || !assetData.clientId) {
-        console.error('Upload validation failed:', { file: !!file, userId, clientId: assetData.clientId });
+        logger.error('Upload validation failed:', { file: !!file, userId, clientId: assetData.clientId });
         return { success: false, message: 'Missing required file, userId, or clientId for upload.' };
       }
 
@@ -290,7 +290,7 @@ class AssetService {
             .single();
 
           if (error) {
-            console.error(`Supabase insert error for asset ${assetId}:`, error);
+            logger.error(`Supabase insert error for asset ${assetId}:`, error);
             // Attempt cleanup: delete the saved file
             try {
               fs.unlinkSync(absoluteFilePath); // Use synchronous unlink
@@ -298,13 +298,13 @@ class AssetService {
                 fs.unlinkSync(path.join(this.uploadsDir, relativeThumbnailPath)); // Use synchronous unlink
               }
             } catch (cleanupError) {
-              console.error(`Failed to cleanup files for failed upload ${assetId}:`, cleanupError);
+              logger.error(`Failed to cleanup files for failed upload ${assetId}:`, cleanupError);
             }
             return { success: false, message: `Database insert failed: ${error.message}`, error };
           }
 
           if (!data) {
-            console.error(`Supabase insert error: No data returned for asset ${assetId}`);
+            logger.error(`Supabase insert error: No data returned for asset ${assetId}`);
             // Attempt cleanup
             try {
               fs.unlinkSync(absoluteFilePath); // Use synchronous unlink
@@ -312,7 +312,7 @@ class AssetService {
                 fs.unlinkSync(path.join(this.uploadsDir, relativeThumbnailPath)); // Use synchronous unlink
               }
             } catch (cleanupError) {
-              console.error(`Failed to cleanup files for failed upload ${assetId}:`, cleanupError);
+              logger.error(`Failed to cleanup files for failed upload ${assetId}:`, cleanupError);
             }
             return { success: false, message: 'Database insert failed: No data returned.' };
           }
@@ -323,8 +323,8 @@ class AssetService {
           // Use ServiceResult<Asset> structure
           return { success: true, data: createdAsset, message: 'Asset uploaded and processed successfully.' };
 
-        } catch (dbError: any) {
-          console.error(`Unexpected database operation error for asset ${assetId}:`, dbError);
+        } catch ($1: unknown) {
+          logger.error(`Unexpected database operation error for asset ${assetId}:`, dbError);
           // Attempt cleanup
           try {
             fs.unlinkSync(absoluteFilePath); // Use synchronous unlink
@@ -332,12 +332,12 @@ class AssetService {
               fs.unlinkSync(path.join(this.uploadsDir, relativeThumbnailPath)); // Use synchronous unlink
             }
           } catch (cleanupError) {
-            console.error(`Failed to cleanup files for failed upload ${assetId}:`, cleanupError);
+            logger.error(`Failed to cleanup files for failed upload ${assetId}:`, cleanupError);
           }
           return { success: false, message: `Database operation failed: ${dbError.message || 'Unknown error'}`, error: dbError };
         }
       } catch (processError: unknown) {
-        console.error('Error processing file:', processError);
+        logger.error('Error processing file:', processError);
         // Attempt cleanup
         try {
           fs.unlinkSync(absoluteFilePath); // Use synchronous unlink
@@ -345,12 +345,12 @@ class AssetService {
             fs.unlinkSync(path.join(this.uploadsDir, relativeThumbnailPath)); // Use synchronous unlink
           }
         } catch (cleanupError) {
-          console.error(`Failed to cleanup files for failed upload ${assetId}:`, cleanupError);
+          logger.error(`Failed to cleanup files for failed upload ${assetId}:`, cleanupError);
         }
         return { success: false, message: `Failed to process file: ${processError instanceof Error ? processError.message : 'Unknown error'}`, error: processError };
       }
-    } catch (error: any) {
-      console.error('Unhandled error during asset upload:', error);
+    } catch ($1: unknown) {
+      logger.error('Unhandled error during asset upload:', error);
       return {
         success: false,
         message: `Upload failed: ${error.message || 'Unknown error'}`,
@@ -394,7 +394,7 @@ class AssetService {
       // Extract relevant data (example: dimensions, duration, codec)
       const videoStream = metadata.streams.find(
         // Added explicit type for stream parameter 's' with type predicate
-        (s: any): s is { codec_type: 'video' } => s.codec_type === 'video'
+        ($1: unknown): s is { codec_type: 'video' } => s.codec_type === 'video'
       );
       const format = metadata.format;
 
@@ -411,9 +411,9 @@ class AssetService {
       };
     } catch (err: unknown) {
       const error = err as Error & { stderr?: string }; // Type assertion for potential stderr
-      console.error(`Error probing video ${filePath}:`, error.message);
+      logger.error(`Error probing video ${filePath}:`, error.message);
       if (error.stderr) {
-        console.error('FFprobe stderr:', error.stderr);
+        logger.error('FFprobe stderr:', error.stderr);
       }
       // Re-throw a more specific error or return a default object
       throw new ApiError(
@@ -433,7 +433,7 @@ class AssetService {
           resolve();
         })
         .on('error', (err: Error) => {
-          console.error(`Error generating thumbnail for ${videoPath}:`, err.message);
+          logger.error(`Error generating thumbnail for ${videoPath}:`, err.message);
           reject(new ApiError(
             ErrorCode.OPERATION_FAILED,
             `Failed to generate video thumbnail: ${err.message}`
@@ -510,7 +510,7 @@ class AssetService {
         this.logger.error(`AI image analysis error: ${(aiError as Error).message}`);
         // Continue without AI analysis if it fails
       }
-    } catch (error: any) {
+    } catch ($1: unknown) {
       this.logger.error(`Error processing image asset: ${error.message}`);
       // Continue with the upload even if image processing fails
     }
@@ -621,7 +621,7 @@ class AssetService {
             timemarks: ['1']
           });
       });
-    } catch (error: any) {
+    } catch ($1: unknown) {
       this.logger.error(`Error processing video asset: ${error.message}`);
       // Continue with the upload even if video processing fails
     }
@@ -652,7 +652,7 @@ class AssetService {
         }
         
         try {
-          const result: any = {};
+          const result: Record<string, unknown> = {};
           
           if (metadata && metadata.format) {
             // Convert duration from seconds to milliseconds
@@ -663,7 +663,7 @@ class AssetService {
           }
           
           if (metadata && metadata.streams) {
-            const videoStream = metadata.streams.find((s: any) => s.codec_type === 'video');
+            const videoStream = metadata.streams.find(($1: unknown) => s.codec_type === 'video');
             if (videoStream) {
               result.width = videoStream.width;
               result.height = videoStream.height;
@@ -684,7 +684,7 @@ class AssetService {
               }
             }
             
-            const audioStream = metadata.streams.find((s: any) => s.codec_type === 'audio');
+            const audioStream = metadata.streams.find(($1: unknown) => s.codec_type === 'audio');
             if (audioStream) {
               result.audioCodec = audioStream.codec_name;
               result.audioChannels = audioStream.channels;
@@ -747,7 +747,7 @@ class AssetService {
               }
               
               // Extract details from the audio stream
-              const audioStream = metadata.streams.find((s: any) => s.codec_type === 'audio');
+              const audioStream = metadata.streams.find(($1: unknown) => s.codec_type === 'audio');
               if (audioStream) {
                 if (audioStream.codec_name) audioMetadata.codec = audioStream.codec_name;
                 if (audioStream.sample_rate) audioMetadata.sampleRate = parseInt(audioStream.sample_rate, 10);
@@ -830,7 +830,7 @@ class AssetService {
           }
         });
       });
-    } catch (error: any) {
+    } catch ($1: unknown) {
       this.logger.error(`Error processing audio asset: ${error.message}`);
       // Continue with the upload even if audio processing fails
     }
@@ -937,7 +937,7 @@ class AssetService {
         assets: filteredAssets,
         total: filters.colourFilter ? filteredAssets.length : (count || 0)
       };
-    } catch (error: any) {
+    } catch ($1: unknown) {
       this.logger.error('Error in getAssets:', error);
       return { assets: [], total: 0 };
     }
@@ -1134,7 +1134,7 @@ class AssetService {
         success: true,
         message: `Found ${filteredAssets.length} similar assets`
       };
-    } catch (error: any) {
+    } catch ($1: unknown) {
       this.logger.error('Error finding similar assets:', error);
       return {
         assets: [],
@@ -1389,7 +1389,7 @@ class AssetService {
         asset: this.transformAssetFromDb(data as DbAsset),
         success: true
       };
-    } catch (error: any) {
+    } catch ($1: unknown) {
       return {
         asset: null,
         success: false,
@@ -1410,7 +1410,7 @@ class AssetService {
         .not('metadata->categories', 'is', null);
       
       if (error) {
-        console.error('Error fetching categories:', error);
+        logger.error('Error fetching categories:', error);
         return [];
       }
       
@@ -1430,8 +1430,8 @@ class AssetService {
       });
       
       return allCategories.sort();
-    } catch (error: any) {
-      console.error('Error getting available categories:', error);
+    } catch ($1: unknown) {
+      logger.error('Error getting available categories:', error);
       return [];
     }
   }
@@ -1455,7 +1455,7 @@ class AssetService {
     if (!id || !clientId) {
       const message = 'Asset ID and Client ID are required.';
       // 3. Replace logger.warn with console.warn
-      console.warn(message, { id, clientId });
+      logger.warn(message, { id, clientId });
       return {
         success: false,
         error: new ApiError(ErrorCode.INVALID_INPUT, message),
@@ -1477,7 +1477,7 @@ class AssetService {
         .maybeSingle();
 
       if (fetchError) {
-        console.error(`Error fetching asset ${id} before deletion:`, fetchError);
+        logger.error(`Error fetching asset ${id} before deletion:`, fetchError);
         // Use ApiError for database errors
         return {
           success: false,
@@ -1489,7 +1489,7 @@ class AssetService {
 
       if (!assetData) {
         // Asset doesn't exist or doesn't belong to client - treat as success (idempotent delete)
-        console.log(`Asset ${id} not found for client ${clientId} during delete attempt. Assuming already deleted.`);
+        logger.info(`Asset ${id} not found for client ${clientId} during delete attempt. Assuming already deleted.`);
         return { success: true, message: 'Asset not found, assumed already deleted.', data: true };
       }
 
@@ -1506,11 +1506,11 @@ class AssetService {
       if (deleteError) {
         // Check if it was a 'not found' error again (e.g., race condition)
         if (deleteError.code === 'PGRST204') { // Not found or RLS failed
-          console.log(`Asset ${id} not found during delete confirmation (PGRST204). Assuming deleted.`);
+          logger.info(`Asset ${id} not found during delete confirmation (PGRST204). Assuming deleted.`);
           // Use ApiError for consistency, even though we proceed to file cleanup
           // Note: We still proceed to file cleanup, but log this specific condition.
         } else {
-          console.error(`Error deleting asset ${id} from database:`, deleteError);
+          logger.error(`Error deleting asset ${id} from database:`, deleteError);
           // Standardize error reporting using ApiError
           return {
             success: false,
@@ -1524,7 +1524,7 @@ class AssetService {
           };
         }
       } else {
-        console.log(`Asset ${id} deleted from database.`);
+        logger.info(`Asset ${id} deleted from database.`);
       }
 
       // 6. Delete files from filesystem asynchronously using Promise.allSettled
@@ -1538,11 +1538,11 @@ class AssetService {
         if (currentPath) {
           fileDeletePromises.push(
             unlink(currentPath).then(() => { // Use the promisified unlink
-              console.log(`Deleted ${type}: ${currentPath}`);
+              logger.info(`Deleted ${type}: ${currentPath}`);
             }).catch((fsError: unknown) => {
               // Throw a specific error object to capture details in allSettled
               const errorMsg = `Failed to delete ${type} ${currentPath}: ${fsError instanceof Error ? fsError.message : String(fsError)}`;
-              console.error(errorMsg);
+              logger.error(errorMsg);
               throw new Error(errorMsg); // Throw to mark as rejected
             })
           );
@@ -1569,7 +1569,7 @@ class AssetService {
       return { success: true, message: 'Asset deleted successfully, including associated files.', data: true };
 
     } catch (error: unknown) {
-      console.error('Unexpected error in deleteAsset:', error);
+      logger.error('Unexpected error in deleteAsset:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       // Wrap unexpected errors in ApiError
       return {
@@ -1657,7 +1657,7 @@ class AssetService {
         .single();
 
       if (updateError) {
-        console.error(`Error updating asset ${id}:`, updateError);
+        logger.error(`Error updating asset ${id}:`, updateError);
         if (updateError.code === 'PGRST204') { // Not found or RLS failed
           return { success: false, error: 'Asset not found or access denied.', message: `Asset with ID ${id} not found for client ${clientId} or update failed.` };
         }
@@ -1672,7 +1672,7 @@ class AssetService {
       return { success: true, data: transformedAsset, message: 'Asset updated successfully.' };
 
     } catch (error: unknown) {
-      console.error('Error in updateAsset:', error);
+      logger.error('Error in updateAsset:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       return { success: false, error: errorMessage, message: `An unexpected error occurred while updating asset: ${errorMessage}` };
     }
@@ -1699,7 +1699,7 @@ class AssetService {
         .single();
 
       if (updateError) {
-        console.error(`Error toggling favourite for asset ${id}:`, updateError);
+        logger.error(`Error toggling favourite for asset ${id}:`, updateError);
         // Check for specific errors, like RowLevelSecurity or not found
         if (updateError.code === 'PGRST204') { // PostgREST code for no rows found
           return { success: false, error: 'Asset not found or access denied.', message: `Asset with ID ${id} not found for client ${clientId} or update failed.` };
@@ -1716,7 +1716,7 @@ class AssetService {
       return { success: true, data: transformedAsset, message: `Asset favourite status updated successfully to ${isFavourite}.` };
 
     } catch (error: unknown) {
-      console.error('Error in toggleFavourite:', error);
+      logger.error('Error in toggleFavourite:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       return { success: false, error: errorMessage, message: `An unexpected error occurred while toggling favourite: ${errorMessage}` };
     }

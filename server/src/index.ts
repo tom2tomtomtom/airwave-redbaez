@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
-import path from 'path';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
 import http from 'http';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -77,7 +77,7 @@ runwayService.setWebSocketService(webSocketService); // Use the singleton instan
 
 // Initialize database
 initializeDatabase().catch(error => {
-  console.error('Database initialization failed:', error);
+  logger.error('Database initialization failed:', error);
 });
 
 // CORS Configuration
@@ -85,7 +85,7 @@ let corsOptions;
 
 // In development, allow requests from any origin
 if (process.env.NODE_ENV !== 'production') {
-  console.log('Development mode: allowing CORS from any origin');
+  logger.info('Development mode: allowing CORS from any origin');
   corsOptions = {
     origin: true, // Allow any origin in development
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -104,7 +104,7 @@ if (process.env.NODE_ENV !== 'production') {
     corsOrigins.push('https://airwave.redbaez.com');
   }
   
-  console.log('Production mode - CORS origins:', corsOrigins);
+  logger.info('Production mode - CORS origins:', corsOrigins);
   
   corsOptions = {
     origin: corsOrigins,

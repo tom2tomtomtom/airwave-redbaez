@@ -1,4 +1,5 @@
 import express from 'express';
+import { logger } from './logger';
 import { runwayService, GenerationJob } from '../services/runwayService';
 import { checkAuth } from '../middleware/auth.middleware';
 import { supabase } from '../db/supabaseClient';
@@ -50,8 +51,8 @@ router.post('/generate', checkAuth, async (req, res) => {
       });
     }
 
-    console.log(`Generating image with prompt: ${prompt.substring(0, 30)}...`);
-    console.log(`Dimensions: ${width}x${height}, Style: ${style || 'default'}`);
+    logger.info(`Generating image with prompt: ${prompt.substring(0, 30)}...`);
+    logger.info(`Dimensions: ${width}x${height}, Style: ${style || 'default'}`);
 
     // Call the Runway service
     const renderJob = await runwayService.generateImage({
@@ -65,7 +66,7 @@ router.post('/generate', checkAuth, async (req, res) => {
       withLogo
     });
 
-    console.log(`Generated job with ID: ${renderJob.id}`);
+    logger.info(`Generated job with ID: ${renderJob.id}`);
 
     // If we have an execution ID, update the execution in the database
     if (executionId) {
@@ -78,7 +79,7 @@ router.post('/generate', checkAuth, async (req, res) => {
         .eq('id', executionId);
 
       if (error) {
-        console.error('Error updating execution:', error);
+        logger.error('Error updating execution:', error);
       }
     }
 
@@ -92,8 +93,8 @@ router.post('/generate', checkAuth, async (req, res) => {
         url: renderJob.imageUrl || null
       }
     });
-  } catch (error: any) {
-    console.error('Error in runway/generate endpoint:', error);
+  } catch ($1: unknown) {
+    logger.error('Error in runway/generate endpoint:', error);
     return res.status(500).json({
       success: false,
       message: error.message || 'Failed to generate image'
@@ -131,7 +132,7 @@ router.get('/status/:jobId', checkAuth, async (req, res) => {
         error: job.error || null
       }
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     return res.status(500).json({
       success: false,
       message: error.message || 'Failed to get job status'
@@ -165,8 +166,8 @@ router.post('/generate-video/from-image', checkAuth, async (req, res) => {
       });
     }
 
-    console.log(`Generating video from image data`);
-    console.log(`Prompt: ${prompt || 'None'}, Model: ${model || 'gen3a_turbo'}`);
+    logger.info(`Generating video from image data`);
+    logger.info(`Prompt: ${prompt || 'None'}, Model: ${model || 'gen3a_turbo'}`);
 
     // Call the Runway service
     // Note: Runway API only accepts specific duration values (typically 3, 4, or 5 seconds)
@@ -174,7 +175,7 @@ router.post('/generate-video/from-image', checkAuth, async (req, res) => {
     let apiDuration = 5; // Default to 5 seconds which is valid for Runway
 
     if (duration && duration > 5) {
-      console.log(`Client requested ${duration} second video (extended length)`); 
+      logger.info(`Client requested ${duration} second video (extended length)`); 
       // For future: We could implement extended videos by generating multiple clips
       // and concatenating them, or making multiple API calls and stitching results
     }
@@ -188,7 +189,7 @@ router.post('/generate-video/from-image', checkAuth, async (req, res) => {
       clientId
     });
 
-    console.log(`Generated video job with ID: ${renderJob.id}`);
+    logger.info(`Generated video job with ID: ${renderJob.id}`);
 
     // If we have an execution ID, update the execution in the database
     if (executionId) {
@@ -201,7 +202,7 @@ router.post('/generate-video/from-image', checkAuth, async (req, res) => {
         .eq('id', executionId);
 
       if (error) {
-        console.error('Error updating execution:', error);
+        logger.error('Error updating execution:', error);
       }
     }
 
@@ -210,8 +211,8 @@ router.post('/generate-video/from-image', checkAuth, async (req, res) => {
       jobId: renderJob.id,
       status: renderJob.status
     });
-  } catch (error: any) {
-    console.error('Error generating video:', error.message);
+  } catch ($1: unknown) {
+    logger.error('Error generating video:', error.message);
     res.status(500).json({
       success: false,
       message: `Failed to generate video: ${error.message}`
@@ -260,8 +261,8 @@ router.get('/video-status/:jobId', checkAuth, async (req, res) => {
       videoUrl: job.videoUrl,
       error: job.error
     });
-  } catch (error: any) {
-    console.error('Error getting video status:', error.message);
+  } catch ($1: unknown) {
+    logger.error('Error getting video status:', error.message);
     res.status(500).json({
       success: false,
       message: `Failed to get video status: ${error.message}`
@@ -300,8 +301,8 @@ router.get('/task/:taskId', checkAuth, async (req, res) => {
       error: job.error || null,
       progress: job.progress || 0
     });
-  } catch (error: any) {
-    console.error('Error getting task status:', error.message);
+  } catch ($1: unknown) {
+    logger.error('Error getting task status:', error.message);
     return res.status(500).json({
       success: false,
       message: error.message || 'Failed to get task status'

@@ -88,7 +88,7 @@ router.post('/generate', checkAuth, async (req, res) => {
       job,
       message: 'Video generation started successfully'
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error(`Error in image-to-video generation: ${error.message}`);
     return ApiResponse.error(res, 
       error instanceof ApiError 
@@ -118,7 +118,7 @@ router.get('/status/:jobId', checkAuth, async (req, res) => {
 
     // Return job status
     return ApiResponse.success(res, { job });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error(`Error getting job status: ${error.message}`);
     return ApiResponse.error(res, new ApiError(
       ErrorCode.INTERNAL_ERROR,
@@ -147,7 +147,7 @@ router.get('/jobs', checkAuth, async (req, res) => {
 
     // Return jobs
     return ApiResponse.success(res, { jobs });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error(`Error getting user jobs: ${error.message}`);
     return ApiResponse.error(res, new ApiError(
       ErrorCode.INTERNAL_ERROR,
@@ -169,7 +169,7 @@ router.get('/client/:clientId/jobs', checkAuth, async (req, res) => {
 
     // Return jobs
     return ApiResponse.success(res, { jobs });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error(`Error getting client jobs: ${error.message}`);
     return ApiResponse.error(res, new ApiError(
       ErrorCode.INTERNAL_ERROR,
@@ -201,7 +201,7 @@ router.post('/webhook', async (req, res) => {
     return ApiResponse.success(res, { 
       message: 'Webhook processed successfully' 
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error(`Error processing webhook: ${error.message}`);
     // Always return 200 to Runway to acknowledge receipt
     return ApiResponse.success(res, { 

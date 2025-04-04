@@ -1,5 +1,6 @@
+import { logger } from '../utils/logger';
 import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
@@ -9,7 +10,7 @@ const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error('Missing Supabase credentials. Please check your .env file.');
+  logger.error('Missing Supabase credentials. Please check your .env file.');
   process.exit(1);
 }
 
@@ -25,8 +26,8 @@ const CORRECT_CLIENT_ID = 'fd790d19-6610-4cd5-b90f-214808e94a19';
  * Update assets with incorrect client ID to use the correct client ID
  */
 async function fixClientIds() {
-  console.log('Starting client ID fix for assets...');
-  console.log(`Updating assets with client_id '${INCORRECT_CLIENT_ID}' to '${CORRECT_CLIENT_ID}'`);
+  logger.info('Starting client ID fix for assets...');
+  logger.info(`Updating assets with client_id '${INCORRECT_CLIENT_ID}' to '${CORRECT_CLIENT_ID}'`);
 
   try {
     // Count how many assets have the incorrect client ID
@@ -39,10 +40,10 @@ async function fixClientIds() {
       throw countError;
     }
 
-    console.log(`Found ${count} assets with incorrect client ID.`);
+    logger.info(`Found ${count} assets with incorrect client ID.`);
     
     if (count === 0) {
-      console.log('No assets to update. Exiting.');
+      logger.info('No assets to update. Exiting.');
       return;
     }
 
@@ -56,10 +57,10 @@ async function fixClientIds() {
       throw error;
     }
 
-    console.log(`Successfully updated ${count} assets with the correct client ID.`);
-    console.log('Client ID fix completed.');
+    logger.info(`Successfully updated ${count} assets with the correct client ID.`);
+    logger.info('Client ID fix completed.');
   } catch (error) {
-    console.error('Error updating client IDs:', error);
+    logger.error('Error updating client IDs:', error);
   }
 }
 

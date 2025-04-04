@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 /**
  * Response standardization middleware
  * Ensures consistent response formats across all API endpoints

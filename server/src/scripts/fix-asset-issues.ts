@@ -1,5 +1,6 @@
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import { logger } from './logger';
+import * as path from 'path';
 
 /**
  * This script fixes multiple issues with the asset service and routes
@@ -14,10 +15,10 @@ async function main() {
     const servicePath = path.resolve(__dirname, '../services/assetService.ts');
     const routesPath = path.resolve(__dirname, '../routes/assetRoutes.ts');
     
-    console.log('Starting comprehensive fix of asset-related code...');
+    logger.info('Starting comprehensive fix of asset-related code...');
     
     // 1. Fix Asset Service file first
-    console.log(`\nFixing asset service file: ${servicePath}`);
+    logger.info(`\nFixing asset service file: ${servicePath}`);
     
     // Read the file content
     let serviceContent = fs.readFileSync(servicePath, 'utf8');
@@ -25,14 +26,14 @@ async function main() {
     // Create a backup
     const serviceBackupPath = `${servicePath}.backup-${Date.now()}`;
     fs.writeFileSync(serviceBackupPath, serviceContent, 'utf8');
-    console.log(`Created backup at: ${serviceBackupPath}`);
+    logger.info(`Created backup at: ${serviceBackupPath}`);
     
     // Find and remove duplicate implementations of getAssetsByClientSlug
     // Keep only the first one and remove others
     let methodStartRegex = /async getAssetsByClientSlug\s*\(/g;
     let matches = [...serviceContent.matchAll(methodStartRegex)];
     
-    console.log(`Found ${matches.length} implementations of getAssetsByClientSlug`);
+    logger.info(`Found ${matches.length} implementations of getAssetsByClientSlug`);
     
     if (matches.length > 1) {
       // Keep only the first implementation (after we've fixed it)
@@ -51,7 +52,7 @@ async function main() {
    */
   async getAssetsByClientSlug(slug: string, options: AssetFilters = {}): Promise<{assets: Asset[], total: number}> {
     try {
-      console.log(\`Getting assets for client slug: \${slug}\`);
+      logger.info(\`Getting assets for client slug: \${slug}\`);
       
       // Default pagination values
       const limit = options.limit || 20;
@@ -65,16 +66,16 @@ async function main() {
         .single();
       
       if (clientError) {
-        console.error('Error finding client by slug:', clientError);
+        logger.error('Error finding client by slug:', clientError);
         return { assets: [], total: 0 };
       }
       
       if (!client) {
-        console.log(\`No client found for slug: \${slug}\`);
+        logger.info(\`No client found for slug: \${slug}\`);
         return { assets: [], total: 0 };
       }
       
-      console.log(\`Found client ID: \${client.id} for slug: \${slug}\`);
+      logger.info(\`Found client ID: \${client.id} for slug: \${slug}\`);
       
       // 2. Build the base queries for assets
       let dataQuery = supabase
@@ -132,7 +133,7 @@ async function main() {
       const { count, error: countError } = await countQuery;
       
       if (countError) {
-        console.error('Error counting assets:', countError);
+        logger.error('Error counting assets:', countError);
       }
       
       // 7. Apply sorting
@@ -162,11 +163,11 @@ async function main() {
       const { data: assets, error: assetError } = await dataQuery;
       
       if (assetError) {
-        console.error('Error fetching assets by client ID:', assetError);
+        logger.error('Error fetching assets by client ID:', assetError);
         return { assets: [], total: 0 };
       }
       
-      console.log(\`Found \${assets?.length || 0} assets for client slug \${slug} (total: \${count || 0})\`);
+      logger.info(\`Found \${assets?.length || 0} assets for client slug \${slug} (total: \${count || 0})\`);
       
       // 9. Transform the assets and return them
       const transformedAssets = (assets || []).map(item => this.transformAssetFromDb(item));
@@ -175,7 +176,7 @@ async function main() {
         total: count || 0
       };
     } catch (error) {
-      console.error('Error in getAssetsByClientSlug:', error);
+      logger.error('Error in getAssetsByClientSlug:', error);
       return { assets: [], total: 0 };
     }
   }`;
@@ -271,7 +272,7 @@ async function main() {
       methodStartRegex = /async getAssets\s*\(/g;
       matches = [...newServiceContent.matchAll(methodStartRegex)];
       
-      console.log(`Found ${matches.length} implementations of getAssets`);
+      logger.info(`Found ${matches.length} implementations of getAssets`);
       
       if (matches.length > 1) {
         implementationStartPositions = [];
@@ -371,11 +372,11 @@ async function main() {
       // Write the fixed content
       fs.writeFileSync(servicePath, newServiceContent, 'utf8');
       
-      console.log('Successfully fixed asset service file!');
+      logger.info('Successfully fixed asset service file!');
     }
     
     // 2. Now fix the routes file to match the updated interface
-    console.log(`\nFixing asset routes file: ${routesPath}`);
+    logger.info(`\nFixing asset routes file: ${routesPath}`);
     
     // Read the file content
     let routesContent = fs.readFileSync(routesPath, 'utf8');
@@ -383,7 +384,7 @@ async function main() {
     // Create a backup
     const routesBackupPath = `${routesPath}.backup-${Date.now()}`;
     fs.writeFileSync(routesBackupPath, routesContent, 'utf8');
-    console.log(`Created backup at: ${routesBackupPath}`);
+    logger.info(`Created backup at: ${routesBackupPath}`);
     
     // Fix the type issues in the by-client route handler
     const byClientOptionsSection = routesContent.match(/const options: Omit<AssetFilters, "clientSlug"> = {[^}]+}/);
@@ -423,16 +424,16 @@ async function main() {
     // Write the fixed content
     fs.writeFileSync(routesPath, routesContent, 'utf8');
     
-    console.log('Successfully fixed asset routes file!');
+    logger.info('Successfully fixed asset routes file!');
     
     // Suggest next steps
-    console.log('\nNext steps:');
-    console.log('1. Run npm run build to verify the fixes worked');
-    console.log('2. Start the server with npm run start');
-    console.log('3. Test the asset loading with a client request');
+    logger.info('\nNext steps:');
+    logger.info('1. Run npm run build to verify the fixes worked');
+    logger.info('2. Start the server with npm run start');
+    logger.info('3. Test the asset loading with a client request');
     
   } catch (error) {
-    console.error('Error fixing asset issues:', error);
+    logger.error('Error fixing asset issues:', error);
   }
 }
 

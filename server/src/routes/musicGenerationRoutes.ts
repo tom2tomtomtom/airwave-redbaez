@@ -51,7 +51,7 @@ router.post('/generate', authMiddleware, async (req, res) => {
       success: true,
       data: result
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error(`Error in music generation: ${error.message}`);
     res.status(500).json({
       success: false,
@@ -90,7 +90,7 @@ router.get('/status/:jobId', authMiddleware, async (req, res) => {
       success: true,
       data: result
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error(`Error checking music generation status: ${error.message}`);
     res.status(500).json({
       success: false,
@@ -112,7 +112,7 @@ router.get('/genres', authMiddleware, async (_req, res) => {
       success: true,
       data: genres
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error(`Error retrieving available genres: ${error.message}`);
     res.status(500).json({
       success: false,
@@ -134,7 +134,7 @@ router.get('/moods', authMiddleware, async (_req, res) => {
       success: true,
       data: moods
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error(`Error retrieving available moods: ${error.message}`);
     res.status(500).json({
       success: false,
@@ -166,7 +166,7 @@ router.get('/jobs', authMiddleware, async (req, res) => {
       success: true,
       data: jobs
     });
-  } catch (error: any) {
+  } catch ($1: unknown) {
     logger.error(`Error retrieving music generation jobs: ${error.message}`);
     res.status(500).json({
       success: false,

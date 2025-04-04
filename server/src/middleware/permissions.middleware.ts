@@ -11,7 +11,7 @@ export const requirePermission = (permission: Permission) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     // Skip check in development mode if configured
     if (process.env.NODE_ENV === 'development' && process.env.SKIP_PERMISSIONS === 'true') {
-      console.warn(`[DEV] Bypassing permission check for: ${permission}`);
+      logger.warn(`[DEV] Bypassing permission check for: ${permission}`);
       return next();
     }
 
@@ -61,7 +61,7 @@ export const requireAllPermissions = (permissions: Permission[]) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     // Skip check in development mode if configured
     if (process.env.NODE_ENV === 'development' && process.env.SKIP_PERMISSIONS === 'true') {
-      console.warn(`[DEV] Bypassing permissions check for: ${permissions.join(', ')}`);
+      logger.warn(`[DEV] Bypassing permissions check for: ${permissions.join(', ')}`);
       return next();
     }
 
@@ -111,7 +111,7 @@ export const requireAnyPermission = (permissions: Permission[]) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     // Skip check in development mode if configured
     if (process.env.NODE_ENV === 'development' && process.env.SKIP_PERMISSIONS === 'true') {
-      console.warn(`[DEV] Bypassing permissions check for: ${permissions.join(', ')}`);
+      logger.warn(`[DEV] Bypassing permissions check for: ${permissions.join(', ')}`);
       return next();
     }
 
@@ -160,7 +160,7 @@ export const requireAnyPermission = (permissions: Permission[]) => {
 export const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
   // Skip check in development mode if configured
   if (process.env.NODE_ENV === 'development' && process.env.SKIP_PERMISSIONS === 'true') {
-    console.warn('[DEV] Bypassing admin role check');
+    logger.warn('[DEV] Bypassing admin role check');
     return next();
   }
 

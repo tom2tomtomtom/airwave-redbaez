@@ -35,8 +35,8 @@ router.post('/', authenticateToken, async (req, res) => {
     });
     
     return res.status(result.success ? 201 : 500).json(result);
-  } catch (error: any) {
-    console.error('Error creating brief:', error);
+  } catch ($1: unknown) {
+    logger.error('Error creating brief:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to create brief',
@@ -59,7 +59,7 @@ router.get('/', authenticateToken, async (req, res) => {
     }
     
     // Parse query parameters
-    const filters: any = {
+    const filters: Record<string, unknown> = {
       userId: req.user.id // Security: only show briefs for the authenticated user
     };
     
@@ -101,8 +101,8 @@ router.get('/', authenticateToken, async (req, res) => {
       message: result.message,
       data: result.data
     });
-  } catch (error: any) {
-    console.error('Error fetching briefs:', error);
+  } catch ($1: unknown) {
+    logger.error('Error fetching briefs:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to fetch briefs',
@@ -128,8 +128,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
     const result = await briefService.getBriefById(id, req.user.id);
     
     return res.status(result.success ? 200 : result.code || 404).json(result);
-  } catch (error: any) {
-    console.error('Error fetching brief:', error);
+  } catch ($1: unknown) {
+    logger.error('Error fetching brief:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to fetch brief',
@@ -165,8 +165,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
     const result = await briefService.updateBrief(id, req.user.id, updates);
     
     return res.status(result.success ? 200 : result.code || 500).json(result);
-  } catch (error: any) {
-    console.error('Error updating brief:', error);
+  } catch ($1: unknown) {
+    logger.error('Error updating brief:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to update brief',
@@ -192,8 +192,8 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     const result = await briefService.deleteBrief(id, req.user.id);
     
     return res.status(result.success ? 200 : result.code || 500).json(result);
-  } catch (error: any) {
-    console.error('Error deleting brief:', error);
+  } catch ($1: unknown) {
+    logger.error('Error deleting brief:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to delete brief',
@@ -227,8 +227,8 @@ router.post('/:id/analyze', authenticateToken, async (req, res) => {
     const result = await briefService.analyzeBrief(id);
     
     return res.status(result.success ? 200 : result.code || 500).json(result);
-  } catch (error: any) {
-    console.error('Error analyzing brief:', error);
+  } catch ($1: unknown) {
+    logger.error('Error analyzing brief:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to analyze brief',
@@ -299,8 +299,8 @@ router.post('/:id/generate-content', authenticateToken, async (req, res) => {
     );
     
     return res.status(result.success ? 200 : result.code || 500).json(result);
-  } catch (error: any) {
-    console.error('Error generating content for brief:', error);
+  } catch ($1: unknown) {
+    logger.error('Error generating content for brief:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to generate content',
